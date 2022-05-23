@@ -1,11 +1,12 @@
 import cv2
-import mapper
+from mapper import Mapper
 import argparse
 pt_1 = (0, 0)
 pt_2 = (0, 0)
 mouse_down = False
 
-def run(cam):
+
+def get_selected(cam):
     _, img = cam.read()
     # List containing top-left and bottom-right to crop the image.
     global pt_1, pt_2
@@ -39,7 +40,7 @@ def run(cam):
         _, img2 = cam.read()
 
         window = (280, 120, 440, 270)
-        cv2.circle(img2, mapper.center(*window), 5, (255, 255, 255), 5)
+        cv2.circle(img2, Mapper.center(*window), 5, (255, 255, 255), 5)
         cv2.imshow("Image", img2)
         cv2.rectangle(img2, pt_1, pt_2, (255, 255, 255), 3)
         key = cv2.waitKey(16)

@@ -1,25 +1,23 @@
 import dlib
 import cv2
 import argparse as ap
-import get_points
-import process
-import controller
-import mapper
+import area_selector
+from controller import Controller
+from mapper import Mapper
 import time
 #controller.init()
-
-
+#Mapper = Mapper
+#controller = Controller
 
 def catcherX(t):
-    print('catcher')
-    controller.moveX(t-5000)
+    #print('catcher')
+    #controller.moveX(t-5000)
     pass
 
 def catcherY(t):
-    controller.moveY(t-5000)
+    #controller.moveY(t-5000)
     pass
 
-face_detector, eye_detector, detector = process.init_cv()
 cv2.namedWindow('Image')
 cv2.createTrackbar('x', 'Image', 0, 10000, catcherX)
 cv2.createTrackbar('y', 'Image', 0, 10000, catcherY)
@@ -41,12 +39,12 @@ def main_loop(source=0, dispLoc=True):
 
     # Co-ordinates of objects to be tracked
     # will be stored in a list named `points`
-    #window = get_points.run(cam)
+    #window = area_selector.get_selected(cam)
     window = (280, 120, 440, 270)
 
-    mapper.setup(window)
+    Mapper.setup(window)
 
-    point = get_points.run(cam)
+    point = area_selector.get_selected(cam)
 
     if not point:
         print("ERROR: No object to be tracked.")
@@ -75,13 +73,13 @@ def main_loop(source=0, dispLoc=True):
         pt1 = (int(rect.left()), int(rect.top()))
         pt2 = (int(rect.right()), int(rect.bottom()))
         cv2.rectangle(img, pt1, pt2, (255, 255, 255), 3)
-        centerXY = mapper.center(pt1[0], pt1[1], pt2[0], pt2[1])
-        deltaX = abs(controller.X - centerXY[0])
-        deltaY = abs(controller.Y - centerXY[1])
+        center_xy = Mapper.center(pt1[0], pt1[1], pt2[0], pt2[1])
+        delta_x = abs(controller.X - center_xy[0])
+        delta_y = abs(controller.Y - center_xy[1])
 
-        if controller.canSend():
-            if deltaX > 200 or deltaY > 200:
-                coords = mapper.map(pt1[0], pt1[1], pt2[0], pt2[1])
+        if controller.can_send():
+            if delta_x > 200 or delta_y > 200:
+                coords = Mapper.map(pt1[0], pt1[1], pt2[0], pt2[1])
                 print(coords)
                 controller.moveXY(coords[0], coords[1])
                 controller.reset()
@@ -107,15 +105,17 @@ def main_loop(source=0, dispLoc=True):
         # Continue until the user presses ESC key
         if cv2.waitKey(16) == ord('q'):
             controller.reset()
-            while not controller.canSend():
+            while not controller.can_send():
                 pass
             controller.moveXY(0,0)
             controller.reset()
-            while not controller.canSend(2.5):
+            while not controller.can_send(2.5):
                 pass
             exit()
 
     # Relase the VideoCapture object
     cam.release()
 
-main_loop(0, False)
+
+if __name__ == '__main__':
+    main_loop(0, False)
