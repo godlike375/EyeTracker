@@ -74,15 +74,15 @@ def main_loop(source=0, dispLoc=True):
         pt2 = (int(rect.right()), int(rect.bottom()))
         cv2.rectangle(img, pt1, pt2, (255, 255, 255), 3)
         center_xy = Mapper.center(pt1[0], pt1[1], pt2[0], pt2[1])
-        delta_x = abs(controller.X - center_xy[0])
-        delta_y = abs(controller.Y - center_xy[1])
+        delta_x = abs(Controller.X - center_xy[0])
+        delta_y = abs(Controller.Y - center_xy[1])
 
-        if controller.can_send():
+        if False: #Controller.can_send():
             if delta_x > 200 or delta_y > 200:
                 coords = Mapper.map(pt1[0], pt1[1], pt2[0], pt2[1])
                 print(coords)
-                controller.moveXY(coords[0], coords[1])
-                controller.reset()
+                Controller.moveXY(coords[0], coords[1])
+                Controller.reset()
             #controller.moveX(coords[0])
             #controller.moveY(coords[1])
             '''
