@@ -2,8 +2,8 @@ import dlib
 import cv2
 import argparse as ap
 import area_selector
-from controller import Controller
-from mapper import Mapper
+from move_controller import Controller
+from area_controller import AreaController
 import time
 #controller.init()
 #Mapper = Mapper
@@ -39,10 +39,10 @@ def main_loop(source=0, dispLoc=True):
 
     # Co-ordinates of objects to be tracked
     # will be stored in a list named `points`
-    #window = area_selector.get_selected(cam)
-    window = (280, 120, 440, 270)
+    window = area_selector.get_selected(cam)
+    #window = (280, 120, 440, 270)
 
-    Mapper.setup(window)
+    AreaController.set_area(window)
 
     point = area_selector.get_selected(cam)
 
@@ -73,13 +73,13 @@ def main_loop(source=0, dispLoc=True):
         pt1 = (int(rect.left()), int(rect.top()))
         pt2 = (int(rect.right()), int(rect.bottom()))
         cv2.rectangle(img, pt1, pt2, (255, 255, 255), 3)
-        center_xy = Mapper.center(pt1[0], pt1[1], pt2[0], pt2[1])
+        center_xy = AreaController.center(pt1[0], pt1[1], pt2[0], pt2[1])
         delta_x = abs(Controller.X - center_xy[0])
         delta_y = abs(Controller.Y - center_xy[1])
 
         if False: #Controller.can_send():
             if delta_x > 200 or delta_y > 200:
-                coords = Mapper.map(pt1[0], pt1[1], pt2[0], pt2[1])
+                coords = AreaController.map(pt1[0], pt1[1], pt2[0], pt2[1])
                 print(coords)
                 Controller.moveXY(coords[0], coords[1])
                 Controller.reset()
@@ -118,4 +118,4 @@ def main_loop(source=0, dispLoc=True):
 
 
 if __name__ == '__main__':
-    main_loop(0, False)
+    main_loop(1, False)

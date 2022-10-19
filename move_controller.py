@@ -2,7 +2,7 @@ import serial
 from time import time, sleep
 
 
-class Controller:
+class MoveController:
     pixel_per_mm = 8.7
     steps_per_mm = 500
     X,Y = 0,0 #текущее положение луча
@@ -31,24 +31,7 @@ class Controller:
     @staticmethod
     def moveXY(x,y):
         global X, Y
-        ser.write((str(x) + ';' + str(y)).encode('ascii', 'ignore'))
+        ser.write((f'{x};{y};1').encode('ascii', 'ignore'))
         X, Y = x,y
-        #time.sleep(1)
-
-    @staticmethod
-    def moveY(y):
-        global Y
-        if Controller.can_send():
-            ser.write((str(X) + ';' + str(y)).encode('ascii', 'ignore'))
-            Y = y
-            Controller.reset()
-        #time.sleep(1)
-
-    @staticmethod
-    def moveX(x):
-        if Controller.can_send():
-            global X
-            ser.write((str(x) + ';' + str(Y)).encode('ascii', 'ignore'))
-            X = x
-            Controller.reset()
+        print(x,y)
         #time.sleep(1)
