@@ -1,9 +1,8 @@
 from tkinter import Tk
 
-from utils import Settings
-from mainform import MainForm
-from frame_process import Extractor, FrameStorage
 from dispatcher import Dispatcher
+from mainform import MainForm
+from utils import Settings, FrameStorage, Extractor
 
 if __name__ == '__main__':
     root = Tk()

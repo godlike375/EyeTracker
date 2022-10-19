@@ -1,6 +1,9 @@
-from PIL import ImageTk
 from tkinter import Label, Tk, Frame
-from frame_process import FrameStorage
+
+from PIL import ImageTk
+
+from utils import FrameStorage
+
 
 class MainForm:
     def __init__(self, tk: Tk, frame_storage: FrameStorage):
