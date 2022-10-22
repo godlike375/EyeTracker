@@ -5,6 +5,7 @@ import dlib
 from PIL import Image
 
 from utils import Denoiser, XY, Settings
+from area_controller import AreaController
 
 
 class Processor:
@@ -27,35 +28,40 @@ class Processor:
 
 
 class Tracker:
+    # TODO: возможно стоит добавить разностный трекинг (разница между 2-3 кадрами, определить так движение)
     def __init__(self, mean_count=Settings.MEAN_TRACKING_COUNT):
         self.mean_count = mean_count
         self.tracker = dlib.correlation_tracker()
         self.denoisers: list[Denoiser] = []
         self.length_xy = None
-        self._prev_lt = None
-        self._prev_rb = None
         self._center = None
 
     @property
     def left_top(self):
-        current_position = XY(int(self.denoisers[0].get()), int(self.denoisers[1].get()))
-        if abs(self._prev_lt - current_position) >= self.length_xy * Settings.NOISE_THRESHOLD:
-            self._prev_lt = current_position
-        return self._prev_lt
+        return (self._center - self.length_xy * 0.5).to_int()
 
     @property
     def right_bottom(self):
-        current_position = XY(int(self.denoisers[2].get()), int(self.denoisers[3].get()))
-        if abs(self._prev_rb - current_position) >= self.length_xy * 0.03:
-            self._prev_rb = current_position
-        return self._prev_rb
+        return (self._center + self.length_xy * 0.5).to_int()
+
+    @property
+    def center(self):
+        return self._center
+
+    def update_center(self):
+        left_cur_pos = XY(int(self.denoisers[0].get()), int(self.denoisers[1].get()))
+        right_cur_pos = XY(int(self.denoisers[2].get()), int(self.denoisers[3].get()))
+        center = AreaController.calc_center(left_cur_pos, right_cur_pos)
+        if abs(self._center - center) >= self.length_xy * Settings.NOISE_THRESHOLD:
+            self._center = center
+
+
 
     def start_tracking(self, frame, left_top, right_bottom):
         for coord in chain(left_top, right_bottom):
             self.denoisers.append(Denoiser(coord, mean_count=self.mean_count))
-        self._prev_lt = left_top
-        self._prev_rb = right_bottom
         self.length_xy = XY(abs(left_top.x - right_bottom.x), abs(left_top.y - right_bottom.y))
+        self._center = AreaController.calc_center(left_top, right_bottom)
         self.tracker.start_track(frame, dlib.rectangle(*left_top, *right_bottom))
 
 
@@ -64,6 +70,7 @@ class Tracker:
         rect = self.tracker.get_position()
         for i, coord in enumerate(map(int, (rect.left(), rect.top(), rect.right(), rect.bottom()))):
             self.denoisers[i].add(coord)
+        self.update_center()
 
     def draw_tracked_rect(self, frame):
         # для фильтрации надо left_top и right_bottom навеное сделать генераторами

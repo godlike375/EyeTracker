@@ -45,12 +45,12 @@ class Dispatcher:
         # TODO: в трекер должна передаваться только выделенная область cropped_image = img[80:280, 150:330]
         # TODO: сейчас похоже передаётся с рамкой от фона и большего, чем необходимо размера
         self.tracker.get_tracked_position(frame)
-        left_top = XY(*self.tracker.left_top)
-        right_bottom = XY(*self.tracker.right_bottom)
-        relative_coords = self.area_controller.calc_relative_coords(left_top, right_bottom)
-        self.laser_controller.moveXY(*relative_coords)
+        relative_coords = self.area_controller.calc_relative_coords(self.tracker.center)
+        if self.laser_controller.can_send(1.5):
+            self.laser_controller.moveXY(*relative_coords)
         Processor.CURRENT_COLOR = Processor.COLOR_WHITE \
-            if not self.area_controller.rect_intersected_borders(left_top, right_bottom) else Processor.COLOR_RED
+            if not self.area_controller.rect_intersected_borders(self.tracker.left_top, self.tracker.right_bottom)\
+            else Processor.COLOR_RED
         # TODO: возможно всё-таки не по центру, а по краям считать с фильтрацией шумов
 
     def move_laser(self):

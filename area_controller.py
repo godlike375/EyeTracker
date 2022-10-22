@@ -32,9 +32,8 @@ class AreaController:
             return True
         return False
 
-    def calc_relative_coords(self, left_top, right_bottom):
+    def calc_relative_coords(self, object_center):
         # центр объекта минус центр области умножить на коэффициент растяжения
-        object_center = AreaController.calc_center(left_top, right_bottom)
         relative = object_center - self.center
         relative *= self.dpi_xy
         return relative

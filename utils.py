@@ -12,14 +12,14 @@ import cv2
 @dataclass
 class Settings:
     CAMERA_ID = 1  # the second web-camera
-    FPS = 55  # frames per second
+    FPS = 56  # frames per second
     SECOND = 1000  # ms
     CALL_EVERY = int(SECOND / FPS)
     BANDWIDTH = 115200
     TIMEOUT = 0.005
     PORT = 'com8'
     MEAN_TRACKING_COUNT = 2
-    NOISE_THRESHOLD = 0.02
+    NOISE_THRESHOLD = 0.016
 
 
 @dataclass
@@ -42,7 +42,7 @@ class XY:
             self.x *= other
             self.y *= other
         else:
-            raise ValueError('the incorrect right operand')
+            raise ValueError('incorrect right operand')
         return self
 
     def __mul__(self, other):
@@ -54,7 +54,19 @@ class XY:
             self.x *= other
             self.y *= other
         else:
-            raise ValueError('the incorrect right operand')
+            raise ValueError('incorrect right operand')
+        return self
+
+    def __add__(self, other):
+        self = copy(self)
+        if type(other) is XY:
+            self.x += other.x
+            self.y += other.y
+        elif type(other) is float or type(other) is int:
+            self.x += other
+            self.y += other
+        else:
+            raise ValueError('incorrect right operand')
         return self
 
     def __abs__(self):
@@ -62,6 +74,9 @@ class XY:
 
     def __ge__(self, other):
         return self.x >= other.x and self.y >= other.y
+
+    def to_int(self):
+        return XY(int(self.x), int(self.y))
 
 
 class FrameStorage:

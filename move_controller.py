@@ -14,11 +14,10 @@ class MoveController:
         self.current_xy = XY(0,0)
         sleep(2)
         self.moveXY(0, 0, 2)
+        self.timing = time()
 
-    @staticmethod
-    def can_send(interval=2):
-        global timing
-        if time() - timing > interval:
+    def can_send(self, interval=2):
+        if time() - self.timing > interval:
             return True
         return False
 
@@ -35,4 +34,5 @@ class MoveController:
         print(self.serial.readline())
         self.current_xy.x, self.current_xy.y = x, y
         print(message)
+        self.timing = time()
         #time.sleep(1)
