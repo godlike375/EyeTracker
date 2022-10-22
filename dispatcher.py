@@ -6,19 +6,19 @@ from selector import Selector
 from utils import XY, Settings, FrameStorage
 from move_controller import MoveController
 
+AREA = 'area'
+OBJECT = 'object'
 
-class Dispatcher:
+class EventDispatcher:
     def __init__(self, root: Tk, frame_storage: FrameStorage):
-        self.working_area_selected = False
         self.frame_pipeline = FramePipeline()
-        self.area_selector = Selector(self.frame_pipeline, self.on_selected)
-        self.object_selector = Selector(self.frame_pipeline, self.on_selected)
+        self.area_selector = Selector(AREA, self.frame_pipeline, self.on_selected)
+        self.object_selector = Selector(OBJECT, self.frame_pipeline, self.on_selected)
         self.tk_root = root
         self.frame_storage = frame_storage
         self.tracker = Tracker()
         self.area_controller = AreaController(resolution_xy=10000, min_xy=-5000, max_xy=5000)
         self.laser_controller = MoveController('com8')
-        self.bind_events(self.area_selector)
         self.frame_loop()
 
     # the main processing function of every frame. Being called every call_every ms
@@ -28,14 +28,8 @@ class Dispatcher:
         processed = self.frame_pipeline.run_pure(frame)
         image = Processor.frame_to_image(processed)
 
-        #image = self.default_processing(frame)
         self.frame_storage._processed_image = image # the only place where _processed_image may be changed by design
         self.tk_root.after(Settings.CALL_EVERY, self.frame_loop)
-
-    # the function of transforming raw frame to image
-    # that will be passed to the main form and shown in the label
-    def default_processing(self, frame):
-        return frame
 
     def tracking_off(self):
         pass
@@ -66,14 +60,21 @@ class Dispatcher:
         self.tk_root.unbind('<Button-1>')
         self.tk_root.unbind('<ButtonRelease-1>')
 
-    def on_selected(self):
-        if not self.working_area_selected:
+    def reset_object_selection(self):
+        self.bind_events(self.object_selector)
+        pass
+
+    def reset_area_selection(self):
+        self.bind_events(self.area_selector)
+        pass
+
+    def on_selected(self, selector_name):
+        if selector_name == AREA:
             self.working_area_selected = True
             self.area_controller.set_area(self.area_selector.left_top, self.area_selector.right_bottom)
             self.unbind_events()
-            self.bind_events(self.object_selector)
             return
-
+        
         frame = self.frame_storage.get_raw_frame()
         self.tracker.start_tracking(frame, self.object_selector.left_top, self.object_selector.right_bottom)
         # removing the pipeline of the object selector because it's not needed anymore

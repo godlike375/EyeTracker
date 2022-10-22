@@ -12,7 +12,7 @@ import cv2
 @dataclass
 class Settings:
     CAMERA_ID = 1  # the second web-camera
-    FPS = 56  # frames per second
+    FPS = 40  # frames per second
     SECOND = 1000  # ms
     CALL_EVERY = int(SECOND / FPS)
     BANDWIDTH = 115200
@@ -20,6 +20,8 @@ class Settings:
     PORT = 'com8'
     MEAN_TRACKING_COUNT = 2
     NOISE_THRESHOLD = 0.016
+    MAX_HEIGHT = 800
+    WINDOW_SIZE = '800x635'
 
 
 @dataclass
@@ -96,7 +98,6 @@ class FrameStorage:
 
 
 class Extractor:
-    LAST_RESORT_CAMERA_SOURCE = 1
 
     def __init__(self, source: int, root: Tk, frame_storage: FrameStorage):
         self.root = root
@@ -106,12 +107,12 @@ class Extractor:
 
     def set_source(self, source):
         self.camera = cv2.VideoCapture(source)
+        self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, Settings.MAX_HEIGHT)
+        self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, Settings.MAX_HEIGHT)
         if self.camera.isOpened():
             return
-        self.camera = cv2.VideoCapture(Extractor.LAST_RESORT_CAMERA_SOURCE)
-        if not self.camera.isOpened():
-            print("Video camera is not found")
-            exit()
+        print("Video camera is not found")
+        exit()
 
     def extract_frame(self):
         _, frame = self.camera.read()

@@ -3,14 +3,16 @@ from utils import XY
 
 
 class Selector:
-    def __init__(self, pipeline: FramePipeline, callback):
-        self.pipeline = pipeline
+    def __init__(self, name:str, pipeline: FramePipeline, callback):
+        self._name = name
+        self._pipeline = pipeline
         self.left_top = XY(0, 0)
         self.right_bottom = XY(0, 0)
-        self.callback = callback
+        self._callback = callback
+        self._selected = False
 
     def start(self, event):
-        self.pipeline.append_front(self.draw_selected_rect)
+        self._pipeline.append_front(self.draw_selected_rect)
         self.left_top.x, self.left_top.y = event.x, event.y
 
     def progress(self, event):
@@ -20,7 +22,10 @@ class Selector:
         self.right_bottom.x, self.right_bottom.y = event.x, event.y
         self.left_top.x, self.right_bottom.x = Selector.check_swap_coords(self.left_top.x, self.right_bottom.x)
         self.left_top.y, self.right_bottom.y = Selector.check_swap_coords(self.left_top.y, self.right_bottom.y)
-        self.callback()
+        self._callback(self._name)
+
+    def is_selected(self):
+        return self._selected
 
     def draw_selected_rect(self, frame):
         rect_frame = Processor.draw_rectangle(frame, self.left_top, self.right_bottom)

@@ -21,11 +21,6 @@ class MoveController:
             return True
         return False
 
-    @staticmethod
-    def reset():
-        global timing
-        timing = time()
-
     def moveXY(self, x,y, command=1):
         # TODO: в конце сеанса отправлять 0;0 для сброса позиционирования
         message = (f'{int(x)};{int(y)};{command}').encode('ascii', 'ignore')
