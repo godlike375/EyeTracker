@@ -23,7 +23,7 @@ class Selector:
         self.callback()
 
     def draw_selected_rect(self, frame):
-        rect_frame = Processor.draw_rectangle(frame, tuple(self.left_top), tuple(self.right_bottom))
+        rect_frame = Processor.draw_rectangle(frame, self.left_top, self.right_bottom)
         return rect_frame
 
     @staticmethod

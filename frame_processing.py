@@ -1,6 +1,10 @@
+from itertools import chain
+
 import cv2
 import dlib
 from PIL import Image
+
+from utils import Denoiser, XY, Settings
 
 
 class Processor:
@@ -18,26 +22,51 @@ class Processor:
 
     @staticmethod
     def draw_rectangle(frame, left_top, right_bottom):
-        rect_frame = cv2.rectangle(frame, left_top, right_bottom, Processor.CURRENT_COLOR, Processor.THICKNESS)
+        rect_frame = cv2.rectangle(frame, (*left_top,), (*right_bottom,), Processor.CURRENT_COLOR, Processor.THICKNESS)
         return rect_frame
 
 
 class Tracker:
-    def __init__(self):
+    def __init__(self, mean_count=Settings.MEAN_TRACKING_COUNT):
+        self.mean_count = mean_count
         self.tracker = dlib.correlation_tracker()
-        self.left_top = None
-        self.right_bottom = None
+        self.denoisers: list[Denoiser] = []
+        self.length_xy = None
+        self._prev_lt = None
+        self._prev_rb = None
+        self._center = None
 
-    def start_tracking(self, frame, start_point, end_point):
-        self.tracker.start_track(frame, dlib.rectangle(*start_point, *end_point))
+    @property
+    def left_top(self):
+        current_position = XY(int(self.denoisers[0].get()), int(self.denoisers[1].get()))
+        if abs(self._prev_lt - current_position) >= self.length_xy * Settings.NOISE_THRESHOLD:
+            self._prev_lt = current_position
+        return self._prev_lt
+
+    @property
+    def right_bottom(self):
+        current_position = XY(int(self.denoisers[2].get()), int(self.denoisers[3].get()))
+        if abs(self._prev_rb - current_position) >= self.length_xy * 0.03:
+            self._prev_rb = current_position
+        return self._prev_rb
+
+    def start_tracking(self, frame, left_top, right_bottom):
+        for coord in chain(left_top, right_bottom):
+            self.denoisers.append(Denoiser(coord, mean_count=self.mean_count))
+        self._prev_lt = left_top
+        self._prev_rb = right_bottom
+        self.length_xy = XY(abs(left_top.x - right_bottom.x), abs(left_top.y - right_bottom.y))
+        self.tracker.start_track(frame, dlib.rectangle(*left_top, *right_bottom))
+
 
     def get_tracked_position(self, frame):
         self.tracker.update(frame)
         rect = self.tracker.get_position()
-        self.left_top = (int(rect.left()), int(rect.top()))
-        self.right_bottom = (int(rect.right()), int(rect.bottom()))
+        for i, coord in enumerate(map(int, (rect.left(), rect.top(), rect.right(), rect.bottom()))):
+            self.denoisers[i].add(coord)
 
     def draw_tracked_rect(self, frame):
+        # для фильтрации надо left_top и right_bottom навеное сделать генераторами
         rect_frame = Processor.draw_rectangle(frame, self.left_top, self.right_bottom)
         return rect_frame
 

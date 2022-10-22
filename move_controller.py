@@ -1,20 +1,19 @@
-import serial
+from serial import Serial
+
+from utils import XY, Settings
 from time import time, sleep
 
 
 class MoveController:
-    pixel_per_mm = 8.7
-    steps_per_mm = 500
-    X,Y = 0,0 #текущее положение луча
 
-    ser = None
-    timing = time()
-
-    @staticmethod
-    def init(port = 'com7', bandwidth = 19200):
-        global ser
-        ser = serial.Serial(port, bandwidth)
+    def __init__(self, port = None, bandwidth = None):
+        port = port or Settings.PORT
+        bandwidth = bandwidth or Settings.BANDWIDTH
+        self.serial = Serial(port, bandwidth, timeout=Settings.TIMEOUT)
+        self.timer = time()
+        self.current_xy = XY(0,0)
         sleep(2)
+        self.moveXY(0, 0, 2)
 
     @staticmethod
     def can_send(interval=2):
@@ -28,10 +27,12 @@ class MoveController:
         global timing
         timing = time()
 
-    @staticmethod
-    def moveXY(x,y):
-        global X, Y
-        ser.write((f'{x};{y};1').encode('ascii', 'ignore'))
-        X, Y = x,y
-        print(x,y)
+    def moveXY(self, x,y, command=1):
+        # TODO: в конце сеанса отправлять 0;0 для сброса позиционирования
+        message = (f'{int(x)};{int(y)};{command}').encode('ascii', 'ignore')
+        self.serial.write(message)
+        self.serial.readable()
+        print(self.serial.readline())
+        self.current_xy.x, self.current_xy.y = x, y
+        print(message)
         #time.sleep(1)

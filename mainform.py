@@ -4,11 +4,11 @@ from PIL import ImageTk
 
 from utils import FrameStorage
 
-
 class MainForm:
     def __init__(self, tk: Tk, frame_storage: FrameStorage):
         self.window = tk
-        imageFrame = Frame(self.window, width=600, height=600)
+        # TODO: возможно растягивать картинку по размеру окна функцию сделать
+        imageFrame = Frame(self.window, width=900, height=900)
         imageFrame.grid(row=0, column=1)
         self.video = Label(imageFrame, text="Video")
         self.frame_storage = frame_storage

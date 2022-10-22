@@ -1,5 +1,7 @@
+from collections import deque
+from copy import copy
+from itertools import repeat
 from dataclasses import dataclass
-
 
 # TODO: сделать загрузку из файла конфига
 from tkinter import Tk
@@ -10,9 +12,14 @@ import cv2
 @dataclass
 class Settings:
     CAMERA_ID = 1  # the second web-camera
-    FPS = 60  # frames per second
+    FPS = 55  # frames per second
     SECOND = 1000  # ms
     CALL_EVERY = int(SECOND / FPS)
+    BANDWIDTH = 115200
+    TIMEOUT = 0.005
+    PORT = 'com8'
+    MEAN_TRACKING_COUNT = 2
+    NOISE_THRESHOLD = 0.02
 
 
 @dataclass
@@ -28,9 +35,33 @@ class XY:
         return XY(self.x - other.x, self.y - other.y)
 
     def __imul__(self, other):
-        self.x *= other.x
-        self.y *= other.y
+        if type(other) is XY:
+            self.x *= other.x
+            self.y *= other.y
+        elif type(other) is float or type(other) is int:
+            self.x *= other
+            self.y *= other
+        else:
+            raise ValueError('the incorrect right operand')
         return self
+
+    def __mul__(self, other):
+        self = copy(self)
+        if type(other) is XY:
+            self.x *= other.x
+            self.y *= other.y
+        elif type(other) is float or type(other) is int:
+            self.x *= other
+            self.y *= other
+        else:
+            raise ValueError('the incorrect right operand')
+        return self
+
+    def __abs__(self):
+        return XY(abs(self.x), abs(self.y))
+
+    def __ge__(self, other):
+        return self.x >= other.x and self.y >= other.y
 
 
 class FrameStorage:
@@ -72,3 +103,17 @@ class Extractor:
         self.frame_storage._raw_frame = frame  # the only one who can do it
         self.root.after(Settings.CALL_EVERY, self.extract_frame)
         return frame
+
+
+class Denoiser:
+    def __init__(self, init_value, mean_count):
+        self.count = mean_count
+        self.buffer = deque(repeat(init_value, mean_count))
+        self.sum = sum(self.buffer)
+
+    def add(self, elem):
+        self.sum += elem - self.buffer.popleft()
+        self.buffer.append(elem)
+
+    def get(self):
+        return self.sum / self.count
