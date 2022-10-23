@@ -91,11 +91,12 @@ class FramePipeline:
             return result
         return data_arg
 
-    def append_back(self, func):
+    def append(self, func):
         self._funcs.append(func)
-
-    def append_front(self, func):
-        self._funcs.insert(0, func)
 
     def pop_front(self):
         self._funcs.pop(0)
+
+    def safe_remove(self, func):
+        if func in self._funcs:
+            self._funcs.remove(func)

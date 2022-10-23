@@ -12,7 +12,7 @@ class Selector:
         self._selected = False
 
     def start(self, event):
-        self._pipeline.append_front(self.draw_selected_rect)
+        self._pipeline.append(self.draw_selected_rect)
         self.left_top.x, self.left_top.y = event.x, event.y
 
     def progress(self, event):

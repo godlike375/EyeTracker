@@ -13,8 +13,14 @@ class MainForm:
         imageFrame = Frame(self.window, width=600, height=800)
         imageFrame.pack(side=BOTTOM)
         self.buttonFrame = Frame(self.window, background='white')
-        self.reset_area_rect = Button(self.buttonFrame, text='Выделение зоны', command=dispatcher.reset_area_selection)
-        self.reset_object_rect = Button(self.buttonFrame, text='Выделение объекта', command=dispatcher.reset_object_selection)
+        self.select_area_rect = Button(self.buttonFrame, text='Выделение зоны',
+                                       command=dispatcher.reset_area_selection)
+        self.select_object_rect = Button(self.buttonFrame, text='Выделение объекта',
+                                         command=dispatcher.reset_object_selection)
+        self.calibrate_laser = Button(self.buttonFrame, text='Откалибровать лазер',
+                                      command=dispatcher.calibrate_laser)
+        self.center_laser = Button(self.buttonFrame, text='Завершить сеанс',
+                                      command=dispatcher.center_laser)
         self.video = Label(imageFrame, text="Video")
         self.frame_storage = frame_storage
 
@@ -22,8 +28,10 @@ class MainForm:
         self.window.title("Eye tracker")
         self.window.geometry(Settings.WINDOW_SIZE)
         self.window.configure(background='white')
-        self.reset_area_rect.pack(side=LEFT, padx=16, pady=4)
-        self.reset_object_rect.pack(side=RIGHT, padx=16, pady=4)
+        self.calibrate_laser.pack(side=LEFT, padx=16, pady=4)
+        self.center_laser.pack(side=LEFT, padx=16, pady=4)
+        self.select_area_rect.pack(side=LEFT, padx=16, pady=4)
+        self.select_object_rect.pack(side=RIGHT, padx=16, pady=4)
         self.video.pack(side=BOTTOM)
         self.buttonFrame.pack(side=TOP)
         self.window.after(Settings.CALL_EVERY, self.show_frame)

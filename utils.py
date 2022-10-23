@@ -16,10 +16,10 @@ class Settings:
     SECOND = 1000  # ms
     CALL_EVERY = int(SECOND / FPS)
     BANDWIDTH = 115200
-    TIMEOUT = 0.005
+    TIMEOUT = 0.01
     PORT = 'com8'
-    MEAN_TRACKING_COUNT = 2
-    NOISE_THRESHOLD = 0.016
+    MEAN_TRACKING_COUNT = 3
+    NOISE_THRESHOLD = 0.035
     MAX_HEIGHT = 800
     WINDOW_SIZE = '800x635'
 
@@ -75,7 +75,7 @@ class XY:
         return XY(abs(self.x), abs(self.y))
 
     def __ge__(self, other):
-        return self.x >= other.x and self.y >= other.y
+        return self.x >= other.x or self.y >= other.y
 
     def to_int(self):
         return XY(int(self.x), int(self.y))

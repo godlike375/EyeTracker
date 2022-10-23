@@ -40,7 +40,8 @@ class EventDispatcher:
         # TODO: сейчас похоже передаётся с рамкой от фона и большего, чем необходимо размера
         self.tracker.get_tracked_position(frame)
         relative_coords = self.area_controller.calc_relative_coords(self.tracker.center)
-        if self.laser_controller.can_send(1.5):
+        if self.laser_controller.can_send(0.7) and self.laser_controller.is_ready():
+        #if self.laser_controller.can_send(1.5):
             self.laser_controller.moveXY(*relative_coords)
         Processor.CURRENT_COLOR = Processor.COLOR_WHITE \
             if not self.area_controller.rect_intersected_borders(self.tracker.left_top, self.tracker.right_bottom)\
@@ -49,6 +50,12 @@ class EventDispatcher:
 
     def move_laser(self):
         pass
+
+    def calibrate_laser(self):
+        self.laser_controller.moveXY(0, 0, 2)
+
+    def center_laser(self):
+        self.laser_controller.moveXY(0, 0, 1)
 
     def bind_events(self, selector):
         self.tk_root.bind('<B1-Motion>', selector.progress)
@@ -61,16 +68,15 @@ class EventDispatcher:
         self.tk_root.unbind('<ButtonRelease-1>')
 
     def reset_object_selection(self):
+        self.frame_pipeline.safe_remove(self.tracker.draw_tracked_rect)
         self.bind_events(self.object_selector)
-        pass
 
     def reset_area_selection(self):
+        self.frame_pipeline.safe_remove(self.area_selector.draw_selected_rect)
         self.bind_events(self.area_selector)
-        pass
 
     def on_selected(self, selector_name):
         if selector_name == AREA:
-            self.working_area_selected = True
             self.area_controller.set_area(self.area_selector.left_top, self.area_selector.right_bottom)
             self.unbind_events()
             return
@@ -78,7 +84,7 @@ class EventDispatcher:
         frame = self.frame_storage.get_raw_frame()
         self.tracker.start_tracking(frame, self.object_selector.left_top, self.object_selector.right_bottom)
         # removing the pipeline of the object selector because it's not needed anymore
-        self.frame_pipeline.pop_front()
-        self.frame_pipeline.append_front(self.tracker.draw_tracked_rect)
+        self.frame_pipeline.safe_remove(self.object_selector.draw_selected_rect)
+        self.frame_pipeline.append(self.tracker.draw_tracked_rect)
         self.tracking_off = self.tracking_on
         self.unbind_events()
