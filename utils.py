@@ -22,6 +22,8 @@ class Settings:
     NOISE_THRESHOLD = 0.035
     MAX_HEIGHT = 800
     WINDOW_SIZE = '800x635'
+    MAX_RANGE = 6000
+    RESOLUTION = 12000
 
 
 @dataclass
