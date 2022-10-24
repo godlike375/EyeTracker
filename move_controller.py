@@ -13,8 +13,7 @@ class MoveController:
         self.timer = time()
         self.current_xy = XY(0,0)
         self._ready = False
-        sleep(2)
-        #self.moveXY(0, 0, 2)
+        sleep(2) # выдержка для инициализации serial port
         self.timing = time()
 
     def can_send(self, interval=2):
