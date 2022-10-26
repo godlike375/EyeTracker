@@ -1,27 +1,46 @@
 from tkinter import Tk
 
-from area_controller import AreaController
-from frame_processing import Processor, Tracker, FramePipeline
-from move_controller import MoveController
-from selector import Selector
-from utils import Settings, FrameStorage
+import cv2
+
+from model.area_controller import AreaController
+from model.frame_processing import Processor, Tracker, FramePipeline
+from model.move_controller import MoveController
+from model.selector import Selector
+from utils import thread_loop_caller
+from model.settings import Settings
 
 AREA = 'area'
 OBJECT = 'object'
 
 
+class FrameStorage:
+    def __init__(self):
+        self._raw_frame = None
+        self._processed_image = None
+
+    def get_image(self):
+        if self._processed_image is None:
+            raise RuntimeError('processed image was not initialized before being got')
+        return self._processed_image
+
+    def get_raw_frame(self):
+        if self._raw_frame is None:
+            raise RuntimeError('raw frame was not initialized before being got')
+        return self._raw_frame
+
+
 class EventDispatcher:
     def __init__(self, root: Tk, frame_storage: FrameStorage):
+        self.root = root
         self.frame_pipeline = FramePipeline()
         self.area_selector = Selector(AREA, self.frame_pipeline, self.on_selected)
         self.object_selector = Selector(OBJECT, self.frame_pipeline, self.on_selected)
-        self.tk_root = root
         self.frame_storage = frame_storage
         self.tracker = Tracker()
-        self.area_controller = AreaController(resolution_xy=Settings.RESOLUTION, min_xy=-Settings.MAX_RANGE,
+        self.area_controller = AreaController(min_xy=-Settings.MAX_RANGE,
                                               max_xy=Settings.MAX_RANGE)
         self.laser_controller = MoveController('com8')
-        self.frame_loop()
+        thread_loop_caller(self.frame_loop, Settings.INTERVAL)
 
     # the main processing function of every frame. Being called every call_every ms
     def frame_loop(self):
@@ -31,7 +50,6 @@ class EventDispatcher:
         image = Processor.frame_to_image(processed)
 
         self.frame_storage._processed_image = image  # the only place where _processed_image may be changed by design
-        self.tk_root.after(Settings.CALL_EVERY, self.frame_loop)
 
     def tracking_off(self):
         pass
@@ -50,9 +68,6 @@ class EventDispatcher:
             else Processor.COLOR_RED
         # TODO: возможно всё-таки не по центру, а по краям считать с фильтрацией шумов
 
-    def move_laser(self):
-        pass
-
     def calibrate_laser(self):
         self.laser_controller.moveXY(0, 0, 2)
 
@@ -60,14 +75,14 @@ class EventDispatcher:
         self.laser_controller.moveXY(0, 0, 1)
 
     def bind_events(self, selector):
-        self.tk_root.bind('<B1-Motion>', selector.progress)
-        self.tk_root.bind('<Button-1>', selector.start)
-        self.tk_root.bind('<ButtonRelease-1>', selector.end)
+        self.root.bind('<B1-Motion>', selector.progress)
+        self.root.bind('<Button-1>', selector.start)
+        self.root.bind('<ButtonRelease-1>', selector.end)
 
     def unbind_events(self):
-        self.tk_root.unbind('<B1-Motion>')
-        self.tk_root.unbind('<Button-1>')
-        self.tk_root.unbind('<ButtonRelease-1>')
+        self.root.unbind('<B1-Motion>')
+        self.root.unbind('<Button-1>')
+        self.root.unbind('<ButtonRelease-1>')
 
     def reset_object_selection(self):
         self.frame_pipeline.safe_remove(self.tracker.draw_tracked_rect)
@@ -90,3 +105,27 @@ class EventDispatcher:
         self.frame_pipeline.append(self.tracker.draw_tracked_rect)
         self.tracking_off = self.tracking_on
         self.unbind_events()
+
+
+class Extractor:
+
+    def __init__(self, source: int, frame_storage: FrameStorage):
+        self.frame_storage = frame_storage
+        self.set_source(source)
+        self.extract_frame()
+
+    def set_source(self, source):
+        self.camera = cv2.VideoCapture(source)
+        self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, Settings.CAMERA_MAX_RESOLUTION)
+        self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, Settings.CAMERA_MAX_RESOLUTION)
+        self.camera.set(cv2.CAP_PROP_FPS, Settings.FPS)
+        if self.camera.isOpened():
+            return
+        print("Video camera is not found")
+        exit()
+
+    def extract_frame(self):
+        _, frame = self.camera.read()
+        self.frame_storage._raw_frame = frame  # the only one who can do it
+        thread_loop_caller(self.extract_frame, Settings.INTERVAL)
+        return frame

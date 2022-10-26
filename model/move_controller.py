@@ -1,15 +1,17 @@
 from serial import Serial
 
-from utils import XY, Settings
+from utils import XY
 from time import time, sleep
+from model.settings import Settings
 
 
 class MoveController:
 
-    def __init__(self, port = None, bandwidth = None):
-        port = port or Settings.PORT
-        bandwidth = bandwidth or Settings.BANDWIDTH
-        self.serial = Serial(port, bandwidth, timeout=Settings.TIMEOUT)
+    def __init__(self, port = None, baund_rate = None):
+        # TODO: к настройкам должно обращаться что-то внещнее в идеале и передавать эти параметры сюда
+        port = port or f'com{Settings.SERIAL_PORT}'
+        baund_rate = baund_rate or Settings.SERIAL_BAUND_RATE
+        self.serial = Serial(port, baund_rate, timeout=Settings.SERIAL_TIMEOUT)
         self.timer = time()
         self.current_xy = XY(0,0)
         self._ready = False

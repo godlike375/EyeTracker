@@ -1,11 +1,13 @@
-from itertools import chain
+from collections import deque
+from itertools import chain, repeat
 
 import cv2
 import dlib
 from PIL import Image
 
-from utils import Denoiser, XY, Settings
-from area_controller import AreaController
+from utils import XY
+from model.area_controller import AreaController
+from model.settings import Settings
 
 
 class Processor:
@@ -55,15 +57,12 @@ class Tracker:
         if abs(self._center - center) >= self.length_xy * Settings.NOISE_THRESHOLD:
             self._center = center
 
-
-
     def start_tracking(self, frame, left_top, right_bottom):
         for coord in chain(left_top, right_bottom):
             self.denoisers.append(Denoiser(coord, mean_count=self.mean_count))
         self.length_xy = XY(abs(left_top.x - right_bottom.x), abs(left_top.y - right_bottom.y))
         self._center = AreaController.calc_center(left_top, right_bottom)
         self.tracker.start_track(frame, dlib.rectangle(*left_top, *right_bottom))
-
 
     def get_tracked_position(self, frame):
         self.tracker.update(frame)
@@ -100,3 +99,17 @@ class FramePipeline:
     def safe_remove(self, func):
         if func in self._funcs:
             self._funcs.remove(func)
+
+
+class Denoiser:
+    def __init__(self, init_value, mean_count):
+        self.count = mean_count
+        self.buffer = deque(repeat(init_value, mean_count))
+        self.sum = sum(self.buffer)
+
+    def add(self, elem):
+        self.sum += elem - self.buffer.popleft()
+        self.buffer.append(elem)
+
+    def get(self):
+        return self.sum / self.count

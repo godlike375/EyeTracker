@@ -3,11 +3,11 @@ from utils import XY
 
 class AreaController:
 
-    def __init__(self, resolution_xy, min_xy, max_xy):
+    def __init__(self, min_xy, max_xy):
         # max resolution in abstract distance units
-        self.resolution_xy = resolution_xy
         self.min_xy = min_xy
         self.max_xy = max_xy
+        self.resolution_xy = abs(min_xy - max_xy)
         self.left_top = None
         self.right_bottom = None
         self.length_xy = None

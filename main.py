@@ -1,21 +1,26 @@
 from tkinter import Tk, messagebox
 from traceback import print_exc
 
-from dispatcher import EventDispatcher
-from mainform import MainForm
-from utils import Settings, FrameStorage, Extractor
+from management_core import EventDispatcher, FrameStorage, Extractor
+from UI.mainform import MainForm
+from model.settings import Settings
 
 
 if __name__ == '__main__':
-    # TODO: сделать кнопки перевыделения границ и объекта, возможно переворота изображения с камеры на каждые 90 градусов
+    try:
+        Settings.load()
+    except Exception as e:
+        messagebox.showerror(title='Ошибка загрузки конфигурации', message=f'{e}')
     try:
         root = Tk()
         frame_storage = FrameStorage()
-        extractor = Extractor(Settings.CAMERA_ID, root, frame_storage)
+        extractor = Extractor(Settings.CAMERA_ID, frame_storage)
         dispatcher = EventDispatcher(root, frame_storage)
         form = MainForm(root, frame_storage, dispatcher).setup()
         root.mainloop()
     except Exception as e:
-        messagebox.showerror(title='fatal error', message=f'{e}')
+        messagebox.showerror(title='Фатальная ошибка', message=f'{e}')
         print_exc()
-
+    else:
+        Settings.save()
+        # TODO: остановить все второстепенные потоки

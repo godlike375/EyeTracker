@@ -1,4 +1,4 @@
-from frame_processing import Processor, FramePipeline
+from model.frame_processing import Processor, FramePipeline
 from utils import XY
 
 
