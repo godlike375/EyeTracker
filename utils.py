@@ -1,6 +1,6 @@
 from copy import copy
 from dataclasses import dataclass
-from threading import Thread, Event
+from threading import Thread, Event, current_thread
 from time import sleep
 
 # TODO: сделать загрузку из файла конфига
@@ -8,27 +8,29 @@ from time import sleep
 class StoppableThread(Thread):
     # Thread class with a stop() method
 
-    def __init__(self, event, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._stop_event = event
+        self._stop_event = Event()
 
     def stop(self):
         self._stop_event.set()
+
+    def stopped(self):
+        return self._stop_event.is_set()
 
 # https://gist.github.com/awesomebytes/0483e65e0884f05fb95e314c4f2b3db8
 def threaded(fn):
     #To use as decorator to make a function call threaded
     def wrapper(*args, **kwargs):
-        stopped = Event()
-        thread = StoppableThread(stopped, target=fn, args=(*args, stopped), kwargs=kwargs)
+        thread = StoppableThread(target=fn, args=args, kwargs=kwargs)
         return thread
     return wrapper
 
 @threaded
-def thread_loop_runner(func, interval, stopped):
+def thread_loop_runner(func, interval):
     while True:
         sleep(interval)
-        if stopped.is_set():
+        if current_thread().stopped():
             exit(0)
         func()
 
