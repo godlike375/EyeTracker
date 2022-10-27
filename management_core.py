@@ -1,12 +1,13 @@
 from tkinter import Tk
 
 import cv2
+from retry import retry
 
 from model.area_controller import AreaController
 from model.frame_processing import Processor, Tracker, FramePipeline
 from model.move_controller import MoveController
 from model.selector import Selector
-from utils import thread_loop_caller
+from utils import thread_loop_runner
 from model.settings import Settings
 
 AREA = 'area'
@@ -18,19 +19,30 @@ class FrameStorage:
         self._raw_frame = None
         self._processed_image = None
 
+    @retry(RuntimeError, tries=10, delay=0.1, backoff=1)
     def get_image(self):
         if self._processed_image is None:
             raise RuntimeError('processed image was not initialized before being got')
         return self._processed_image
 
+    @retry(RuntimeError, tries=10, delay=0.1, backoff=1)
     def get_raw_frame(self):
         if self._raw_frame is None:
             raise RuntimeError('raw frame was not initialized before being got')
         return self._raw_frame
 
+class ThreadLoopable:
+    def __init__(self, loop_func, interval):
+        self._thread_loop = thread_loop_runner(loop_func, interval)
+        self._thread_loop.start()
 
-class EventDispatcher:
+    def stop_thread(self):
+        self._thread_loop.stop()
+
+
+class EventDispatcher(ThreadLoopable):
     def __init__(self, root: Tk, frame_storage: FrameStorage):
+
         self.root = root
         self.frame_pipeline = FramePipeline()
         self.area_selector = Selector(AREA, self.frame_pipeline, self.on_selected)
@@ -40,10 +52,11 @@ class EventDispatcher:
         self.area_controller = AreaController(min_xy=-Settings.MAX_RANGE,
                                               max_xy=Settings.MAX_RANGE)
         self.laser_controller = MoveController('com8')
-        thread_loop_caller(self.frame_loop, Settings.INTERVAL)
+        super().__init__(self.frame_processing, Settings.INTERVAL)
+        #self._thread_loop = thread_loop_caller(self.mainloop, Settings.INTERVAL)
 
     # the main processing function of every frame. Being called every call_every ms
-    def frame_loop(self):
+    def frame_processing(self):
         frame = self.frame_storage.get_raw_frame()
         self.tracking_off()
         processed = self.frame_pipeline.run_pure(frame)
@@ -107,12 +120,13 @@ class EventDispatcher:
         self.unbind_events()
 
 
-class Extractor:
+class Extractor(ThreadLoopable):
 
     def __init__(self, source: int, frame_storage: FrameStorage):
-        self.frame_storage = frame_storage
         self.set_source(source)
-        self.extract_frame()
+        super().__init__(self.extract_frame, Settings.INTERVAL)
+        self.frame_storage = frame_storage
+        #thread_loop_caller(self.extract_frame, Settings.INTERVAL)
 
     def set_source(self, source):
         self.camera = cv2.VideoCapture(source)
@@ -127,5 +141,4 @@ class Extractor:
     def extract_frame(self):
         _, frame = self.camera.read()
         self.frame_storage._raw_frame = frame  # the only one who can do it
-        thread_loop_caller(self.extract_frame, Settings.INTERVAL)
         return frame

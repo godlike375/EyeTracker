@@ -1,24 +1,37 @@
 from copy import copy
 from dataclasses import dataclass
-from threading import Thread
+from threading import Thread, Event
 from time import sleep
 
 # TODO: сделать загрузку из файла конфига
+# https://stackoverflow.com/questions/323972/is-there-any-way-to-kill-a-thread
+class StoppableThread(Thread):
+    # Thread class with a stop() method
 
-#https://gist.github.com/awesomebytes/0483e65e0884f05fb95e314c4f2b3db8
+    def __init__(self, event, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._stop_event = event
+
+    def stop(self):
+        self._stop_event.set()
+
+# https://gist.github.com/awesomebytes/0483e65e0884f05fb95e314c4f2b3db8
 def threaded(fn):
-    #To use as decorator to make a function call threaded.
+    #To use as decorator to make a function call threaded
     def wrapper(*args, **kwargs):
-        thread = Thread(target=fn, args=args, kwargs=kwargs)
-        thread.start()
+        stopped = Event()
+        thread = StoppableThread(stopped, target=fn, args=(*args, stopped), kwargs=kwargs)
         return thread
     return wrapper
 
 @threaded
-def thread_loop_caller(func, interval):
+def thread_loop_runner(func, interval, stopped):
     while True:
-        func()
         sleep(interval)
+        if stopped.is_set():
+            exit(0)
+        func()
+
 
 @dataclass
 class XY:

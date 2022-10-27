@@ -5,9 +5,9 @@ from PIL import ImageTk
 from management_core import EventDispatcher, FrameStorage
 from model.settings import Settings
 
-SECOND_LENGHT = 1000
+SECOND_LENGTH = 1000
 
-class MainForm(Frame):
+class Window:
     def __init__(self, tk: Tk, frame_storage: FrameStorage, dispatcher: EventDispatcher):
         self.window = tk
         # TODO: возможно растягивать картинку по размеру окна функцию сделать
@@ -24,6 +24,8 @@ class MainForm(Frame):
                                       command=dispatcher.center_laser)
         self.video = Label(self.imageFrame, text="Video")
         self.frame_storage = frame_storage
+        self.interval_ms = int(Settings.INTERVAL * SECOND_LENGTH)
+        self.show_image()
 
     def setup(self):
         self.window.title("Eye tracker")
@@ -37,14 +39,12 @@ class MainForm(Frame):
         self.select_object_rect.pack(side=RIGHT, padx=16, pady=4)
         self.video.pack(side=BOTTOM)
         self.buttonFrame.pack(side=TOP)
-        self.interval_ms = int(Settings.INTERVAL*SECOND_LENGHT)
-        self.window.after(self.interval_ms, self.show_frame)
         return self
 
-    def show_frame(self):
+    def show_image(self):
         frame = self.frame_storage.get_image()
         imgtk = ImageTk.PhotoImage(image=frame)
         #! если не сохранить ссылку на этот объект где-нибудь, то объект тут же удалится и не будет отображаться картинка
         self.image_alive_ref = imgtk
         self.video.configure(image=imgtk)
-        self.window.after(self.interval_ms, self.show_frame)
+        self.window.after(self.interval_ms, self.show_image)
