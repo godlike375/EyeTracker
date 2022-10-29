@@ -25,5 +25,6 @@ if __name__ == '__main__':
     else:
         Settings.save()
         dispatcher.stop_thread()
+        dispatcher.center_laser()
         extractor.stop_thread()
         # TODO: остановить все второстепенные потоки
