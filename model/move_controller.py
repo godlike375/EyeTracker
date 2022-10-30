@@ -1,6 +1,6 @@
 from serial import Serial
 
-from utils import XY
+from common.utils import Point
 from time import time, sleep
 from model.settings import Settings
 
@@ -13,7 +13,7 @@ class MoveController:
         baund_rate = baund_rate or Settings.SERIAL_BAUND_RATE
         self.serial = Serial(port, baund_rate, timeout=Settings.SERIAL_TIMEOUT)
         self.timer = time()
-        self.current_xy = XY(0,0)
+        self.current_xy = Point(0, 0)
         self._ready = False
         sleep(2) # выдержка для инициализации serial port
         self.timing = time()

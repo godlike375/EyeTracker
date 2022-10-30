@@ -1,13 +1,13 @@
 from model.frame_processing import Processor, FramePipeline
-from utils import XY
+from common.utils import Point
 
 
 class Selector:
     def __init__(self, name:str, pipeline: FramePipeline, callback):
         self._name = name
         self._pipeline = pipeline
-        self.left_top = XY(0, 0)
-        self.right_bottom = XY(0, 0)
+        self.left_top = Point(0, 0)
+        self.right_bottom = Point(0, 0)
         self._callback = callback
         self._selected = False
 
@@ -22,6 +22,7 @@ class Selector:
         self.right_bottom.x, self.right_bottom.y = event.x, event.y
         self.left_top.x, self.right_bottom.x = Selector.check_swap_coords(self.left_top.x, self.right_bottom.x)
         self.left_top.y, self.right_bottom.y = Selector.check_swap_coords(self.left_top.y, self.right_bottom.y)
+        self._selected = True
         self._callback(self._name)
 
     def is_selected(self):

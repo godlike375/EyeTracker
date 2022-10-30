@@ -2,7 +2,7 @@ from tkinter import Tk, messagebox
 from traceback import print_exc
 
 from management_core import EventDispatcher, FrameStorage, Extractor
-from UI.window import Window
+from view.window import Window
 from model.settings import Settings
 
 

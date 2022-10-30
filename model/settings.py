@@ -3,20 +3,19 @@ from pathlib import Path
 
 FOLDER = 'config'
 FILE = 'eyetracker_settings.ini'
-INTERVAL_NAME = 'INTERVAL'
+RUNTIME_CALCULATED_SETTINGS = ['INTERVAL']
 
 
 class Settings:
     CAMERA_ID = 1  # the second web-camera
-    FPS = 60  # frames per second
+    CAMERA_MAX_RESOLUTION = 800 # max height
+    FPS = 60  # target frames per second
     SERIAL_BAUND_RATE = 115200
     SERIAL_TIMEOUT = 0.01
     SERIAL_PORT = 8
     MEAN_TRACKING_COUNT = 3
     NOISE_THRESHOLD = 0.035
-    CAMERA_MAX_RESOLUTION = 800
-    WINDOW_HEIGHT = 800
-    WINDOW_WIDTH = 635
+
     MAX_RANGE = 6000
 
 
@@ -35,7 +34,7 @@ class Settings:
     @staticmethod
     def save():
         config = ConfigParser()
-        fields = {k:vars(Settings)[k] for k in vars(Settings) if k.isupper() and k != INTERVAL_NAME}
+        fields = {k:vars(Settings)[k] for k in vars(Settings) if k.isupper() and k not in RUNTIME_CALCULATED_SETTINGS}
         config['settings'] = fields
         path = Path.cwd() / FOLDER
         Path.mkdir(path, exist_ok=True)

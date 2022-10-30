@@ -3,7 +3,13 @@ from dataclasses import dataclass
 from threading import Thread, Event, current_thread
 from time import sleep
 
-# TODO: сделать загрузку из файла конфига
+class Singleton(type):
+    _instances = {}
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super().__call__(*args, **kwargs)
+        return cls._instances[cls]
+
 # https://stackoverflow.com/questions/323972/is-there-any-way-to-kill-a-thread
 class StoppableThread(Thread):
     # Thread class with a stop() method
@@ -36,7 +42,7 @@ def thread_loop_runner(func, interval):
 
 
 @dataclass
-class XY:
+class Point:
     __slots__ = ['x', 'y']
     x: float
     y: float
@@ -45,10 +51,10 @@ class XY:
         return iter((self.x, self.y))
 
     def __sub__(self, other):
-        return XY(self.x - other.x, self.y - other.y)
+        return Point(self.x - other.x, self.y - other.y)
 
     def __imul__(self, other):
-        if type(other) is XY:
+        if type(other) is Point:
             self.x *= other.x
             self.y *= other.y
         elif type(other) is float or type(other) is int:
@@ -60,7 +66,7 @@ class XY:
 
     def __mul__(self, other):
         self = copy(self)
-        if type(other) is XY:
+        if type(other) is Point:
             self.x *= other.x
             self.y *= other.y
         elif type(other) is float or type(other) is int:
@@ -72,7 +78,7 @@ class XY:
 
     def __add__(self, other):
         self = copy(self)
-        if type(other) is XY:
+        if type(other) is Point:
             self.x += other.x
             self.y += other.y
         elif type(other) is float or type(other) is int:
@@ -83,10 +89,10 @@ class XY:
         return self
 
     def __abs__(self):
-        return XY(abs(self.x), abs(self.y))
+        return Point(abs(self.x), abs(self.y))
 
     def __ge__(self, other):
         return self.x >= other.x or self.y >= other.y
 
     def to_int(self):
-        return XY(int(self.x), int(self.y))
+        return Point(int(self.x), int(self.y))

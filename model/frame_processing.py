@@ -5,7 +5,7 @@ import cv2
 import dlib
 from PIL import Image
 
-from utils import XY
+from common.utils import Point
 from model.area_controller import AreaController
 from model.settings import Settings
 
@@ -51,8 +51,8 @@ class Tracker:
         return self._center
 
     def update_center(self):
-        left_cur_pos = XY(int(self.denoisers[0].get()), int(self.denoisers[1].get()))
-        right_cur_pos = XY(int(self.denoisers[2].get()), int(self.denoisers[3].get()))
+        left_cur_pos = Point(int(self.denoisers[0].get()), int(self.denoisers[1].get()))
+        right_cur_pos = Point(int(self.denoisers[2].get()), int(self.denoisers[3].get()))
         center = AreaController.calc_center(left_cur_pos, right_cur_pos)
         if abs(self._center - center) >= self.length_xy * Settings.NOISE_THRESHOLD:
             self._center = center
@@ -60,7 +60,7 @@ class Tracker:
     def start_tracking(self, frame, left_top, right_bottom):
         for coord in chain(left_top, right_bottom):
             self.denoisers.append(Denoiser(coord, mean_count=self.mean_count))
-        self.length_xy = XY(abs(left_top.x - right_bottom.x), abs(left_top.y - right_bottom.y))
+        self.length_xy = Point(abs(left_top.x - right_bottom.x), abs(left_top.y - right_bottom.y))
         self._center = AreaController.calc_center(left_top, right_bottom)
         self.tracker.start_track(frame, dlib.rectangle(*left_top, *right_bottom))
 

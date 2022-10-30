@@ -7,14 +7,11 @@ from model.area_controller import AreaController
 from model.frame_processing import Processor, Tracker, FramePipeline
 from model.move_controller import MoveController
 from model.selector import Selector
-from utils import thread_loop_runner
+from common.utils import thread_loop_runner, Singleton
 from model.settings import Settings
 
-AREA = 'area'
-OBJECT = 'object'
 
-
-class FrameStorage:
+class FrameStorage(metaclass=Singleton):
     def __init__(self):
         self._raw_frame = None
         self._processed_image = None
@@ -45,15 +42,14 @@ class EventDispatcher(ThreadLoopable):
 
         self.root = root
         self.frame_pipeline = FramePipeline()
-        self.area_selector = Selector(AREA, self.frame_pipeline, self.on_selected)
-        self.object_selector = Selector(OBJECT, self.frame_pipeline, self.on_selected)
+        self.area_selector = Selector('area', self.frame_pipeline, self.on_selected)
+        self.object_selector = Selector('object', self.frame_pipeline, self.on_selected)
         self.frame_storage = frame_storage
         self.tracker = Tracker()
         self.area_controller = AreaController(min_xy=-Settings.MAX_RANGE,
                                               max_xy=Settings.MAX_RANGE)
         self.laser_controller = MoveController('com8')
         super().__init__(self.frame_processing, Settings.INTERVAL)
-        #self._thread_loop = thread_loop_caller(self.mainloop, Settings.INTERVAL)
 
     # the main processing function of every frame. Being called every call_every ms
     def frame_processing(self):
@@ -106,7 +102,8 @@ class EventDispatcher(ThreadLoopable):
         self.bind_events(self.area_selector)
 
     def on_selected(self, selector_name):
-        if selector_name == AREA:
+        # TODO: видимо разнести на 2 метода, чтобы не делать костыльных условий
+        if selector_name == 'area':
             self.area_controller.set_area(self.area_selector.left_top, self.area_selector.right_bottom)
             self.unbind_events()
             return
@@ -126,7 +123,6 @@ class Extractor(ThreadLoopable):
         self.set_source(source)
         super().__init__(self.extract_frame, Settings.INTERVAL)
         self.frame_storage = frame_storage
-        #thread_loop_caller(self.extract_frame, Settings.INTERVAL)
 
     def set_source(self, source):
         self.camera = cv2.VideoCapture(source)

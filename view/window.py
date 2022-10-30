@@ -6,6 +6,7 @@ from management_core import EventDispatcher, FrameStorage
 from model.settings import Settings
 
 SECOND_LENGTH = 1000
+RESOLUTIONS = {1280:750, 800:630, 640:510}
 
 class Window:
     def __init__(self, tk: Tk, frame_storage: FrameStorage, dispatcher: EventDispatcher):
@@ -22,14 +23,17 @@ class Window:
                                       command=dispatcher.calibrate_laser)
         self.center_laser = Button(self.buttonFrame, text='Завершить сеанс',
                                       command=dispatcher.center_laser)
-        self.video = Label(self.imageFrame, text="Video")
+        self.dispatcher = dispatcher
+        self.video = Label(self.imageFrame)
         self.frame_storage = frame_storage
         self.interval_ms = int(Settings.INTERVAL * SECOND_LENGTH)
         self.show_image()
 
     def setup(self):
-        self.window.title("Eye tracker")
-        window_size = f'{Settings.WINDOW_HEIGHT}x{Settings.WINDOW_WIDTH}'
+        self.window.title('Eye tracker')
+        WINDOW_HEIGHT = Settings.CAMERA_MAX_RESOLUTION
+        WINDOW_WIDTH = RESOLUTIONS[WINDOW_HEIGHT]
+        window_size = f'{WINDOW_HEIGHT}x{WINDOW_WIDTH}'
         self.window.geometry(window_size)
         self.window.configure(background='white')
         self.imageFrame.pack(side=BOTTOM)
@@ -39,6 +43,7 @@ class Window:
         self.select_object_rect.pack(side=RIGHT, padx=16, pady=4)
         self.video.pack(side=BOTTOM)
         self.buttonFrame.pack(side=TOP)
+        self.select_object_rect['state'] = 'disabled'
         return self
 
     def show_image(self):
@@ -48,3 +53,5 @@ class Window:
         self.image_alive_ref = imgtk
         self.video.configure(image=imgtk)
         self.window.after(self.interval_ms, self.show_image)
+        if self.dispatcher.area_selector.is_selected():
+            self.select_object_rect['state'] = 'normal'
