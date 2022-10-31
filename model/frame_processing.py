@@ -24,7 +24,7 @@ class Processor:
         return rgb
 
     @staticmethod
-    def draw_rectangle(frame, left_top, right_bottom):
+    def draw_rectangle(frame, left_top: Point, right_bottom: Point):
         rect_frame = cv2.rectangle(frame, (*left_top,), (*right_bottom,), Processor.CURRENT_COLOR, Processor.THICKNESS)
         return rect_frame
 
@@ -46,10 +46,6 @@ class Tracker:
     def right_bottom(self):
         return (self._center + self.length_xy * 0.5).to_int()
 
-    @property
-    def center(self):
-        return self._center
-
     def update_center(self):
         left_cur_pos = Point(int(self.denoisers[0].get()), int(self.denoisers[1].get()))
         right_cur_pos = Point(int(self.denoisers[2].get()), int(self.denoisers[3].get()))
@@ -70,6 +66,7 @@ class Tracker:
         for i, coord in enumerate(map(int, (rect.left(), rect.top(), rect.right(), rect.bottom()))):
             self.denoisers[i].add(coord)
         self.update_center()
+        return self._center
 
     def draw_tracked_rect(self, frame):
         # для фильтрации надо left_top и right_bottom навеное сделать генераторами
@@ -102,7 +99,7 @@ class FramePipeline:
 
 
 class Denoiser:
-    def __init__(self, init_value, mean_count):
+    def __init__(self, init_value: float, mean_count: int):
         self.count = mean_count
         self.buffer = deque(repeat(init_value, mean_count))
         self.sum = sum(self.buffer)

@@ -26,7 +26,7 @@ class Window:
         self.dispatcher = dispatcher
         self.video = Label(self.imageFrame)
         self.frame_storage = frame_storage
-        self.interval_ms = int(Settings.INTERVAL * SECOND_LENGTH)
+        self.interval_ms = int(FrameStorage.FRAME_INTERVAL * SECOND_LENGTH)
         self.show_image()
 
     def setup(self):

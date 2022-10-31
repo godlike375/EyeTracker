@@ -4,6 +4,7 @@ from common.utils import Point
 from time import time, sleep
 from model.settings import Settings
 
+MIN_SEND_INTERVAL = 0.7
 
 class MoveController:
 
@@ -13,13 +14,13 @@ class MoveController:
         baund_rate = baund_rate or Settings.SERIAL_BAUND_RATE
         self.serial = Serial(port, baund_rate, timeout=Settings.SERIAL_TIMEOUT)
         self.timer = time()
-        self.current_xy = Point(0, 0)
+        self.current_position = Point(0, 0)
         self._ready = False
         sleep(2) # выдержка для инициализации serial port
-        self.timing = time()
+        self.timer = time()
 
     def can_send(self, interval=2):
-        if time() - self.timing > interval:
+        if time() - self.timer > interval:
             return True
         return False
 
@@ -28,18 +29,19 @@ class MoveController:
             line = self.serial.readline()
             if 'ready' in str(line):
                 self._ready = True
-                print('ready')
         return self._ready
 
-
-    def moveXY(self, x,y, command=1):
+    def move_laser(self, position: Point, command=1):
         # TODO: в конце сеанса отправлять 0;0 для сброса позиционирования
-        message = (f'{int(x)};{int(y)};{command}').encode('ascii', 'ignore')
+        message = (f'{int(position.x)};{int(position.y)};{command}').encode('ascii', 'ignore')
         self.serial.write(message)
-        self.serial.readable()
-        print(self.serial.readline())
-        self.current_xy.x, self.current_xy.y = x, y
         print(message)
-        self.timing = time()
-        self._ready = False
-        #time.sleep(1)
+        self.timer = time()
+
+    def set_new_position(self, position: Point):
+        if position != self.current_position:
+            self.timer = time()
+            self.current_position = position
+        if self.can_send(MIN_SEND_INTERVAL) and self.is_ready():
+            self.move_laser(position)
+            self._ready = False

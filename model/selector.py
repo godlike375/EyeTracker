@@ -33,5 +33,5 @@ class Selector:
         return rect_frame
 
     @staticmethod
-    def check_swap_coords(x1, x2):
+    def check_swap_coords(x1: int, x2: int):
         return (x2, x1) if x2 <= x1 else (x1, x2)

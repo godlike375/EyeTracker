@@ -7,11 +7,13 @@ from model.area_controller import AreaController
 from model.frame_processing import Processor, Tracker, FramePipeline
 from model.move_controller import MoveController
 from model.selector import Selector
-from common.utils import thread_loop_runner, Singleton
+from common.utils import Singleton, ThreadLoopable
 from model.settings import Settings
+from common.utils import Point
 
 
 class FrameStorage(metaclass=Singleton):
+    FRAME_INTERVAL = 1 / Settings.FPS
     def __init__(self):
         self._raw_frame = None
         self._processed_image = None
@@ -28,14 +30,6 @@ class FrameStorage(metaclass=Singleton):
             raise RuntimeError('raw frame was not initialized before being got')
         return self._raw_frame
 
-class ThreadLoopable:
-    def __init__(self, loop_func, interval):
-        self._thread_loop = thread_loop_runner(loop_func, interval)
-        self._thread_loop.start()
-
-    def stop_thread(self):
-        self._thread_loop.stop()
-
 
 class EventDispatcher(ThreadLoopable):
     def __init__(self, root: Tk, frame_storage: FrameStorage):
@@ -49,7 +43,7 @@ class EventDispatcher(ThreadLoopable):
         self.area_controller = AreaController(min_xy=-Settings.MAX_RANGE,
                                               max_xy=Settings.MAX_RANGE)
         self.laser_controller = MoveController('com8')
-        super().__init__(self.frame_processing, Settings.INTERVAL)
+        super().__init__(self.frame_processing, FrameStorage.FRAME_INTERVAL)
 
     # the main processing function of every frame. Being called every call_every ms
     def frame_processing(self):
@@ -67,23 +61,20 @@ class EventDispatcher(ThreadLoopable):
         frame = self.frame_storage.get_raw_frame()
         # TODO: в трекер должна передаваться только выделенная область cropped_image = img[80:280, 150:330]
         # TODO: сейчас похоже передаётся с рамкой от фона и большего, чем необходимо размера
-        self.tracker.get_tracked_position(frame)
-        relative_coords = self.area_controller.calc_relative_coords(self.tracker.center)
-        if self.laser_controller.can_send(0.7) and self.laser_controller.is_ready():
-            # if self.laser_controller.can_send(1.5):
-            self.laser_controller.moveXY(*relative_coords)
+        center = self.tracker.get_tracked_position(frame)
+        relative_coords = self.area_controller.calc_relative_coords(center)
+        self.laser_controller.set_new_position(relative_coords)
         Processor.CURRENT_COLOR = Processor.COLOR_WHITE \
             if not self.area_controller.rect_intersected_borders(self.tracker.left_top, self.tracker.right_bottom) \
             else Processor.COLOR_RED
-        # TODO: возможно всё-таки не по центру, а по краям считать с фильтрацией шумов
 
     def calibrate_laser(self):
-        self.laser_controller.moveXY(0, 0, 2)
+        self.laser_controller.move_laser(Point(0, 0), command=2)
 
     def center_laser(self):
-        self.laser_controller.moveXY(0, 0, 1)
+        self.laser_controller.move_laser(Point(0, 0))
 
-    def bind_events(self, selector):
+    def bind_events(self, selector: Selector):
         self.root.bind('<B1-Motion>', selector.progress)
         self.root.bind('<Button-1>', selector.start)
         self.root.bind('<ButtonRelease-1>', selector.end)
@@ -101,7 +92,7 @@ class EventDispatcher(ThreadLoopable):
         self.frame_pipeline.safe_remove(self.area_selector.draw_selected_rect)
         self.bind_events(self.area_selector)
 
-    def on_selected(self, selector_name):
+    def on_selected(self, selector_name: str):
         # TODO: видимо разнести на 2 метода, чтобы не делать костыльных условий
         if selector_name == 'area':
             self.area_controller.set_area(self.area_selector.left_top, self.area_selector.right_bottom)
@@ -121,7 +112,7 @@ class Extractor(ThreadLoopable):
 
     def __init__(self, source: int, frame_storage: FrameStorage):
         self.set_source(source)
-        super().__init__(self.extract_frame, Settings.INTERVAL)
+        super().__init__(self.extract_frame, FrameStorage.FRAME_INTERVAL)
         self.frame_storage = frame_storage
 
     def set_source(self, source):

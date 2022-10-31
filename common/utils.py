@@ -21,7 +21,7 @@ class StoppableThread(Thread):
     def stop(self):
         self._stop_event.set()
 
-    def stopped(self):
+    def is_stopped(self):
         return self._stop_event.is_set()
 
 # https://gist.github.com/awesomebytes/0483e65e0884f05fb95e314c4f2b3db8
@@ -33,10 +33,10 @@ def threaded(fn):
     return wrapper
 
 @threaded
-def thread_loop_runner(func, interval):
+def thread_loop_runner(func, interval: float):
     while True:
         sleep(interval)
-        if current_thread().stopped():
+        if current_thread().is_stopped():
             exit(0)
         func()
 
@@ -94,5 +94,17 @@ class Point:
     def __ge__(self, other):
         return self.x >= other.x or self.y >= other.y
 
+    def __lt__(self, other):
+        return self.x < other.x or self.y < other.y
+
     def to_int(self):
         return Point(int(self.x), int(self.y))
+
+
+class ThreadLoopable:
+    def __init__(self, loop_func, interval: float):
+        self._thread_loop = thread_loop_runner(loop_func, interval)
+        self._thread_loop.start()
+
+    def stop_thread(self):
+        self._thread_loop.stop()
