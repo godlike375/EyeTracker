@@ -33,7 +33,7 @@ def threaded(fn):
     return wrapper
 
 @threaded
-def thread_loop_runner(func, interval: float):
+def thread_loop_runner(func, interval: float = 0.05):
     while True:
         sleep(interval)
         if current_thread().is_stopped():

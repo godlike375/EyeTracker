@@ -1,4 +1,4 @@
-from tkinter import Tk
+from tkinter import Tk, messagebox
 
 import cv2
 from retry import retry
@@ -18,13 +18,13 @@ class FrameStorage(metaclass=Singleton):
         self._raw_frame = None
         self._processed_image = None
 
-    @retry(RuntimeError, tries=10, delay=0.1, backoff=1)
+    @retry(RuntimeError, tries=100, delay=0.1, backoff=1)
     def get_image(self):
         if self._processed_image is None:
             raise RuntimeError('processed image was not initialized before being got')
         return self._processed_image
 
-    @retry(RuntimeError, tries=10, delay=0.1, backoff=1)
+    @retry(RuntimeError, tries=100, delay=0.1, backoff=1)
     def get_raw_frame(self):
         if self._raw_frame is None:
             raise RuntimeError('raw frame was not initialized before being got')
@@ -63,16 +63,16 @@ class EventDispatcher(ThreadLoopable):
         # TODO: сейчас похоже передаётся с рамкой от фона и большего, чем необходимо размера
         center = self.tracker.get_tracked_position(frame)
         relative_coords = self.area_controller.calc_relative_coords(center)
-        self.laser_controller.set_new_position(relative_coords)
-        Processor.CURRENT_COLOR = Processor.COLOR_WHITE \
-            if not self.area_controller.rect_intersected_borders(self.tracker.left_top, self.tracker.right_bottom) \
-            else Processor.COLOR_RED
+        intersected = self.area_controller.rect_intersected_borders(self.tracker.left_top, self.tracker.right_bottom)
+        if not intersected:
+            self.laser_controller.set_new_position(relative_coords.to_int())
+        Processor.CURRENT_COLOR = Processor.COLOR_WHITE if not intersected else Processor.COLOR_RED
 
     def calibrate_laser(self):
-        self.laser_controller.move_laser(Point(0, 0), command=2)
+        self.laser_controller._move_laser(Point(0, 0), command=2)
 
     def center_laser(self):
-        self.laser_controller.move_laser(Point(0, 0))
+        self.laser_controller._move_laser(Point(0, 0))
 
     def bind_events(self, selector: Selector):
         self.root.bind('<B1-Motion>', selector.progress)
@@ -95,6 +95,9 @@ class EventDispatcher(ThreadLoopable):
     def on_selected(self, selector_name: str):
         # TODO: видимо разнести на 2 метода, чтобы не делать костыльных условий
         if selector_name == 'area':
+            if self.area_selector.left_top == self.area_selector.right_bottom:
+                messagebox.showerror(message='Область не может быть пустой')
+                return
             self.area_controller.set_area(self.area_selector.left_top, self.area_selector.right_bottom)
             self.unbind_events()
             return
@@ -122,7 +125,7 @@ class Extractor(ThreadLoopable):
         self.camera.set(cv2.CAP_PROP_FPS, Settings.FPS)
         if self.camera.isOpened():
             return
-        print("Video camera is not found")
+        print('Камера не найдена')
         exit()
 
     def extract_frame(self):

@@ -7,6 +7,8 @@ from model.settings import Settings
 
 SECOND_LENGTH = 1000
 RESOLUTIONS = {1280:750, 800:630, 640:510}
+PADDING_X = 16
+PADDING_Y = 4
 
 class Window:
     def __init__(self, tk: Tk, frame_storage: FrameStorage, dispatcher: EventDispatcher):
@@ -21,8 +23,6 @@ class Window:
                                          command=dispatcher.reset_object_selection)
         self.calibrate_laser = Button(self.buttonFrame, text='Откалибровать лазер',
                                       command=dispatcher.calibrate_laser)
-        self.center_laser = Button(self.buttonFrame, text='Завершить сеанс',
-                                      command=dispatcher.center_laser)
         self.dispatcher = dispatcher
         self.video = Label(self.imageFrame)
         self.frame_storage = frame_storage
@@ -37,10 +37,9 @@ class Window:
         self.window.geometry(window_size)
         self.window.configure(background='white')
         self.imageFrame.pack(side=BOTTOM)
-        self.calibrate_laser.pack(side=LEFT, padx=16, pady=4)
-        self.center_laser.pack(side=LEFT, padx=16, pady=4)
-        self.select_area_rect.pack(side=LEFT, padx=16, pady=4)
-        self.select_object_rect.pack(side=RIGHT, padx=16, pady=4)
+        self.calibrate_laser.pack(side=LEFT, padx=PADDING_X, pady=PADDING_Y)
+        self.select_area_rect.pack(side=LEFT, padx=PADDING_X, pady=PADDING_Y)
+        self.select_object_rect.pack(side=RIGHT, padx=PADDING_X, pady=PADDING_Y)
         self.video.pack(side=BOTTOM)
         self.buttonFrame.pack(side=TOP)
         self.select_object_rect['state'] = 'disabled'

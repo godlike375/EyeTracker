@@ -17,7 +17,7 @@ if __name__ == '__main__':
         extractor = Extractor(Settings.CAMERA_ID, frame_storage)
         dispatcher = EventDispatcher(root, frame_storage)
         form = Window(root, frame_storage, dispatcher).setup()
-
+        root.after(2000, dispatcher.center_laser)
         root.mainloop()
     except Exception as e:
         messagebox.showerror(title='Фатальная ошибка', message=f'{e}')
