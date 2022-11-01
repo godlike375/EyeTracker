@@ -4,9 +4,9 @@ from common.utils import Point
 class AreaController:
 
     def __init__(self, min_xy, max_xy):
-        # max resolution in abstract distance units
         self.min_xy = min_xy
         self.max_xy = max_xy
+        # max resolution in abstract distance units
         self.resolution_xy = abs(min_xy - max_xy)
         self.left_top = None
         self.right_bottom = None
@@ -33,7 +33,6 @@ class AreaController:
         return False
 
     def calc_relative_coords(self, object_center: Point) -> Point:
-        # центр объекта минус центр области умножить на коэффициент растяжения
         relative = object_center - self.center
         relative *= self.dpi_xy
         return relative

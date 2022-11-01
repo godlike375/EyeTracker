@@ -30,7 +30,6 @@ class Processor:
 
 
 class Tracker:
-    # TODO: возможно стоит добавить разностный трекинг (разница между 2-3 кадрами, определить так движение)
     def __init__(self, mean_count=Settings.MEAN_TRACKING_COUNT):
         self.mean_count = mean_count
         self.tracker = dlib.correlation_tracker()

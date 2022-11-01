@@ -2,19 +2,21 @@ from tkinter import Label, Tk, Frame, Button, TOP, BOTTOM, LEFT, RIGHT
 
 from PIL import ImageTk
 
+from common.utils import LOGGER_NAME
 from management_core import EventDispatcher, FrameStorage
 from model.settings import Settings
+import logging
 
 SECOND_LENGTH = 1000
 RESOLUTIONS = {1280: 750, 800: 630, 640: 510}
 PADDING_X = 16
 PADDING_Y = 4
 
+logger = logging.getLogger(LOGGER_NAME)
 
 class Window:
     def __init__(self, tk: Tk, frame_storage: FrameStorage, dispatcher: EventDispatcher):
         self.window = tk
-        # TODO: возможно растягивать картинку по размеру окна функцию сделать
         self.image_alive_ref = None
         self.imageFrame = Frame(self.window, width=600, height=800)
         self.buttonFrame = Frame(self.window, background='white')
@@ -35,6 +37,7 @@ class Window:
         WINDOW_HEIGHT = Settings.CAMERA_MAX_RESOLUTION
         WINDOW_WIDTH = RESOLUTIONS[WINDOW_HEIGHT]
         window_size = f'{WINDOW_HEIGHT}x{WINDOW_WIDTH}'
+        logger.debug(f'window size = {window_size}')
         self.window.geometry(window_size)
         self.window.configure(background='white')
         self.imageFrame.pack(side=BOTTOM)
@@ -49,9 +52,10 @@ class Window:
     def show_image(self):
         frame = self.frame_storage.get_image()
         imgtk = ImageTk.PhotoImage(image=frame)
-        # ! если не сохранить ссылку на этот объект где-нибудь, то объект тут же удалится и не будет отображаться картинка
+        # !!! если не сохранить ссылку на этот объект, то объект тут же удалится и не будет отображаться картинка
         self.image_alive_ref = imgtk
         self.video.configure(image=imgtk)
         self.window.after(self.interval_ms, self.show_image)
-        if self.dispatcher.area_selector.is_selected():
+        if self.dispatcher.area_selector.is_selected() and self.select_object_rect['state'] == 'disabled':
+            logger.debug('area selected')
             self.select_object_rect['state'] = 'normal'

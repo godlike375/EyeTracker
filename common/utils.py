@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from threading import Thread, Event, current_thread
 from time import sleep
 
+LOGGER_NAME = 'default'
+
 
 class Singleton(type):
     _instances = {}
@@ -108,7 +110,11 @@ class Point:
 
 
 class ThreadLoopable:
-    def __init__(self, loop_func, interval: float):
+    def __init__(self, loop_func, interval: float, run_immediately: bool = True):
+        if run_immediately:
+            self.start_thread(loop_func, interval)
+
+    def start_thread(self, loop_func, interval):
         self._thread_loop = thread_loop_runner(loop_func, interval)
         self._thread_loop.start()
 

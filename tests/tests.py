@@ -10,7 +10,7 @@ from model.frame_processing import Denoiser, FramePipeline
 from model.frame_processing import Tracker
 from model.settings import Settings
 from model.selector import Selector
-
+from management_core import Extractor
 
 def test_denoiser():
     denoiser = Denoiser(1, 3)
@@ -41,11 +41,15 @@ def test_process_with_pipeline():
     assert hasattr(obj, 'B') and obj.B
     assert hasattr(obj, 'C') and obj.C
 
+@pytest.fixture
+def test_config_ini():
+    return 'tests', 'test_changed_config.ini'
 
-def test_load_valid_settings():
+def test_load_valid_settings(test_config_ini):
+    folder, file = test_config_ini
     extract_upper_fields = lambda d: {k: d[k] for k in d if k.isupper()}
     default = extract_upper_fields(vars(Settings))
-    Settings.load(folder='tests', file='test_changed_config.ini')
+    Settings.load(folder, file)
     loaded = extract_upper_fields(vars(Settings))
     assert default != loaded
     assert loaded['MAX_RANGE'] == 5000
@@ -58,18 +62,25 @@ def test_save_and_load_settings():
     Settings.load(folder='tests', file='test_saved_config.ini')
     assert default == extract_upper_fields(vars(Settings))
 
+@pytest.fixture
+def thread_loop_interval():
+    return 0.000001
 
-def test_thread_loopable():
+@pytest.fixture
+def thread_loop_run_time():
+    return 0.05
+
+def test_thread_loopable(thread_loop_interval, thread_loop_run_time):
     class Loopable(ThreadLoopable):
         def __init__(self):
             self.counter = 0
-            super().__init__(self.loop, interval=0.000001)
+            super().__init__(self.loop, interval=thread_loop_interval)
 
         def loop(self):
             self.counter += 1
 
     loopable = Loopable()
-    sleep(0.05)
+    sleep(thread_loop_run_time)
     loopable.stop_thread()
     assert loopable.counter > 0
 
@@ -112,3 +123,24 @@ def test_selector(selected_points):
 
 def test_selector_swap_coordinates(selected_points):
     test_selector(sorted(selected_points, reverse=True))
+
+def test_extractor_invalid_camera(test_config_ini):
+    folder, file = test_config_ini
+    Settings.load(folder, file)
+    Settings.CAMERA_ID = 5
+    try:
+        Extractor(Settings.CAMERA_ID, Mock())
+    except RuntimeError as e:
+        assert str(e) == 'Wrong camera ID'
+    else:
+        pytest.fail('somehow invalid source of camera is valid')
+
+def test_extractor(thread_loop_interval, thread_loop_run_time):
+    Settings.load()
+    extractor = Extractor(Settings.CAMERA_ID, Mock(), run_immediately=False)
+    extractor.camera = Mock()
+    extractor.camera.read = Mock(return_value=Mock())
+    extractor.start_thread(extractor.extract_frame, thread_loop_interval)
+    sleep(thread_loop_run_time)
+    extractor.stop_thread()
+    assert extractor.camera.read.call_count > 0

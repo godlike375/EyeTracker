@@ -1,9 +1,10 @@
 from tkinter import Tk, messagebox
+import logging
 
 import cv2
 from retry import retry
 
-from common.utils import Point
+from common.utils import Point, LOGGER_NAME
 from common.utils import Singleton, ThreadLoopable
 from model.area_controller import AreaController
 from model.frame_processing import Processor, Tracker, FramePipeline
@@ -11,6 +12,7 @@ from model.move_controller import MoveController
 from model.selector import Selector
 from model.settings import Settings
 
+logger = logging.getLogger(LOGGER_NAME)
 
 class FrameStorage(metaclass=Singleton):
     FRAME_INTERVAL = 1 / Settings.FPS
@@ -33,7 +35,7 @@ class FrameStorage(metaclass=Singleton):
 
 
 class EventDispatcher(ThreadLoopable):
-    def __init__(self, root: Tk, frame_storage: FrameStorage):
+    def __init__(self, root: Tk, frame_storage: FrameStorage, run_immediately: bool = True):
 
         self.root = root
         self.frame_pipeline = FramePipeline()
@@ -44,7 +46,7 @@ class EventDispatcher(ThreadLoopable):
         self.area_controller = AreaController(min_xy=-Settings.MAX_RANGE,
                                               max_xy=Settings.MAX_RANGE)
         self.laser_controller = MoveController('com8')
-        super().__init__(self.frame_processing, FrameStorage.FRAME_INTERVAL)
+        super().__init__(self.frame_processing, FrameStorage.FRAME_INTERVAL, run_immediately)
 
     # the main processing function of every frame. Being called every call_every ms
     def frame_processing(self):
@@ -114,9 +116,9 @@ class EventDispatcher(ThreadLoopable):
 
 class Extractor(ThreadLoopable):
 
-    def __init__(self, source: int, frame_storage: FrameStorage):
+    def __init__(self, source: int, frame_storage: FrameStorage, run_immediately: bool = True):
         self.set_source(source)
-        super().__init__(self.extract_frame, FrameStorage.FRAME_INTERVAL)
+        super().__init__(self.extract_frame, FrameStorage.FRAME_INTERVAL, run_immediately)
         self.frame_storage = frame_storage
 
     def set_source(self, source):
@@ -124,10 +126,8 @@ class Extractor(ThreadLoopable):
         self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, Settings.CAMERA_MAX_RESOLUTION)
         self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, Settings.CAMERA_MAX_RESOLUTION)
         self.camera.set(cv2.CAP_PROP_FPS, Settings.FPS)
-        if self.camera.isOpened():
-            return
-        print('Камера не найдена')
-        exit()
+        if not self.camera.isOpened():
+            raise RuntimeError('Wrong camera ID')
 
     def extract_frame(self):
         _, frame = self.camera.read()
