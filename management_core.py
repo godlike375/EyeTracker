@@ -3,17 +3,18 @@ from tkinter import Tk, messagebox
 import cv2
 from retry import retry
 
+from common.utils import Point
+from common.utils import Singleton, ThreadLoopable
 from model.area_controller import AreaController
 from model.frame_processing import Processor, Tracker, FramePipeline
 from model.move_controller import MoveController
 from model.selector import Selector
-from common.utils import Singleton, ThreadLoopable
 from model.settings import Settings
-from common.utils import Point
 
 
 class FrameStorage(metaclass=Singleton):
     FRAME_INTERVAL = 1 / Settings.FPS
+
     def __init__(self):
         self._raw_frame = None
         self._processed_image = None

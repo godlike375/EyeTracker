@@ -3,12 +3,15 @@ from dataclasses import dataclass
 from threading import Thread, Event, current_thread
 from time import sleep
 
+
 class Singleton(type):
     _instances = {}
+
     def __call__(cls, *args, **kwargs):
         if cls not in cls._instances:
             cls._instances[cls] = super().__call__(*args, **kwargs)
         return cls._instances[cls]
+
 
 # https://stackoverflow.com/questions/323972/is-there-any-way-to-kill-a-thread
 class StoppableThread(Thread):
@@ -24,13 +27,16 @@ class StoppableThread(Thread):
     def is_stopped(self):
         return self._stop_event.is_set()
 
+
 # https://gist.github.com/awesomebytes/0483e65e0884f05fb95e314c4f2b3db8
 def threaded(fn):
-    #To use as decorator to make a function call threaded
+    # To use as decorator to make a function call threaded
     def wrapper(*args, **kwargs):
         thread = StoppableThread(target=fn, args=args, kwargs=kwargs)
         return thread
+
     return wrapper
+
 
 @threaded
 def thread_loop_runner(func, interval: float = 0.05):

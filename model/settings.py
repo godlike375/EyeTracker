@@ -5,6 +5,7 @@ FOLDER = 'config'
 FILE = 'eyetracker_settings.ini'
 MAIN_ROOT_FOLDER = 'EyeTracker'
 
+
 class Settings:
     CAMERA_ID = 1  # the second web-camera
     CAMERA_MAX_RESOLUTION = 800  # max height
@@ -24,7 +25,7 @@ class Settings:
         return current
 
     @staticmethod
-    def load(folder: str=None, file: str=None):
+    def load(folder: str = None, file: str = None):
         base_path = Settings.get_repo_path()
         folder = folder or FOLDER
         file = file or FILE
@@ -39,7 +40,7 @@ class Settings:
                     setattr(Settings, field.upper(), float(value) if '.' in value else int(value))
 
     @staticmethod
-    def save(folder: str=None, file: str=None):
+    def save(folder: str = None, file: str = None):
         base_path = Settings.get_repo_path()
         folder = folder or FOLDER
         file = file or FILE

@@ -1,9 +1,9 @@
-from model.frame_processing import Processor, FramePipeline
 from common.utils import Point
+from model.frame_processing import Processor, FramePipeline
 
 
 class Selector:
-    def __init__(self, name:str, pipeline: FramePipeline, callback):
+    def __init__(self, name: str, pipeline: FramePipeline, callback):
         self._name = name
         self._pipeline = pipeline
         self.left_top = Point(0, 0)

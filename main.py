@@ -2,9 +2,8 @@ from tkinter import Tk, messagebox
 from traceback import print_exc
 
 from management_core import EventDispatcher, FrameStorage, Extractor
-from view.window import Window
 from model.settings import Settings
-
+from view.window import Window
 
 if __name__ == '__main__':
     try:
@@ -17,7 +16,6 @@ if __name__ == '__main__':
         extractor = Extractor(Settings.CAMERA_ID, frame_storage)
         dispatcher = EventDispatcher(root, frame_storage)
         form = Window(root, frame_storage, dispatcher).setup()
-        root.after(2000, dispatcher.center_laser)
         root.mainloop()
     except Exception as e:
         messagebox.showerror(title='Фатальная ошибка', message=f'{e}')

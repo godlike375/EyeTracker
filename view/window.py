@@ -6,9 +6,10 @@ from management_core import EventDispatcher, FrameStorage
 from model.settings import Settings
 
 SECOND_LENGTH = 1000
-RESOLUTIONS = {1280:750, 800:630, 640:510}
+RESOLUTIONS = {1280: 750, 800: 630, 640: 510}
 PADDING_X = 16
 PADDING_Y = 4
+
 
 class Window:
     def __init__(self, tk: Tk, frame_storage: FrameStorage, dispatcher: EventDispatcher):
@@ -48,7 +49,7 @@ class Window:
     def show_image(self):
         frame = self.frame_storage.get_image()
         imgtk = ImageTk.PhotoImage(image=frame)
-        #! если не сохранить ссылку на этот объект где-нибудь, то объект тут же удалится и не будет отображаться картинка
+        # ! если не сохранить ссылку на этот объект где-нибудь, то объект тут же удалится и не будет отображаться картинка
         self.image_alive_ref = imgtk
         self.video.configure(image=imgtk)
         self.window.after(self.interval_ms, self.show_image)

@@ -1,15 +1,16 @@
+from time import time
+
 from serial import Serial
 
 from common.utils import Point
-from time import time
-from model.settings import Settings
 from common.utils import thread_loop_runner
+from model.settings import Settings
 
-MIN_SEND_INTERVAL = 0.75
+STABLE_POSITION_DURATION = 0.5
+
 
 class MoveController:
-
-    def __init__(self, port = None, baund_rate = None):
+    def __init__(self, port=None, baund_rate=None):
         # TODO: к настройкам должно обращаться что-то внещнее в идеале и передавать эти параметры сюда
         port = port or f'com{Settings.SERIAL_PORT}'
         baund_rate = baund_rate or Settings.SERIAL_BAUND_RATE
@@ -17,12 +18,12 @@ class MoveController:
         self.timer = time()
         self.current_position = Point(0, 0)
         self._ready = True
-        #sleep(2) # выдержка для инициализации serial port
+        # sleep(2) # выдержка для инициализации serial port
         self.timer = time()
         self.queued_position = None
         self.queued_thread = None
 
-    def can_send(self, interval=MIN_SEND_INTERVAL):
+    def can_send(self, interval: float = STABLE_POSITION_DURATION):
         if time() - self.timer > interval:
             return True
         return False
