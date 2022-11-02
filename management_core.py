@@ -45,7 +45,7 @@ class EventDispatcher(ThreadLoopable):
         self.tracker = Tracker()
         self.area_controller = AreaController(min_xy=-Settings.MAX_RANGE,
                                               max_xy=Settings.MAX_RANGE)
-        self.laser_controller = MoveController('com8')
+        self.laser_controller = MoveController()
         super().__init__(self.frame_processing, FrameStorage.FRAME_INTERVAL, run_immediately)
 
     # the main processing function of every frame. Being called every call_every ms
