@@ -32,9 +32,12 @@ if __name__ == '__main__':
         messagebox.showerror(title='Фатальная ошибка', message=f'{e}')
         logger.exception(e)
     else:
-        Settings.save()
-        dispatcher.stop_thread()
         dispatcher.center_laser()
+        dispatcher.stop_thread()
         extractor.stop_thread()
+    finally:
+        Settings.save()
+        # TODO: добавить сохранение зоны в файл, чтобы каждый раз не перевыделять
 
+    # TODO: вынести left_top, right_bottom в класс Rect
     # TODO: messagebox вынести в отдельный интерфейс пользовательских ошибок, ибо это должна быть абстракция

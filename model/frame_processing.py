@@ -39,11 +39,11 @@ class Tracker:
 
     @property
     def left_top(self):
-        return (self._center - self.length_xy * 0.5).to_int()
+        return (self._center - self.length_xy / 2).to_int()
 
     @property
     def right_bottom(self):
-        return (self._center + self.length_xy * 0.5).to_int()
+        return (self._center + self.length_xy / 2).to_int()
 
     def update_center(self):
         left_cur_pos = Point(int(self.denoisers[0].get()), int(self.denoisers[1].get()))

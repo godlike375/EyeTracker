@@ -84,6 +84,18 @@ class Point:
             raise ValueError('incorrect right operand')
         return self
 
+    def __truediv__(self, other):
+        self = copy(self)
+        if type(other) is Point:
+            self.x /= other.x
+            self.y /= other.y
+        elif type(other) is float or type(other) is int:
+            self.x /= other
+            self.y /= other
+        else:
+            raise ValueError('incorrect right operand')
+        return self
+
     def __add__(self, other):
         self = copy(self)
         if type(other) is Point:
