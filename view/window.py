@@ -1,11 +1,11 @@
+import logging
 from tkinter import Label, Tk, Frame, Button, TOP, BOTTOM, LEFT, RIGHT
 
 from PIL import ImageTk
 
 from common.utils import LOGGER_NAME
-from management_core import EventDispatcher, FrameStorage
+from management_core import ViewModel, FrameStorage
 from model.settings import Settings
-import logging
 
 SECOND_LENGTH = 1000
 RESOLUTIONS = {1280: 750, 800: 630, 640: 510}
@@ -14,8 +14,9 @@ PADDING_Y = 4
 
 logger = logging.getLogger(LOGGER_NAME)
 
+
 class Window:
-    def __init__(self, tk: Tk, frame_storage: FrameStorage, dispatcher: EventDispatcher):
+    def __init__(self, tk: Tk, frame_storage: FrameStorage, dispatcher: ViewModel):
         self.window = tk
         self.image_alive_ref = None
         self.imageFrame = Frame(self.window, width=600, height=800)
@@ -50,6 +51,8 @@ class Window:
         return self
 
     def show_image(self):
+        # TODO: возможно вьюшка должна дергать вьюмодел, что теоретически должно заставлять
+        # TODO: работать модель и возвращать результат в эту функцию для отрисовки
         frame = self.frame_storage.get_image()
         imgtk = ImageTk.PhotoImage(image=frame)
         # !!! если не сохранить ссылку на этот объект, то объект тут же удалится и не будет отображаться картинка

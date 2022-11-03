@@ -1,5 +1,5 @@
-from time import time
 import logging
+from time import time
 
 from serial import Serial
 
@@ -10,6 +10,7 @@ STABLE_POSITION_DURATION = 0.67
 READY = 'ready'
 
 logger = logging.getLogger(LOGGER_NAME)
+
 
 class MoveController:
     def __init__(self, port=None, baund_rate=None):

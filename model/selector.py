@@ -5,6 +5,7 @@ from model.frame_processing import Processor, FramePipeline
 
 logger = logging.getLogger(LOGGER_NAME)
 
+
 class Selector:
     def __init__(self, name: str, pipeline: FramePipeline, callback):
         self._name = name
@@ -36,6 +37,9 @@ class Selector:
     def draw_selected_rect(self, frame):
         rect_frame = Processor.draw_rectangle(frame, self.left_top, self.right_bottom)
         return rect_frame
+
+    def is_empty(self):
+        return self.area_selector.left_top == self.area_selector.right_bottom
 
     @staticmethod
     def check_swap_coords(x1: int, x2: int):
