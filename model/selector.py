@@ -1,15 +1,14 @@
 import logging
 
 from common.utils import Point, LOGGER_NAME
-from model.frame_processing import Processor, FramePipeline
+from model.frame_processing import Processor
 
 logger = logging.getLogger(LOGGER_NAME)
 
 
 class Selector:
-    def __init__(self, name: str, pipeline: FramePipeline, callback):
+    def __init__(self, name: str, callback):
         self._name = name
-        self._pipeline = pipeline
         self.left_top = Point(0, 0)
         self.right_bottom = Point(0, 0)
         self._callback = callback
@@ -17,7 +16,6 @@ class Selector:
 
     def start(self, event):
         logger.debug(f'start selecting {event.x, event.y}')
-        self._pipeline.append(self.draw_selected_rect)
         self.left_top.x, self.left_top.y = event.x, event.y
 
     def progress(self, event):
@@ -29,7 +27,7 @@ class Selector:
         self.left_top.x, self.right_bottom.x = Selector.check_swap_coords(self.left_top.x, self.right_bottom.x)
         self.left_top.y, self.right_bottom.y = Selector.check_swap_coords(self.left_top.y, self.right_bottom.y)
         self._selected = True
-        self._callback(self._name)
+        self._callback()
 
     def is_selected(self):
         return self._selected
@@ -39,7 +37,7 @@ class Selector:
         return rect_frame
 
     def is_empty(self):
-        return self.area_selector.left_top == self.area_selector.right_bottom
+        return self.left_top == self.right_bottom
 
     @staticmethod
     def check_swap_coords(x1: int, x2: int):

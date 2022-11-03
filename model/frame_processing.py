@@ -31,31 +31,31 @@ class Processor:
 
 class Tracker:
     def __init__(self, mean_count=Settings.MEAN_TRACKING_COUNT):
-        self.mean_count = mean_count
+        self._mean_count = mean_count
         self.tracker = dlib.correlation_tracker()
-        self.denoisers: list[Denoiser] = []
-        self.length_xy = None
+        self._denoisers: list[Denoiser] = []
+        self._length_xy = None
         self._center = None
 
     @property
     def left_top(self):
-        return (self._center - self.length_xy / 2).to_int()
+        return (self._center - self._length_xy / 2).to_int()
 
     @property
     def right_bottom(self):
-        return (self._center + self.length_xy / 2).to_int()
+        return (self._center + self._length_xy / 2).to_int()
 
     def update_center(self):
-        left_cur_pos = Point(int(self.denoisers[0].get()), int(self.denoisers[1].get()))
-        right_cur_pos = Point(int(self.denoisers[2].get()), int(self.denoisers[3].get()))
+        left_cur_pos = Point(int(self._denoisers[0].get()), int(self._denoisers[1].get()))
+        right_cur_pos = Point(int(self._denoisers[2].get()), int(self._denoisers[3].get()))
         center = AreaController.calc_center(left_cur_pos, right_cur_pos)
-        if abs(self._center - center) >= self.length_xy * Settings.NOISE_THRESHOLD:
+        if abs(self._center - center) >= self._length_xy * Settings.NOISE_THRESHOLD:
             self._center = center
 
     def start_tracking(self, frame, left_top, right_bottom):
         for coord in chain(left_top, right_bottom):
-            self.denoisers.append(Denoiser(coord, mean_count=self.mean_count))
-        self.length_xy = Point(abs(left_top.x - right_bottom.x), abs(left_top.y - right_bottom.y))
+            self._denoisers.append(Denoiser(coord, mean_count=self._mean_count))
+        self._length_xy = Point(abs(left_top.x - right_bottom.x), abs(left_top.y - right_bottom.y))
         self._center = AreaController.calc_center(left_top, right_bottom)
         self.tracker.start_track(frame, dlib.rectangle(*left_top, *right_bottom))
 
@@ -63,7 +63,7 @@ class Tracker:
         self.tracker.update(frame)
         rect = self.tracker.get_position()
         for i, coord in enumerate(map(int, (rect.left(), rect.top(), rect.right(), rect.bottom()))):
-            self.denoisers[i].add(coord)
+            self._denoisers[i].add(coord)
         self.update_center()
         return self._center
 
@@ -99,13 +99,13 @@ class FramePipeline:
 
 class Denoiser:
     def __init__(self, init_value: float, mean_count: int):
-        self.count = mean_count
-        self.buffer = deque(repeat(init_value, mean_count))
-        self.sum = sum(self.buffer)
+        self._count = mean_count
+        self._buffer = deque(repeat(init_value, mean_count))
+        self._sum = sum(self._buffer)
 
     def add(self, elem):
-        self.sum += elem - self.buffer.popleft()
-        self.buffer.append(elem)
+        self._sum += elem - self._buffer.popleft()
+        self._buffer.append(elem)
 
     def get(self):
-        return self.sum / self.count
+        return self._sum / self._count

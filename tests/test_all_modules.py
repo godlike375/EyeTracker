@@ -10,7 +10,8 @@ from model.frame_processing import Denoiser, FramePipeline
 from model.frame_processing import Tracker
 from model.settings import Settings
 from model.selector import Selector
-from management_core import Extractor
+from model.extractor import Extractor
+
 
 def test_denoiser():
     denoiser = Denoiser(1, 3)
@@ -138,9 +139,9 @@ def test_extractor_invalid_camera(test_config_ini):
 def test_extractor(thread_loop_interval, thread_loop_run_time):
     Settings.load()
     extractor = Extractor(Settings.CAMERA_ID, Mock(), run_immediately=False)
-    extractor.camera = Mock()
-    extractor.camera.read = Mock(return_value=Mock())
+    extractor._camera = Mock()
+    extractor._camera.read = Mock(return_value=Mock())
     extractor.start_thread(extractor.extract_frame, thread_loop_interval)
     sleep(thread_loop_run_time)
     extractor.stop_thread()
-    assert extractor.camera.read.call_count > 0
+    assert extractor._camera.read.call_count > 0

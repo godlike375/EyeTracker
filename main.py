@@ -1,9 +1,10 @@
 from tkinter import Tk, messagebox
 import logging
 
-from management_core import EventDispatcher, FrameStorage, Extractor
+from model.logical_core import Model
+from view.view_model import ViewModel
 from model.settings import Settings
-from view.window import Window
+from view.window_form import View
 from common.utils import LOGGER_NAME
 
 logger = logging.getLogger(LOGGER_NAME)
@@ -21,10 +22,11 @@ if __name__ == '__main__':
         messagebox.showerror(title='Ошибка загрузки конфигурации', message=f'{e}')
     try:
         root = Tk()
-        frame_storage = FrameStorage()
-        extractor = Extractor(Settings.CAMERA_ID, frame_storage)
-        dispatcher = EventDispatcher(root, frame_storage)
-        form = Window(root, frame_storage, dispatcher).setup()
+        view_model = ViewModel(root)
+        form = View(root, view_model).setup()
+        view_model.set_view(form)
+        frame_controller = Model(view_model)
+        view_model.set_model(frame_controller)
         logger.debug('mainloop started')
         root.mainloop()
         logger.debug('mainloop finished')
@@ -32,9 +34,8 @@ if __name__ == '__main__':
         messagebox.showerror(title='Фатальная ошибка', message=f'{e}')
         logger.exception(e)
     else:
-        dispatcher.center_laser()
-        dispatcher.stop_thread()
-        extractor.stop_thread()
+        frame_controller.center_laser()
+        frame_controller.stop_thread()
     finally:
         Settings.save()
         # TODO: добавить сохранение зоны в файл, чтобы каждый раз не перевыделять
