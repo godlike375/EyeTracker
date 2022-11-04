@@ -5,7 +5,8 @@ from itertools import repeat
 
 import pytest
 
-from common.utils import Point, ThreadLoopable
+from common.thread_helpers import ThreadLoopable
+from common.coordinates import Point
 from model.frame_processing import Denoiser, FramePipeline
 from model.frame_processing import Tracker
 from model.settings import Settings

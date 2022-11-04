@@ -1,7 +1,8 @@
 import logging
 
-from common.utils import Point, LOGGER_NAME
-from common.utils import Singleton, ThreadLoopable
+from common.thread_helpers import LOGGER_NAME
+from common.coordinates import Point
+from common.thread_helpers import ThreadLoopable
 from model.area_controller import AreaController
 from model.extractor import Extractor
 from model.frame_processing import Processor, Tracker, FramePipeline
@@ -15,7 +16,7 @@ logger = logging.getLogger(LOGGER_NAME)
 FRAME_INTERVAL = 1 / Settings.FPS
 
 
-class Model(ThreadLoopable, metaclass=Singleton):
+class Model(ThreadLoopable):
 
     def __init__(self, view_model: ViewModel, run_immediately: bool = True):
         self._view_model = view_model

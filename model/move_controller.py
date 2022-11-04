@@ -3,7 +3,8 @@ from time import time
 
 from serial import Serial
 
-from common.utils import Point, LOGGER_NAME
+from common.thread_helpers import LOGGER_NAME
+from common.coordinates import Point
 from model.settings import Settings
 
 STABLE_POSITION_DURATION = 0.67

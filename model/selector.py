@@ -1,6 +1,7 @@
 import logging
 
-from common.utils import Point, LOGGER_NAME
+from common.thread_helpers import LOGGER_NAME
+from common.coordinates import Point
 from model.frame_processing import Processor
 
 logger = logging.getLogger(LOGGER_NAME)

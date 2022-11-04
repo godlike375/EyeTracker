@@ -4,7 +4,7 @@ from functools import partial
 
 from PIL import ImageTk
 
-from common.utils import LOGGER_NAME
+from common.thread_helpers import LOGGER_NAME
 from model.settings import Settings
 from model.logical_core import FRAME_INTERVAL
 

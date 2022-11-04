@@ -1,10 +1,10 @@
 from functools import partial
 from tkinter import Tk, messagebox
 
-from common.utils import Singleton, Point
+from common.coordinates import Point
 
 
-class ViewModel(metaclass=Singleton):
+class ViewModel:
     def __init__(self, root: Tk):
         self._root = root
         self._model = None
@@ -53,4 +53,4 @@ class ViewModel(metaclass=Singleton):
         return selector.is_selected()
 
     def show_message(self, message: str, title: str = ''):
-        messagebox.showerror(message, title=title)
+        messagebox.showerror(title, message)

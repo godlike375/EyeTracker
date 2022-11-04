@@ -5,7 +5,7 @@ import cv2
 import dlib
 from PIL import Image
 
-from common.utils import Point
+from common.coordinates import Point
 from model.area_controller import AreaController
 from model.settings import Settings
 

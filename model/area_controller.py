@@ -1,4 +1,4 @@
-from common.utils import Point
+from common.coordinates import Point
 
 
 class AreaController:
