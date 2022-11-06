@@ -1,5 +1,5 @@
 from time import sleep
-from unittest.mock import Mock
+from unittest.mock import Mock, patch, mock_open
 from itertools import repeat
 
 
@@ -45,16 +45,33 @@ def test_process_with_pipeline():
 
 @pytest.fixture
 def test_config_ini():
-    return 'tests', 'test_changed_config.ini'
+    return """
+        [settings]
+        camera_id = 5
+        camera_max_resolution = 800
+        fps = 60
+        serial_baund_rate = 115200
+        serial_timeout = 0.01
+        serial_port = 8
+        mean_tracking_count = 3
+        noise_threshold = 0.035
+        max_range = 5000
+        """
+
+def load_mock_config(test_config_ini):
+    with patch("builtins.open", mock_open(read_data=test_config_ini)):
+        with patch("pathlib.Path.exists", Mock(return_value=True)):
+            Settings.load('', '')
+
 
 def test_load_valid_settings(test_config_ini):
-    folder, file = test_config_ini
     extract_upper_fields = lambda d: {k: d[k] for k in d if k.isupper()}
     default = extract_upper_fields(vars(Settings))
-    Settings.load(folder, file)
+    load_mock_config(test_config_ini)
     loaded = extract_upper_fields(vars(Settings))
     assert default != loaded
     assert loaded['MAX_RANGE'] == 5000
+    assert loaded['CAMERA_ID'] == 5
 
 
 def test_save_and_load_settings():
@@ -64,15 +81,9 @@ def test_save_and_load_settings():
     Settings.load(folder='tests', file='test_saved_config.ini')
     assert default == extract_upper_fields(vars(Settings))
 
-@pytest.fixture
-def thread_loop_interval():
-    return 0.000001
 
-@pytest.fixture
-def thread_loop_run_time():
-    return 0.05
-
-def test_thread_loopable(thread_loop_interval, thread_loop_run_time):
+def test_thread_loopable():
+    thread_loop_interval, thread_loop_run_time = 0.000001, 0.05
     class Loopable(ThreadLoopable):
         def __init__(self):
             self.counter = 0
@@ -108,41 +119,35 @@ def selected_points():
     return [Point(i, i) for i in range(4)]
 
 def test_selector(selected_points):
-    pipeline = FramePipeline()
     callback = Mock(return_value=None)
-    selector = Selector('test_selector', pipeline, callback)
+    selector = Selector('test_selector', callback)
     selector.draw_selected_rect = Mock(return_value=True)
     point = selected_points.__iter__()
     funcs = [selector.start, *repeat(selector.progress, 2), selector.end]
     for f in funcs:
         f(next(point))
-        pipeline.run_pure(Mock())
 
     assert selector.is_selected()
-    assert selector.draw_selected_rect.call_count == 4
     assert selector.left_top == Point(0, 0)
     assert selector.right_bottom == Point(3, 3)
 
 def test_selector_swap_coordinates(selected_points):
-    test_selector(sorted(selected_points, reverse=True))
+    test_selector(selected_points[::-1])
 
 def test_extractor_invalid_camera(test_config_ini):
-    folder, file = test_config_ini
-    Settings.load(folder, file)
-    Settings.CAMERA_ID = 5
+    load_mock_config(test_config_ini)
     try:
-        Extractor(Settings.CAMERA_ID, Mock())
+        Extractor(Settings.CAMERA_ID)
     except RuntimeError as e:
         assert str(e) == 'Wrong camera ID'
     else:
         pytest.fail('somehow invalid source of camera is valid')
 
-def test_extractor(thread_loop_interval, thread_loop_run_time):
+def test_extractor():
     Settings.load()
-    extractor = Extractor(Settings.CAMERA_ID, Mock(), run_immediately=False)
+    extractor = Extractor(Settings.CAMERA_ID)
     extractor._camera = Mock()
-    extractor._camera.read = Mock(return_value=Mock())
-    extractor.start_thread(extractor.extract_frame, thread_loop_interval)
-    sleep(thread_loop_run_time)
-    extractor.stop_thread()
+    extractor._camera.read = Mock(return_value=(Mock(), Mock()))
+    extractor.extract_frame()
     assert extractor._camera.read.call_count > 0
+

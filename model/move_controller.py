@@ -37,9 +37,7 @@ class MoveController:
         return self._ready
 
     def _move_laser(self, position: Point, command=1):
-        position.to_int()
         message = (f'{position.x};{position.y};{command}\n').encode('ascii', 'ignore')
-        logger.debug(f'moving laser to {position.x, position.y}, command={command}')
         self.serial.write(message)
         self.timer = time()
         self._ready = False

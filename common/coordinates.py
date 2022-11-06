@@ -72,3 +72,6 @@ class Point:
 
     def to_int(self):
         return Point(int(self.x), int(self.y))
+
+    def __str__(self):
+        return f'({self.x}, {self.y})'

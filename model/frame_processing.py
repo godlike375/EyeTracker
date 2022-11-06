@@ -1,3 +1,4 @@
+import logging
 from collections import deque
 from itertools import chain, repeat
 
@@ -8,6 +9,10 @@ from PIL import Image
 from common.coordinates import Point
 from model.area_controller import AreaController
 from model.settings import Settings
+from common.thread_helpers import LOGGER_NAME
+
+
+logger = logging.getLogger(LOGGER_NAME)
 
 
 class Processor:
@@ -53,6 +58,7 @@ class Tracker:
             self._center = center
 
     def start_tracking(self, frame, left_top, right_bottom):
+        logger.debug('tracking on')
         for coord in chain(left_top, right_bottom):
             self._denoisers.append(Denoiser(coord, mean_count=self._mean_count))
         self._length_xy = Point(abs(left_top.x - right_bottom.x), abs(left_top.y - right_bottom.y))
@@ -87,12 +93,14 @@ class FramePipeline:
         return data_arg
 
     def append(self, func):
+        name = func
+        logger.debug(f'appending {name} to pipeline')
+        # func
         self._funcs.append(func)
 
-    def pop_front(self):
-        self._funcs.pop(0)
-
     def safe_remove(self, func):
+        name = func
+        logger.debug(f'removing {name} from pipeline')
         if func in self._funcs:
             self._funcs.remove(func)
 

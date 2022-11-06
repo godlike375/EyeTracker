@@ -23,7 +23,7 @@ class Selector:
         self.right_bottom.x, self.right_bottom.y = event.x, event.y
 
     def end(self, event):
-        logger.debug(f'end selecting {event.x, event.y}')
+        logger.debug(f'end selecting {self._name} {event.x, event.y}')
         self.right_bottom.x, self.right_bottom.y = event.x, event.y
         self.left_top.x, self.right_bottom.x = Selector.check_swap_coords(self.left_top.x, self.right_bottom.x)
         self.left_top.y, self.right_bottom.y = Selector.check_swap_coords(self.left_top.y, self.right_bottom.y)

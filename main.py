@@ -38,6 +38,7 @@ if __name__ == '__main__':
         frame_controller.stop_thread()
     finally:
         Settings.save()
+        logger.debug('settings saved')
         # TODO: добавить сохранение зоны в файл, чтобы каждый раз не перевыделять
 
     # TODO: вынести left_top, right_bottom в класс Rect

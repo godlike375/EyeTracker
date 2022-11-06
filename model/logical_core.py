@@ -1,8 +1,7 @@
 import logging
 
-from common.thread_helpers import LOGGER_NAME
+from common.thread_helpers import LOGGER_NAME, ThreadLoopable
 from common.coordinates import Point
-from common.thread_helpers import ThreadLoopable
 from model.area_controller import AreaController
 from model.extractor import Extractor
 from model.frame_processing import Processor, Tracker, FramePipeline
@@ -67,9 +66,11 @@ class Model(ThreadLoopable):
         Processor.CURRENT_COLOR = Processor.COLOR_WHITE if not intersected else Processor.COLOR_RED
 
     def calibrate_laser(self):
+        logger.debug('laser calibrated')
         self._laser_controller._move_laser(Point(0, 0), command=2)
 
     def center_laser(self):
+        logger.debug('laser centered')
         self._laser_controller._move_laser(Point(0, 0))
 
     def remove_processor(self, name):
