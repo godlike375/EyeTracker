@@ -75,3 +75,14 @@ class Point:
 
     def __str__(self):
         return f'({self.x}, {self.y})'
+
+
+class RectBased():
+
+    @property
+    def left_top(self):
+        pass
+
+    @property
+    def righ_bottom(self):
+        pass

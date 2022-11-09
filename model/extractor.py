@@ -1,6 +1,6 @@
 import cv2
 
-from model.settings import Settings
+from common.settings import Settings
 
 
 class Extractor():

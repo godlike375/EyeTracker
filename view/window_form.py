@@ -5,7 +5,7 @@ from functools import partial
 from PIL import ImageTk
 
 from common.thread_helpers import LOGGER_NAME
-from model.settings import Settings
+from common.settings import Settings
 from model.logical_core import FRAME_INTERVAL
 
 SECOND_LENGTH = 1000

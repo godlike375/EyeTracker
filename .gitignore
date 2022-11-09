@@ -1,3 +1,4 @@
 .idea
 __pycache__
 tests/test_saved_config.ini
+config/*

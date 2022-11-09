@@ -5,7 +5,7 @@ from serial import Serial
 
 from common.thread_helpers import LOGGER_NAME
 from common.coordinates import Point
-from model.settings import Settings
+from common.settings import Settings
 
 STABLE_POSITION_DURATION = 0.67
 READY = 'ready'

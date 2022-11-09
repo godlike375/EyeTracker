@@ -2,39 +2,17 @@ import logging
 from collections import deque
 from itertools import chain, repeat
 
-import cv2
 import dlib
-from PIL import Image
 
-from common.coordinates import Point
+from common.coordinates import Point, RectBased
 from model.area_controller import AreaController
-from model.settings import Settings
+from common.settings import Settings
 from common.thread_helpers import LOGGER_NAME
-
 
 logger = logging.getLogger(LOGGER_NAME)
 
 
-class Processor:
-    # white
-    COLOR_WHITE = (255, 255, 255)
-    COLOR_RED = (0, 0, 255)
-    THICKNESS = 2
-    CURRENT_COLOR = COLOR_WHITE
-
-    @staticmethod
-    def frame_to_image(frame):
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        rgb = Image.fromarray(rgb)
-        return rgb
-
-    @staticmethod
-    def draw_rectangle(frame, left_top: Point, right_bottom: Point):
-        rect_frame = cv2.rectangle(frame, (*left_top,), (*right_bottom,), Processor.CURRENT_COLOR, Processor.THICKNESS)
-        return rect_frame
-
-
-class Tracker:
+class Tracker(RectBased):
     def __init__(self, mean_count=Settings.MEAN_TRACKING_COUNT):
         self._mean_count = mean_count
         self.tracker = dlib.correlation_tracker()
@@ -58,7 +36,7 @@ class Tracker:
             self._center = center
 
     def start_tracking(self, frame, left_top, right_bottom):
-        logger.debug('tracking on')
+        logger.debug('tracking started')
         for coord in chain(left_top, right_bottom):
             self._denoisers.append(Denoiser(coord, mean_count=self._mean_count))
         self._length_xy = Point(abs(left_top.x - right_bottom.x), abs(left_top.y - right_bottom.y))
@@ -72,37 +50,6 @@ class Tracker:
             self._denoisers[i].add(coord)
         self.update_center()
         return self._center
-
-    def draw_tracked_rect(self, frame):
-        # для фильтрации надо left_top и right_bottom навеное сделать генераторами
-        rect_frame = Processor.draw_rectangle(frame, self.left_top, self.right_bottom)
-        return rect_frame
-
-
-class FramePipeline:
-    def __init__(self, *functions):
-        self._funcs = list(functions)
-
-    def run_pure(self, data_arg):
-        if self._funcs:
-            first, *others = self._funcs
-            result = first(data_arg)
-            for func in others:
-                result = func(result)
-            return result
-        return data_arg
-
-    def append(self, func):
-        name = func
-        logger.debug(f'appending {name} to pipeline')
-        # func
-        self._funcs.append(func)
-
-    def safe_remove(self, func):
-        name = func
-        logger.debug(f'removing {name} from pipeline')
-        if func in self._funcs:
-            self._funcs.remove(func)
 
 
 class Denoiser:

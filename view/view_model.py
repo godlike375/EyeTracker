@@ -40,7 +40,8 @@ class ViewModel:
 
     def start_selection(self, name):
         # TODO: Починить логику, там в пайплайн добавляются строки
-        self._model.remove_processor(name)
+        if name == 'object':
+            self._model.remove_processor(name)
         selector = self._model.get_selector(name)
         binded_progress = partial(self.selection_progress, selector)
         binded_start = partial(self.selection_start, selector)

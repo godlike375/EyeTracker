@@ -1,13 +1,14 @@
 import logging
 
-from common.thread_helpers import LOGGER_NAME, ThreadLoopable
 from common.coordinates import Point
+from common.settings import Settings
+from common.thread_helpers import LOGGER_NAME, ThreadLoopable
 from model.area_controller import AreaController
 from model.extractor import Extractor
-from model.frame_processing import Processor, Tracker, FramePipeline
+from model.frame_processing import Tracker
 from model.move_controller import MoveController
 from model.selector import Selector
-from model.settings import Settings
+from view.drawing import Processor
 from view.view_model import ViewModel
 
 logger = logging.getLogger(LOGGER_NAME)
@@ -20,7 +21,6 @@ class Model(ThreadLoopable):
     def __init__(self, view_model: ViewModel, run_immediately: bool = True):
         self._view_model = view_model
         self._extractor = Extractor(Settings.CAMERA_ID)
-        self._pipeline = FramePipeline()
         self._tracker = Tracker()
         self._area_controller = AreaController(min_xy=-Settings.MAX_RANGE,
                                                max_xy=Settings.MAX_RANGE)
@@ -31,6 +31,7 @@ class Model(ThreadLoopable):
                             }
         self._current_frame = None
         self._tracking = self._tracking_off
+        self._drawed_boxes = dict()  # name: RectBased
         super().__init__(self._processing_loop, FRAME_INTERVAL, run_immediately)
 
     def get_selector(self, name):
@@ -46,7 +47,8 @@ class Model(ThreadLoopable):
 
     def _frame_processing(self, frame):
         self._tracking(frame)
-        processed = self._pipeline.run_pure(frame)
+        boxes = self._drawed_boxes.values()
+        processed = Processor.draw_boxes(frame, boxes)
         return Processor.frame_to_image(processed)
 
     def _tracking(self):
@@ -74,10 +76,11 @@ class Model(ThreadLoopable):
         self._laser_controller._move_laser(Point(0, 0))
 
     def remove_processor(self, name):
-        self._pipeline.safe_remove(name)
+        if name in self._drawed_boxes:
+            del self._drawed_boxes[name]
 
     def add_selector_pipeline(self, selector: Selector):
-        self._pipeline.append(selector.draw_selected_rect)
+        self._drawed_boxes[selector.name] = selector
 
     def on_area_selected(self):
         area = self.get_selector('area')
@@ -90,7 +93,5 @@ class Model(ThreadLoopable):
         # TODO: для улучшения производительности стоит в трекер подавать только выделенную область, а не весь кадр
         self._tracker.start_tracking(self._current_frame, object.left_top,
                                      object.right_bottom)
-        # removing the pipeline of the object selector because it's not needed anymore
-        self._pipeline.safe_remove(object.draw_selected_rect)
-        self._pipeline.append(self._tracker.draw_tracked_rect)
+        self._drawed_boxes['object'] = self._tracker
         self._tracking = self._tracking_on

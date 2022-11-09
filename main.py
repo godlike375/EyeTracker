@@ -3,7 +3,7 @@ import logging
 
 from model.logical_core import Model
 from view.view_model import ViewModel
-from model.settings import Settings
+from common.settings import Settings
 from view.window_form import View
 from common.thread_helpers import LOGGER_NAME
 
