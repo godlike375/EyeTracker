@@ -1,7 +1,7 @@
 import logging
 
-from common.thread_helpers import LOGGER_NAME
 from common.coordinates import Point, RectBased
+from common.thread_helpers import LOGGER_NAME
 
 logger = logging.getLogger(LOGGER_NAME)
 
@@ -42,7 +42,9 @@ class Selector(RectBased):
         return self._selected
 
     def is_empty(self):
-        return self._left_top == self._right_bottom
+        return self._left_top == self._right_bottom or \
+               self._left_top.x == self._right_bottom.x or \
+               self._left_top.y == self._right_bottom.y
 
     @staticmethod
     def check_swap_coords(x1: int, x2: int):

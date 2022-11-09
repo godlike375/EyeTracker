@@ -5,9 +5,9 @@ from itertools import chain, repeat
 import dlib
 
 from common.coordinates import Point, RectBased
-from model.area_controller import AreaController
 from common.settings import Settings
 from common.thread_helpers import LOGGER_NAME
+from model.area_controller import AreaController
 
 logger = logging.getLogger(LOGGER_NAME)
 
@@ -19,6 +19,7 @@ class Tracker(RectBased):
         self._denoisers: list[Denoiser] = []
         self._length_xy = None
         self._center = None
+        self.in_progress = False
 
     @property
     def left_top(self):
@@ -36,6 +37,7 @@ class Tracker(RectBased):
             self._center = center
 
     def start_tracking(self, frame, left_top, right_bottom):
+        self.in_progress = True
         logger.debug('tracking started')
         for coord in chain(left_top, right_bottom):
             self._denoisers.append(Denoiser(coord, mean_count=self._mean_count))

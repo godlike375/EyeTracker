@@ -1,17 +1,18 @@
+from itertools import repeat
 from time import sleep
 from unittest.mock import Mock, patch, mock_open
-from itertools import repeat
-
 
 import pytest
 
-from common.thread_helpers import ThreadLoopable
 from common.coordinates import Point
-from model.frame_processing import Denoiser, FramePipeline
-from model.frame_processing import Tracker
 from common.settings import Settings
-from model.selector import Selector
+from common.thread_helpers import ThreadLoopable
+from model.area_controller import AreaController
 from model.extractor import Extractor
+from model.frame_processing import Denoiser
+from model.frame_processing import Tracker
+from model.move_controller import MoveController
+from model.selector import Selector
 
 
 def test_denoiser():
@@ -21,27 +22,6 @@ def test_denoiser():
     denoiser.add(-3)
     assert denoiser.get() == 0
 
-
-def test_process_with_pipeline():
-    obj = Mock()
-
-    def stage_A(obj):
-        obj.A = True
-        return obj
-
-    def stage_B(obj):
-        obj.B = True
-        return obj
-
-    def stage_C(obj):
-        obj.C = True
-        return obj
-
-    pipeline = FramePipeline(stage_A, stage_B, stage_C)
-    obj = pipeline.run_pure(obj)
-    assert hasattr(obj, 'A') and obj.A
-    assert hasattr(obj, 'B') and obj.B
-    assert hasattr(obj, 'C') and obj.C
 
 @pytest.fixture
 def test_config_ini():
@@ -57,6 +37,7 @@ def test_config_ini():
         noise_threshold = 0.035
         max_range = 5000
         """
+
 
 def load_mock_config(test_config_ini):
     with patch("builtins.open", mock_open(read_data=test_config_ini)):
@@ -84,6 +65,7 @@ def test_save_and_load_settings():
 
 def test_thread_loopable():
     thread_loop_interval, thread_loop_run_time = 0.000001, 0.05
+
     class Loopable(ThreadLoopable):
         def __init__(self):
             self.counter = 0
@@ -114,9 +96,11 @@ def test_tracker_coordinates_calculation():
     assert tracker.left_top == Point(0, 0)
     assert tracker.right_bottom == Point(10, 10)
 
+
 @pytest.fixture
 def selected_points():
     return [Point(i, i) for i in range(4)]
+
 
 def test_selector(selected_points):
     callback = Mock(return_value=None)
@@ -131,8 +115,10 @@ def test_selector(selected_points):
     assert selector.left_top == Point(0, 0)
     assert selector.right_bottom == Point(3, 3)
 
+
 def test_selector_swap_coordinates(selected_points):
     test_selector(selected_points[::-1])
+
 
 def test_extractor_invalid_camera(test_config_ini):
     load_mock_config(test_config_ini)
@@ -143,6 +129,7 @@ def test_extractor_invalid_camera(test_config_ini):
     else:
         pytest.fail('somehow invalid source of camera is valid')
 
+
 def test_extractor():
     Settings.load()
     extractor = Extractor(Settings.CAMERA_ID)
@@ -151,3 +138,39 @@ def test_extractor():
     extractor.extract_frame()
     assert extractor._camera.read.call_count > 0
 
+
+@pytest.fixture
+def relative_coords():
+    return (
+        (Point(50, 50), Point(0, 0)),
+        (Point(0, 0), Point(-100, -100)),
+        (Point(100, 100), Point(100, 100)),
+    )
+
+
+@pytest.fixture
+def intersected_coords():
+    return (
+        (Point(-10, -10), Point(0, 0), True),
+        (Point(0, 0), Point(10, 10), False),
+    )
+
+
+def test_area_controller(relative_coords, intersected_coords):
+    controller = AreaController(-100, 100)
+    controller.set_area(Point(0, 0), Point(100, 100))
+    for coord_set in relative_coords:
+        assert controller.calc_relative_coords(coord_set[0]) == coord_set[1]
+    for coord_set in intersected_coords:
+        assert controller.rect_intersected_borders(coord_set[0], coord_set[1]) == coord_set[2]
+
+
+def test_move_controller():
+    MoveController.STABLE_POSITION_DURATION = 0.01
+    controller = MoveController(serial_off=True)
+    controller.set_new_position(Point(10, 10))
+    controller.set_new_position(Point(100, 100))
+    assert controller._current_position == Point(10, 10)
+    sleep(0.05)
+    controller.set_new_position(Point(100, 100))
+    assert controller._current_position == Point(100, 100)

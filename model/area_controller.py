@@ -9,8 +9,6 @@ logger = logging.getLogger(LOGGER_NAME)
 class AreaController:
 
     def __init__(self, min_xy, max_xy):
-        self._min_xy = min_xy
-        self._max_xy = max_xy
         # max resolution in abstract distance units
         self._resolution_xy = abs(min_xy - max_xy)
         self._left_top = None

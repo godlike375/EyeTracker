@@ -18,11 +18,11 @@ class Processor:
         return rgb
 
     @staticmethod
-    def draw_rectangle(frame, left_top: Point, right_bottom: Point):
+    def _draw_rectangle(frame, left_top: Point, right_bottom: Point):
         return cv2.rectangle(frame, (*left_top,), (*right_bottom,), Processor.CURRENT_COLOR, Processor.THICKNESS)
 
     @staticmethod
     def draw_boxes(frame, boxes: list):  # RectBased list
         for box in boxes:
-            frame = Processor.draw_rectangle(frame, box.left_top, box.right_bottom)
+            frame = Processor._draw_rectangle(frame, box.left_top, box.right_bottom)
         return frame

@@ -28,9 +28,8 @@ class Model(ThreadLoopable):
         self._selectors = {
             'area': Selector('area', self.on_area_selected),
             'object': Selector('object', self.on_object_selected)
-                            }
+        }
         self._current_frame = None
-        self._tracking = self._tracking_off
         self._drawed_boxes = dict()  # name: RectBased
         super().__init__(self._processing_loop, FRAME_INTERVAL, run_immediately)
 
@@ -46,20 +45,14 @@ class Model(ThreadLoopable):
         self._view_model.on_image_ready(processed_image)
 
     def _frame_processing(self, frame):
-        self._tracking(frame)
+        if self._tracker.in_progress:
+            self._tracking(frame)
         boxes = self._drawed_boxes.values()
         processed = Processor.draw_boxes(frame, boxes)
         return Processor.frame_to_image(processed)
 
-    def _tracking(self):
-        pass
-
-    def _tracking_off(self, frame):
-        pass
-
-    def _tracking_on(self, frame):
-        # TODO: в трекер должна передаваться только выделенная область cropped_image = img[80:280, 150:330]
-        # TODO: сейчас похоже передаётся с рамкой от фона и большего, чем необходимо размера
+    def _tracking(self, frame):
+        # TODO: возможно, в трекер должна передаваться только выделенная область cropped_image = img[80:280, 150:330]
         center = self._tracker.get_tracked_position(frame)
         relative_coords = self._area_controller.calc_relative_coords(center)
         intersected = self._area_controller.rect_intersected_borders(self._tracker.left_top, self._tracker.right_bottom)
@@ -75,11 +68,11 @@ class Model(ThreadLoopable):
         logger.debug('laser centered')
         self._laser_controller._move_laser(Point(0, 0))
 
-    def remove_processor(self, name):
+    def stop_drawing_selected(self, name):
         if name in self._drawed_boxes:
             del self._drawed_boxes[name]
 
-    def add_selector_pipeline(self, selector: Selector):
+    def start_drawing_selected(self, selector: Selector):
         self._drawed_boxes[selector.name] = selector
 
     def on_area_selected(self):
@@ -94,4 +87,3 @@ class Model(ThreadLoopable):
         self._tracker.start_tracking(self._current_frame, object.left_top,
                                      object.right_bottom)
         self._drawed_boxes['object'] = self._tracker
-        self._tracking = self._tracking_on

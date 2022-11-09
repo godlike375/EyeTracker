@@ -26,7 +26,7 @@ class ViewModel:
         self._model.center_laser()
 
     def selection_start(self, selector, event):
-        self._model.add_selector_pipeline(selector)
+        self._model.start_drawing_selected(selector)
         selector.start(Point(event.x, event.y))
 
     def selection_progress(self, selector, event):
@@ -41,7 +41,7 @@ class ViewModel:
     def start_selection(self, name):
         # TODO: Починить логику, там в пайплайн добавляются строки
         if name == 'object':
-            self._model.remove_processor(name)
+            self._model.stop_drawing_selected(name)
         selector = self._model.get_selector(name)
         binded_progress = partial(self.selection_progress, selector)
         binded_start = partial(self.selection_start, selector)
