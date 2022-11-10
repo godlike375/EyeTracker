@@ -1,7 +1,8 @@
+import _thread
 import logging
 
 from common.coordinates import Point
-from common.settings import Settings
+from common.settings import Settings, OBJECT, AREA
 from common.thread_helpers import LOGGER_NAME, ThreadLoopable
 from model.area_controller import AreaController
 from model.extractor import Extractor
@@ -25,24 +26,29 @@ class Model(ThreadLoopable):
         self._area_controller = AreaController(min_xy=-Settings.MAX_RANGE,
                                                max_xy=Settings.MAX_RANGE)
         self._laser_controller = MoveController()
-        self._selectors = {
-            'area': Selector('area', self.on_area_selected),
-            'object': Selector('object', self.on_object_selected)
-        }
+        self._selectors = dict()
         self._current_frame = None
-        self._drawed_boxes = dict()  # name: RectBased
+        self._drawed_boxes = dict()  # {name: RectBased}
         super().__init__(self._processing_loop, FRAME_INTERVAL, run_immediately)
 
-    def get_selector(self, name):
+    def get_or_create_selector(self, name):
         selector = self._selectors.get(name)
         if selector is None:
-            raise IndexError(f'there is no {name} selector in selectors list')
+            logger.debug(f'creating new selector {name}')
+            on_selected = self.on_object_selected if OBJECT in name else self.on_area_selected
+            selector = Selector(name, on_selected)
+            self._selectors[name] = selector
         return selector
 
     def _processing_loop(self):
-        frame = self._current_frame = self._extractor.extract_frame()
-        processed_image = self._frame_processing(frame)
-        self._view_model.on_image_ready(processed_image)
+        try:
+            frame = self._current_frame = self._extractor.extract_frame()
+            processed_image = self._frame_processing(frame)
+            self._view_model.on_image_ready(processed_image)
+        except Exception as e:
+            ViewModel.show_message(title='Фатальная ошибка', message=f'{e}')
+            logger.exception(e)
+            _thread.interrupt_main()
 
     def _frame_processing(self, frame):
         if self._tracker.in_progress:
@@ -52,8 +58,14 @@ class Model(ThreadLoopable):
         return Processor.frame_to_image(processed)
 
     def _tracking(self, frame):
-        # TODO: возможно, в трекер должна передаваться только выделенная область cropped_image = img[80:280, 150:330]
-        center = self._tracker.get_tracked_position(frame)
+        if not self._tracker.in_progress:
+            return
+        area = self.get_or_create_selector(AREA)
+        cropped_frame = Processor.crop_frame(frame, area.left_top, area.right_bottom)
+        center = self._tracker.get_tracked_position(cropped_frame, area.left_top)
+        self._move_to_relative_cords(center)
+
+    def _move_to_relative_cords(self, center):
         relative_coords = self._area_controller.calc_relative_coords(center)
         intersected = self._area_controller.rect_intersected_borders(self._tracker.left_top, self._tracker.right_bottom)
         if not intersected:
@@ -76,14 +88,18 @@ class Model(ThreadLoopable):
         self._drawed_boxes[selector.name] = selector
 
     def on_area_selected(self):
-        area = self.get_selector('area')
+        area = self.get_or_create_selector(AREA)
         if area.is_empty():
-            self._view_model.show_message('Область не может быть пустой', 'Ошибка')
+            ViewModel.show_message('Область не может быть пустой', 'Ошибка')
         self._area_controller.set_area(area.left_top, area.right_bottom)
 
     def on_object_selected(self):
-        object = self.get_selector('object')
+        object = self.get_or_create_selector(OBJECT)
         # TODO: для улучшения производительности стоит в трекер подавать только выделенную область, а не весь кадр
-        self._tracker.start_tracking(self._current_frame, object.left_top,
-                                     object.right_bottom)
-        self._drawed_boxes['object'] = self._tracker
+        area = self.get_or_create_selector(AREA)
+        frame = self._current_frame
+        cropped_frame = Processor.crop_frame(frame, area.left_top, area.right_bottom)
+        left_top_offset = object.left_top - area.left_top
+        right_bottom_offset = object.right_bottom - area.left_top
+        self._tracker.start_tracking(cropped_frame, left_top_offset, right_bottom_offset)
+        self._drawed_boxes[OBJECT] = self._tracker

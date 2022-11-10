@@ -24,7 +24,7 @@ class MoveController:
         self._ready = True
         self._timer = time()
         self._serial = Serial(port, baund_rate, timeout=Settings.SERIAL_TIMEOUT) \
-            if serial_off else MockSerial()
+            if not serial_off else MockSerial()
 
     @property
     def _can_send(self):

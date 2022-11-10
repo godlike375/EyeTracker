@@ -1,6 +1,8 @@
 from configparser import ConfigParser
 from pathlib import Path
 
+AREA = 'area'
+OBJECT = 'object'
 FOLDER = 'config'
 FILE = 'eyetracker_settings.ini'
 MAIN_ROOT_FOLDER = 'EyeTracker'

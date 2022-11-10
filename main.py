@@ -31,7 +31,7 @@ if __name__ == '__main__':
         root.mainloop()
         logger.debug('mainloop finished')
     except Exception as e:
-        messagebox.showerror(title='Фатальная ошибка', message=f'{e}')
+        ViewModel.show_message(title='Фатальная ошибка', message=f'{e}')
         logger.exception(e)
     else:
         frame_controller.center_laser()
@@ -40,6 +40,3 @@ if __name__ == '__main__':
         Settings.save()
         logger.debug('settings saved')
         # TODO: добавить сохранение зоны в файл, чтобы каждый раз не перевыделять
-
-    # TODO: вынести left_top, right_bottom в класс Rect
-    # TODO: messagebox вынести в отдельный интерфейс пользовательских ошибок, ибо это должна быть абстракция

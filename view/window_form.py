@@ -5,7 +5,7 @@ from functools import partial
 from PIL import ImageTk
 
 from common.thread_helpers import LOGGER_NAME
-from common.settings import Settings
+from common.settings import Settings, AREA, OBJECT
 from model.logical_core import FRAME_INTERVAL
 
 SECOND_LENGTH = 1000
@@ -22,8 +22,8 @@ class View:
         self._image_alive_ref = None
         self._image_frame = Frame(self._root, width=600, height=800)
         self._button_frame = Frame(self._root, background='white')
-        area_callback = partial(view_model.start_selection, 'area')
-        object_callback = partial(view_model.start_selection, 'object')
+        area_callback = partial(view_model.new_selection, AREA)
+        object_callback = partial(view_model.new_selection, OBJECT)
         self._select_area_rect = Button(self._button_frame, text='Выделение зоны',
                                         command=area_callback)
         self._select_object_rect = Button(self._button_frame, text='Выделение объекта',
@@ -69,6 +69,6 @@ class View:
         # !!! если не сохранить ссылку на этот объект, то объект тут же удалится и не будет отображаться картинка
         self._image_alive_ref = imgtk
         self._video_label.configure(image=imgtk)
-        if self.view_model.selector_is_selected('area') and self._select_object_rect['state'] == 'disabled':
+        if self.view_model.selector_is_selected(AREA) and self._select_object_rect['state'] == 'disabled':
             logger.debug('area selected')
             self._select_object_rect['state'] = 'normal'

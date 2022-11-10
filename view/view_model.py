@@ -2,6 +2,7 @@ from functools import partial
 from tkinter import Tk, messagebox
 
 from common.coordinates import Point
+from common.settings import OBJECT
 
 
 class ViewModel:
@@ -20,7 +21,7 @@ class ViewModel:
         self._view.set_current_image(image)
 
     def calibrate_laser(self):
-        self._model._calibrate_laser()
+        self._model.calibrate_laser()
 
     def center_laser(self):
         self._model.center_laser()
@@ -38,11 +39,11 @@ class ViewModel:
         self._root.unbind('<Button-1>')
         self._root.unbind('<ButtonRelease-1>')
 
-    def start_selection(self, name):
-        # TODO: Починить логику, там в пайплайн добавляются строки
-        if name == 'object':
-            self._model.stop_drawing_selected(name)
-        selector = self._model.get_selector(name)
+    def new_selection(self, name):
+        self._model.stop_drawing_selected(OBJECT)
+        self._model.stop_drawing_selected(name)
+        self._model._tracker.in_progress = False
+        selector = self._model.get_or_create_selector(name)
         binded_progress = partial(self.selection_progress, selector)
         binded_start = partial(self.selection_start, selector)
         binded_end = partial(self.selection_end, selector)
@@ -51,8 +52,9 @@ class ViewModel:
         self._root.bind('<ButtonRelease-1>', binded_end)
 
     def selector_is_selected(self, name):
-        selector = self._model.get_selector(name)
+        selector = self._model.get_or_create_selector(name)
         return selector.is_selected()
 
-    def show_message(self, message: str, title: str = ''):
+    @staticmethod
+    def show_message(message: str, title: str = ''):
         messagebox.showerror(title, message)

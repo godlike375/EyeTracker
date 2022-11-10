@@ -12,6 +12,10 @@ class Processor:
     CURRENT_COLOR = COLOR_WHITE
 
     @staticmethod
+    def crop_frame(frame, left_top, right_bottom):
+        return frame[left_top.y:right_bottom.y, left_top.x:right_bottom.x]
+
+    @staticmethod
     def frame_to_image(frame):
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         rgb = Image.fromarray(rgb)

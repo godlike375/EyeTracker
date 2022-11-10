@@ -45,10 +45,13 @@ class Tracker(RectBased):
         self._center = AreaController.calc_center(left_top, right_bottom)
         self.tracker.start_track(frame, dlib.rectangle(*left_top, *right_bottom))
 
-    def get_tracked_position(self, frame):
+    def get_tracked_position(self, frame, left_top_offset) -> Point:
         self.tracker.update(frame)
         rect = self.tracker.get_position()
-        for i, coord in enumerate(map(int, (rect.left(), rect.top(), rect.right(), rect.bottom()))):
+        for i, coord in enumerate(map(int, (rect.left() + left_top_offset.x,
+                                            rect.top() + left_top_offset.y,
+                                            rect.right() + left_top_offset.x,
+                                            rect.bottom() + left_top_offset.y))):
             self._denoisers[i].add(coord)
         self.update_center()
         return self._center

@@ -91,7 +91,7 @@ def test_tracker_coordinates_calculation():
     tracker.tracker.get_position = Mock(return_value=rect)
     frame = Mock()
     tracker.start_tracking(frame, Point(0, 0), Point(10, 10))
-    coords = tracker.get_tracked_position(frame)
+    coords = tracker.get_tracked_position(frame, Point(0, 0))
     assert coords == Point(5, 5)
     assert tracker.left_top == Point(0, 0)
     assert tracker.right_bottom == Point(10, 10)
