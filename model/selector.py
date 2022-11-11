@@ -7,13 +7,13 @@ logger = logging.getLogger(LOGGER_NAME)
 
 
 class Selector(RectBased):
-    def __init__(self, name: str, callback):
+    def __init__(self, name: str, callback, left_top: Point = None, right_bottom: Point = None):
         super().__init__()
         self.name = name
         self._callback = callback
-        self._selected = False
-        self._left_top = Point(0, 0)
-        self._right_bottom = Point(0, 0)
+        self._selected = left_top is not None and right_bottom is not None
+        self._left_top = left_top or Point(0, 0)
+        self._right_bottom = right_bottom or Point(0, 0)
 
     @property
     def left_top(self):

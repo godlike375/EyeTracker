@@ -84,5 +84,5 @@ class RectBased():
         pass
 
     @property
-    def righ_bottom(self):
+    def right_bottom(self):
         pass

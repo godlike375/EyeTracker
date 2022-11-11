@@ -19,17 +19,29 @@ FRAME_INTERVAL = 1 / Settings.FPS
 
 class Model(ThreadLoopable):
 
-    def __init__(self, view_model: ViewModel, run_immediately: bool = True):
+    def __init__(self, view_model: ViewModel, run_immediately: bool = True, area: tuple = None):
         self._view_model = view_model
         self._extractor = Extractor(Settings.CAMERA_ID)
         self._tracker = Tracker()
         self._area_controller = AreaController(min_xy=-Settings.MAX_RANGE,
                                                max_xy=Settings.MAX_RANGE)
-        self._laser_controller = MoveController()
+        self._laser_controller = MoveController(serial_off=True)
         self._selectors = dict()
         self._current_frame = None
         self._drawed_boxes = dict()  # {name: RectBased}
+
+        if area is not None:
+            self.load_selected_area(area)
+
         super().__init__(self._processing_loop, FRAME_INTERVAL, run_immediately)
+
+    def load_selected_area(self, area):
+        left_top, right_bottom = area
+        area_selector = Selector(AREA, self.on_area_selected, left_top, right_bottom)
+        area_selector._selected = True
+        self._selectors[AREA] = area_selector
+        self.start_drawing_selected(area_selector)
+        self.on_area_selected()
 
     def get_or_create_selector(self, name):
         selector = self._selectors.get(name)
