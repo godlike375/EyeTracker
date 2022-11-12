@@ -18,7 +18,7 @@ if __name__ == '__main__':
     logger.addHandler(handler)
     try:
         Settings.load()
-        left_top, right_bottom = SelectedArea.load()
+        area = SelectedArea.load()
         logger.debug('settings loaded')
     except Exception as e:
         messagebox.showerror(title='Ошибка загрузки конфигурации', message=f'{e}')
@@ -27,7 +27,7 @@ if __name__ == '__main__':
         view_model = ViewModel(root)
         form = View(root, view_model).setup()
         view_model.set_view(form)
-        model_core = Model(view_model, area=(left_top, right_bottom),)
+        model_core = Model(view_model, area=area)
         view_model.set_model(model_core)
         logger.debug('mainloop started')
         root.mainloop()
