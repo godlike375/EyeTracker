@@ -20,6 +20,7 @@ class Settings:
     MEAN_TRACKING_COUNT = 3
     NOISE_THRESHOLD = 0.035
     MAX_RANGE = 6000
+    STABLE_POSITION_DURATION = 0.67
 
     @staticmethod
     def get_repo_path():

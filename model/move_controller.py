@@ -13,7 +13,6 @@ logger = logging.getLogger(LOGGER_NAME)
 
 
 class MoveController:
-    STABLE_POSITION_DURATION = 0.67
 
     def __init__(self, port=None, baund_rate=None, serial_off=False):
         # TODO: к настройкам должно обращаться что-то внещнее в идеале и передавать эти параметры сюда
@@ -28,7 +27,7 @@ class MoveController:
 
     @property
     def _can_send(self):
-        if time() - self._timer > MoveController.STABLE_POSITION_DURATION:
+        if time() - self._timer > Settings.STABLE_POSITION_DURATION:
             return True
         return False
 
