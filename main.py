@@ -43,4 +43,3 @@ if __name__ == '__main__':
         if area_selector.is_selected():
             SelectedArea.save(area_selector.left_top, area_selector.right_bottom)
         logger.debug('settings saved')
-        # TODO: добавить сохранение зоны в файл, чтобы каждый раз не перевыделять

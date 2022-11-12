@@ -79,10 +79,10 @@ class Model(ThreadLoopable):
 
     def _move_to_relative_cords(self, center):
         relative_coords = self._area_controller.calc_relative_coords(center)
-        intersected = self._area_controller.rect_intersected_borders(self._tracker.left_top, self._tracker.right_bottom)
-        if not intersected:
+        out_of_area = self._area_controller.rect_intersected_borders(self._tracker.left_top, self._tracker.right_bottom)
+        if not out_of_area:
             self._laser_controller.set_new_position(relative_coords.to_int())
-        Processor.CURRENT_COLOR = Processor.COLOR_WHITE if not intersected else Processor.COLOR_RED
+        Processor.CURRENT_COLOR = Processor.COLOR_WHITE if not out_of_area else Processor.COLOR_RED
 
     def calibrate_laser(self):
         logger.debug('laser calibrated')
@@ -99,16 +99,27 @@ class Model(ThreadLoopable):
     def start_drawing_selected(self, selector: Selector):
         self._drawed_boxes[selector.name] = selector
 
+    def check_coords(self, selector):
+        if selector.is_empty():
+            ViewModel.show_message('Область не может быть пустой', 'Ошибка')
+
     def on_area_selected(self):
         area = self.get_or_create_selector(AREA)
-        if area.is_empty():
-            ViewModel.show_message('Область не может быть пустой', 'Ошибка')
+        self.check_coords(area)
         self._area_controller.set_area(area.left_top, area.right_bottom)
 
     def on_object_selected(self):
         object = self.get_or_create_selector(OBJECT)
+        self.check_coords(object)
         # TODO: для улучшения производительности стоит в трекер подавать только выделенную область, а не весь кадр
         area = self.get_or_create_selector(AREA)
+        out_of_area = self._area_controller.rect_intersected_borders(object.left_top, object.right_bottom)
+        if out_of_area:
+            self._view_model.show_message('Нельзя выделять область за зоной слежения', 'Ошибка')
+            del self._selectors[OBJECT]
+            del self._drawed_boxes[OBJECT]
+            return
+
         frame = self._current_frame
         cropped_frame = Processor.crop_frame(frame, area.left_top, area.right_bottom)
         left_top_offset = object.left_top - area.left_top
