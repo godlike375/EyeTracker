@@ -1,10 +1,12 @@
 from tkinter import Tk, messagebox
 import logging
 
-from management_core import EventDispatcher, FrameStorage, Extractor
-from model.settings import Settings
-from view.window import Window
-from common.utils import LOGGER_NAME
+
+from model.logical_core import Model
+from view.view_model import ViewModel
+from common.settings import Settings, SelectedArea
+from view.window_form import View
+from common.thread_helpers import LOGGER_NAME
 
 logger = logging.getLogger(LOGGER_NAME)
 
@@ -16,28 +18,28 @@ if __name__ == '__main__':
     logger.addHandler(handler)
     try:
         Settings.load()
+        area = SelectedArea.load()
         logger.debug('settings loaded')
     except Exception as e:
         messagebox.showerror(title='Ошибка загрузки конфигурации', message=f'{e}')
     try:
         root = Tk()
-        frame_storage = FrameStorage()
-        extractor = Extractor(Settings.CAMERA_ID, frame_storage)
-        dispatcher = EventDispatcher(root, frame_storage)
-        form = Window(root, frame_storage, dispatcher).setup()
+        view_model = ViewModel(root)
+        form = View(root, view_model).setup()
+        view_model.set_view(form)
+        model_core = Model(view_model, area=area)
+        view_model.set_model(model_core)
         logger.debug('mainloop started')
         root.mainloop()
         logger.debug('mainloop finished')
     except Exception as e:
-        messagebox.showerror(title='Фатальная ошибка', message=f'{e}')
+        ViewModel.show_message(title='Фатальная ошибка', message=f'{e}')
         logger.exception(e)
     else:
-        dispatcher.center_laser()
-        dispatcher.stop_thread()
-        extractor.stop_thread()
-    finally:
+        model_core.center_laser()
+        model_core.stop_thread()
         Settings.save()
-        # TODO: добавить сохранение зоны в файл, чтобы каждый раз не перевыделять
-
-    # TODO: вынести left_top, right_bottom в класс Rect
-    # TODO: messagebox вынести в отдельный интерфейс пользовательских ошибок, ибо это должна быть абстракция
+        area_selector = model_core.get_or_create_selector('area')
+        if area_selector.is_selected():
+            SelectedArea.save(area_selector.left_top, area_selector.right_bottom)
+        logger.debug('settings saved')

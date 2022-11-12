@@ -1,41 +1,50 @@
 import logging
 
-from common.utils import Point, LOGGER_NAME
-from model.frame_processing import Processor, FramePipeline
+from common.coordinates import Point, RectBased
+from common.thread_helpers import LOGGER_NAME
 
 logger = logging.getLogger(LOGGER_NAME)
 
-class Selector:
-    def __init__(self, name: str, pipeline: FramePipeline, callback):
-        self._name = name
-        self._pipeline = pipeline
-        self.left_top = Point(0, 0)
-        self.right_bottom = Point(0, 0)
+
+class Selector(RectBased):
+    def __init__(self, name: str, callback, left_top: Point = None, right_bottom: Point = None):
+        super().__init__()
+        self.name = name
         self._callback = callback
-        self._selected = False
+        self._selected = left_top is not None and right_bottom is not None
+        self._left_top = left_top or Point(0, 0)
+        self._right_bottom = right_bottom or Point(0, 0)
+
+    @property
+    def left_top(self):
+        return self._left_top
+
+    @property
+    def right_bottom(self):
+        return self._right_bottom
 
     def start(self, event):
         logger.debug(f'start selecting {event.x, event.y}')
-        self._pipeline.append(self.draw_selected_rect)
-        self.left_top.x, self.left_top.y = event.x, event.y
+        self._left_top.x, self._left_top.y = event.x, event.y
 
     def progress(self, event):
-        self.right_bottom.x, self.right_bottom.y = event.x, event.y
+        self._right_bottom.x, self._right_bottom.y = event.x, event.y
 
     def end(self, event):
-        logger.debug(f'end selecting {event.x, event.y}')
-        self.right_bottom.x, self.right_bottom.y = event.x, event.y
-        self.left_top.x, self.right_bottom.x = Selector.check_swap_coords(self.left_top.x, self.right_bottom.x)
-        self.left_top.y, self.right_bottom.y = Selector.check_swap_coords(self.left_top.y, self.right_bottom.y)
+        logger.debug(f'end selecting {self.name} {event.x, event.y}')
+        self._right_bottom.x, self._right_bottom.y = event.x, event.y
+        self._left_top.x, self._right_bottom.x = Selector.check_swap_coords(self._left_top.x, self._right_bottom.x)
+        self._left_top.y, self._right_bottom.y = Selector.check_swap_coords(self._left_top.y, self._right_bottom.y)
         self._selected = True
-        self._callback(self._name)
+        self._callback()
 
     def is_selected(self):
         return self._selected
 
-    def draw_selected_rect(self, frame):
-        rect_frame = Processor.draw_rectangle(frame, self.left_top, self.right_bottom)
-        return rect_frame
+    def is_empty(self):
+        return self._left_top == self._right_bottom or \
+               self._left_top.x == self._right_bottom.x or \
+               self._left_top.y == self._right_bottom.y
 
     @staticmethod
     def check_swap_coords(x1: int, x2: int):
