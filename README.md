@@ -15,6 +15,9 @@ export PYTHONIOENCODING="utf-8"
 VENV_PYTHON="./venv_python.sh"
 
 "$VENV_PYTHON" -m flake8 ./model ./common ./view
+
 if [[ $? -ne 0 ]]; then
+
 	exit 1
+
 fi 
