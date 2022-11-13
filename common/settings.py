@@ -7,7 +7,8 @@ OBJECT = 'object'
 FOLDER = 'config'
 FILE = 'eyetracker_settings.ini'
 AREA_FILE = 'selected_area.pickle'
-MAIN_ROOT_FOLDER = 'EyeTracker'
+ROOT_FOLDER = 'EyeTracker'
+ROOT_DIR = None
 
 
 class Settings:
@@ -23,11 +24,15 @@ class Settings:
     STABLE_POSITION_DURATION = 0.67
 
     @staticmethod
-    def get_repo_path():
-        current = Path.cwd()
-        while current.name != MAIN_ROOT_FOLDER:
-            current = current.parent
-        return current
+    def get_repo_path(current: Path = None):
+        if ROOT_DIR is not None:
+            return Path(ROOT_DIR)
+        current_path = current or Path.cwd()
+        while current_path.name != ROOT_FOLDER:
+            if current_path == current_path.parent:
+                raise FileNotFoundError(f'Корневая директория программы "{ROOT_FOLDER}" не найдена')
+            current_path = current_path.parent
+        return current_path
 
     @staticmethod
     def load(folder: str = FOLDER, file: str = FILE):

@@ -1,11 +1,12 @@
 from itertools import repeat
 from time import sleep
 from unittest.mock import Mock, patch, mock_open
+from pathlib import Path
 
 import pytest
 
 from common.coordinates import Point
-from common.settings import Settings
+from common.settings import Settings, ROOT_FOLDER
 from common.thread_helpers import ThreadLoopable
 from model.area_controller import AreaController
 from model.extractor import Extractor
@@ -174,3 +175,11 @@ def test_move_controller():
     sleep(0.05)
     controller.set_new_position(Point(100, 100))
     assert controller._current_position == Point(100, 100)
+
+def test_repo_path():
+    try:
+        Settings.get_repo_path(Path.cwd().parent.parent)
+    except FileNotFoundError as e:
+        assert str(e) == f'Корневая директория программы "{ROOT_FOLDER}" не найдена'
+    path = Settings.get_repo_path()
+    assert path.name == ROOT_FOLDER

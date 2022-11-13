@@ -1,7 +1,8 @@
 from tkinter import Tk, messagebox
 import logging
+import argparse
 
-
+import common.settings
 from model.logical_core import Model
 from view.view_model import ViewModel
 from common.settings import Settings, SelectedArea
@@ -10,12 +11,17 @@ from common.thread_helpers import LOGGER_NAME
 
 logger = logging.getLogger(LOGGER_NAME)
 
-if __name__ == '__main__':
-    logger.setLevel(logging.DEBUG)
+def setup_logger(level):
+    logger.setLevel(level)
     _log_format = f"[%(levelname)s] %(filename)s %(funcName)s(%(lineno)d): %(message)s"
     handler = logging.StreamHandler()
     handler.setFormatter(logging.Formatter(_log_format))
     logger.addHandler(handler)
+
+def main(args):
+    setup_logger(logging.DEBUG)
+    if args.root_dir:
+        common.settings.ROOT_DIR = args.root_dir
     try:
         Settings.load()
         area = SelectedArea.load()
@@ -43,3 +49,9 @@ if __name__ == '__main__':
         if area_selector.is_selected():
             SelectedArea.save(area_selector.left_top, area_selector.right_bottom)
         logger.debug('settings saved')
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Object Tracking Program')
+    parser.add_argument('--root_dir', type=str, help='Root directory of the program')
+    args = parser.parse_args()
+    main(args)
