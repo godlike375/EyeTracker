@@ -1,5 +1,8 @@
 import logging
-from tkinter import Label, Tk, Frame, Button, TOP, BOTTOM, LEFT, RIGHT
+from tkinter import (
+    Label, Tk, Frame, Button, TOP,
+    BOTTOM, LEFT, RIGHT
+)
 from functools import partial
 
 from PIL import ImageTk

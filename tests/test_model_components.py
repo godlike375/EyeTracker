@@ -10,8 +10,7 @@ from common.settings import Settings, ROOT_FOLDER
 from common.thread_helpers import ThreadLoopable
 from model.area_controller import AreaController
 from model.extractor import Extractor
-from model.frame_processing import Denoiser
-from model.frame_processing import Tracker
+from model.frame_processing import Denoiser, Tracker
 from model.move_controller import MoveController
 from model.selector import Selector
 
