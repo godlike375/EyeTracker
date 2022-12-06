@@ -14,7 +14,7 @@ logger = logging.getLogger(LOGGER_NAME)
 def setup_logger(level):
     logger.setLevel(level)
     _log_format = f"[%(levelname)s] %(filename)s %(funcName)s(%(lineno)d): %(message)s"
-    handler = logging.StreamHandler()
+    handler = logging.FileHandler('log.txt')
     handler.setFormatter(logging.Formatter(_log_format))
     logger.addHandler(handler)
 
