@@ -1,6 +1,7 @@
 from tkinter import Tk, messagebox
 import logging
 import argparse
+from pathlib import Path
 
 import common.settings
 from model.logical_core import Model
@@ -14,12 +15,13 @@ logger = logging.getLogger(LOGGER_NAME)
 def setup_logger(level):
     logger.setLevel(level)
     _log_format = f"[%(levelname)s] %(filename)s %(funcName)s(%(lineno)d): %(message)s"
-    handler = logging.FileHandler('log.txt')
+    handler = logging.FileHandler('log.txt', mode='w')
     handler.setFormatter(logging.Formatter(_log_format))
     logger.addHandler(handler)
 
 def main(args):
     setup_logger(logging.DEBUG)
+    common.settings.ROOT_DIR = Path(__file__).absolute().parent
     if args.root_dir:
         common.settings.ROOT_DIR = args.root_dir
     try:

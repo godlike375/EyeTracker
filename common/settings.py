@@ -1,6 +1,11 @@
+import logging
 import pickle
 from configparser import ConfigParser
 from pathlib import Path
+
+from common.thread_helpers import LOGGER_NAME
+
+logger = logging.getLogger(LOGGER_NAME)
 
 AREA = 'area'
 OBJECT = 'object'
@@ -25,12 +30,13 @@ class Settings:
 
     @staticmethod
     def get_repo_path(current: Path = None):
-        if ROOT_DIR is not None:
-            return Path(ROOT_DIR)
         current_path = current or Path.cwd()
         while current_path.name != ROOT_FOLDER:
             if current_path == current_path.parent:
-                raise FileNotFoundError(f'Корневая директория программы "{ROOT_FOLDER}" не найдена')
+                if ROOT_DIR is not None:
+                    return Path(ROOT_DIR)
+                logger.exception(f'Корневая директория программы "{ROOT_FOLDER}" не найдена')
+                return Path.cwd()
             current_path = current_path.parent
         return current_path
 
