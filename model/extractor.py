@@ -13,7 +13,7 @@ class Extractor():
         self._camera.set(cv2.CAP_PROP_FRAME_HEIGHT, Settings.CAMERA_MAX_RESOLUTION)
         self._camera.set(cv2.CAP_PROP_FPS, Settings.FPS)
         if not self._camera.isOpened():
-            raise RuntimeError('Wrong camera ID')
+            raise RuntimeError('Неверный ID камеры')
 
     def extract_frame(self):
         _, frame = self._camera.read()
