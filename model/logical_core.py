@@ -101,6 +101,7 @@ class Model(ThreadLoopable):
 
     def check_coords(self, selector):
         if selector.is_empty():
+            logger.warning('selected area is zero in size')
             ViewModel.show_message('Область не может быть пустой', 'Ошибка')
 
     def on_area_selected(self):
@@ -111,10 +112,10 @@ class Model(ThreadLoopable):
     def on_object_selected(self):
         object = self.get_or_create_selector(OBJECT)
         self.check_coords(object)
-        # TODO: для улучшения производительности стоит в трекер подавать только выделенную область, а не весь кадр
         area = self.get_or_create_selector(AREA)
         out_of_area = self._area_controller.rect_intersected_borders(object.left_top, object.right_bottom)
         if out_of_area:
+            logger.warning('selected object is out of tracking borders')
             self._view_model.show_message('Нельзя выделять область за зоной слежения', 'Ошибка')
             del self._selectors[OBJECT]
             del self._drawed_boxes[OBJECT]
