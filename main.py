@@ -1,16 +1,17 @@
-from tkinter import Tk, messagebox
-import logging
 import argparse
+import logging
 from pathlib import Path
+from tkinter import Tk, messagebox
 
 import common.settings
+from common.settings import Settings, SelectedArea
+from common.thread_helpers import LOGGER_NAME
 from model.logical_core import Model
 from view.view_model import ViewModel
-from common.settings import Settings, SelectedArea
 from view.window_form import View
-from common.thread_helpers import LOGGER_NAME
 
 logger = logging.getLogger(LOGGER_NAME)
+
 
 def setup_logger(level):
     logger.setLevel(level)
@@ -18,6 +19,7 @@ def setup_logger(level):
     handler = logging.FileHandler('log.txt', mode='w')
     handler.setFormatter(logging.Formatter(_log_format))
     logger.addHandler(handler)
+
 
 def main(args):
     setup_logger(logging.DEBUG)
@@ -51,6 +53,7 @@ def main(args):
         if area_selector.is_selected():
             SelectedArea.save(area_selector.left_top, area_selector.right_bottom)
         logger.debug('settings saved')
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Object Tracking Program')

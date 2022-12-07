@@ -1,11 +1,12 @@
 import logging
 from time import time
 
-from serial import Serial
+from serial import Serial, SerialException
 
 from common.coordinates import Point
 from common.settings import Settings
 from common.thread_helpers import LOGGER_NAME
+from view.view_model import ViewModel
 
 READY = 'ready'
 
@@ -22,8 +23,16 @@ class MoveController:
         self._current_position = Point(0, 0)
         self._ready = True
         self._timer = time()
-        self._serial = Serial(port, baund_rate, timeout=Settings.SERIAL_TIMEOUT) \
-            if not serial_off else MockSerial()
+        if not serial_off:
+            try:
+                self._serial = Serial(port, baund_rate, timeout=Settings.SERIAL_TIMEOUT)
+            except SerialException as e:
+                logger.exception(str(e))
+                ViewModel.show_message(f'Не удалось открыть последовательный порт под номером {port}. '
+                                       f'Программа продолжит работать без контроллера лазера.', 'Предупреждение')
+                self._serial = MockSerial()
+        else:
+            self._serial = MockSerial()
 
     @property
     def _can_send(self):

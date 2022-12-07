@@ -40,7 +40,8 @@ class Tracker(RectBased):
         logger.debug('tracking started')
         for coord in chain(left_top, right_bottom):
             self._denoisers.append(Denoiser(coord, mean_count=self._mean_count))
-        self._length_xy = Point(abs(left_top_offset.x - right_bottom_offset.x), abs(left_top_offset.y - right_bottom_offset.y))
+        self._length_xy = Point(abs(left_top_offset.x - right_bottom_offset.x),
+                                abs(left_top_offset.y - right_bottom_offset.y))
         self._center = AreaController.calc_center(left_top_offset, right_bottom_offset)
         self.tracker.start_track(frame, dlib.rectangle(*left_top_offset, *right_bottom_offset))
         self.in_progress = True

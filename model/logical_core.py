@@ -27,7 +27,7 @@ class Model(ThreadLoopable):
         self._tracker = Tracker()
         self._area_controller = AreaController(min_xy=-Settings.MAX_RANGE,
                                                max_xy=Settings.MAX_RANGE)
-        self._laser_controller = MoveController(serial_off=True)
+        self._laser_controller = MoveController(serial_off=False)
         self._selectors = dict()
         self._current_frame = None
         self._drawed_boxes = dict()  # {name: RectBased}
@@ -145,5 +145,6 @@ class Model(ThreadLoopable):
         cropped_frame = Processor.crop_frame(frame, area.left_top, area.right_bottom)
         left_top_offset = object.left_top - area.left_top
         right_bottom_offset = object.right_bottom - area.left_top
-        self._tracker.start_tracking(cropped_frame, left_top_offset, right_bottom_offset, object.left_top, object.right_bottom)
+        self._tracker.start_tracking(cropped_frame, left_top_offset, right_bottom_offset, object.left_top,
+                                     object.right_bottom)
         self._drawed_boxes[OBJECT] = self._tracker

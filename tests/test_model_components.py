@@ -1,7 +1,7 @@
 from itertools import repeat
+from pathlib import Path
 from time import sleep
 from unittest.mock import Mock, patch, mock_open
-from pathlib import Path
 
 import pytest
 
@@ -174,6 +174,7 @@ def test_move_controller():
     sleep(0.05)
     controller.set_new_position(Point(100, 100))
     assert controller._current_position == Point(100, 100)
+
 
 def test_repo_path():
     try:

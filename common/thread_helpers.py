@@ -1,8 +1,8 @@
+from sys import exit
 from threading import (
     Thread, Event, current_thread
 )
 from time import sleep
-from sys import exit
 
 LOGGER_NAME = 'default'
 
