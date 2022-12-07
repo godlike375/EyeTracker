@@ -41,6 +41,8 @@ class Model(ThreadLoopable):
     def load_selected_area(self, area):
         left_top, right_bottom = area
         area_selector = Selector(AREA, self.on_area_selected, left_top, right_bottom)
+        if area_selector.is_empty():
+            return
         area_selector._selected = True
         self._selectors[AREA] = area_selector
         self.start_drawing_selected(area_selector)
