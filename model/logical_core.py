@@ -1,5 +1,7 @@
 import _thread
 import logging
+from threading import Thread
+from winsound import PlaySound, SND_PURGE, SND_FILENAME
 
 from common.coordinates import Point
 from common.settings import Settings, OBJECT, AREA
@@ -29,6 +31,7 @@ class Model(ThreadLoopable):
         self._selectors = dict()
         self._current_frame = None
         self._drawed_boxes = dict()  # {name: RectBased}
+        self._beeped = False
 
         if area is not None:
             self.load_selected_area(area)
@@ -82,7 +85,13 @@ class Model(ThreadLoopable):
         out_of_area = self._area_controller.rect_intersected_borders(self._tracker.left_top, self._tracker.right_bottom)
         if not out_of_area:
             self._laser_controller.set_new_position(relative_coords.to_int())
-        Processor.CURRENT_COLOR = Processor.COLOR_WHITE if not out_of_area else Processor.COLOR_RED
+            Processor.CURRENT_COLOR = Processor.COLOR_WHITE
+            self._beeped = False
+        else:
+            if not self._beeped:
+                Thread(target=PlaySound, args=(r'alert.wav', SND_FILENAME | SND_PURGE)).start()
+                self._beeped = True
+            Processor.CURRENT_COLOR = Processor.COLOR_RED
 
     def calibrate_laser(self):
         logger.debug('laser calibrated')
@@ -99,20 +108,29 @@ class Model(ThreadLoopable):
     def start_drawing_selected(self, selector: Selector):
         self._drawed_boxes[selector.name] = selector
 
-    def check_coords(self, selector):
+    def check_emptiness(self, selector):
         if selector.is_empty():
             logger.warning('selected area is zero in size')
             ViewModel.show_message('Область не может быть пустой', 'Ошибка')
+            return False
+        return True
 
     def on_area_selected(self):
         area = self.get_or_create_selector(AREA)
-        self.check_coords(area)
+        if not self.check_emptiness(area):
+            del self._selectors[AREA]
+            del self._drawed_boxes[AREA]
+            area._selected = False
+            return
         self._area_controller.set_area(area.left_top, area.right_bottom)
 
     def on_object_selected(self):
         object = self.get_or_create_selector(OBJECT)
-        self.check_coords(object)
-        area = self.get_or_create_selector(AREA)
+        if not self.check_emptiness(object):
+            del self._selectors[OBJECT]
+            del self._drawed_boxes[OBJECT]
+            object._selected = False
+            return
         out_of_area = self._area_controller.rect_intersected_borders(object.left_top, object.right_bottom)
         if out_of_area:
             logger.warning('selected object is out of tracking borders')
@@ -120,10 +138,10 @@ class Model(ThreadLoopable):
             del self._selectors[OBJECT]
             del self._drawed_boxes[OBJECT]
             return
-
+        area = self.get_or_create_selector(AREA)
         frame = self._current_frame
         cropped_frame = Processor.crop_frame(frame, area.left_top, area.right_bottom)
         left_top_offset = object.left_top - area.left_top
         right_bottom_offset = object.right_bottom - area.left_top
-        self._tracker.start_tracking(cropped_frame, left_top_offset, right_bottom_offset)
+        self._tracker.start_tracking(cropped_frame, left_top_offset, right_bottom_offset, object.left_top, object.right_bottom)
         self._drawed_boxes[OBJECT] = self._tracker
