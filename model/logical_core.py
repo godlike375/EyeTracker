@@ -38,6 +38,8 @@ class Model(ThreadLoopable):
     def load_selected_area(self, area):
         left_top, right_bottom = area
         area_selector = Selector(AREA, self.on_area_selected, left_top, right_bottom)
+        if area_selector.is_empty():
+            return
         area_selector._selected = True
         self._selectors[AREA] = area_selector
         self.start_drawing_selected(area_selector)
@@ -103,10 +105,17 @@ class Model(ThreadLoopable):
         if selector.is_empty():
             logger.warning('selected area is zero in size')
             ViewModel.show_message('Область не может быть пустой', 'Ошибка')
+            return False
+        return True
+
 
     def on_area_selected(self):
         area = self.get_or_create_selector(AREA)
-        self.check_coords(area)
+        if not self.check_coords(area):
+            del self._selectors[AREA]
+            del self._drawed_boxes[AREA]
+            area._selected = False
+            return
         self._area_controller.set_area(area.left_top, area.right_bottom)
 
     def on_object_selected(self):
