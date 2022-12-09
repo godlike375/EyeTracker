@@ -68,10 +68,13 @@ class View:
         if self._current_image is None:
             return
         image = self._current_image
-        imgtk = ImageTk.PhotoImage(image=image)
-        # !!! если не сохранить ссылку на этот объект, то объект тут же удалится и не будет отображаться картинка
-        self._image_alive_ref = imgtk
-        self._video_label.configure(image=imgtk)
+        if self._image_alive_ref is not None:
+            self._image_alive_ref.paste(image)
+        else:
+            imgtk = ImageTk.PhotoImage(image=image)
+            # !!! если не сохранить ссылку на этот объект, то объект тут же удалится и не будет отображаться картинка
+            self._image_alive_ref = imgtk
+            self._video_label.configure(image=imgtk)
         if self.view_model.selector_is_selected(AREA) and self._select_object_rect['state'] == 'disabled':
             logger.debug('area selected')
             self._select_object_rect['state'] = 'normal'
