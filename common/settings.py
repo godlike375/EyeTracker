@@ -19,7 +19,7 @@ ROOT_DIR = None
 class Settings:
     CAMERA_ID = 0  # the second web-camera
     CAMERA_MAX_RESOLUTION = 640  # max height
-    FPS = 60  # target frames per second
+    FPS_PROCESSED = 60  # target frames per second
     SERIAL_BAUND_RATE = 115200
     SERIAL_TIMEOUT = 0.01
     SERIAL_PORT = 8
@@ -27,7 +27,7 @@ class Settings:
     NOISE_THRESHOLD = 0.035
     MAX_RANGE = 6000
     STABLE_POSITION_DURATION = 0.67
-    PROCESSED_TO_VISIBLE_RATIO = 2.5
+    FPS_VIEWED = 30
 
     @staticmethod
     def get_repo_path(current: Path = None):
@@ -52,12 +52,9 @@ class Settings:
             for sec in config.sections():
                 for key, value in config[sec].items():
                     setattr(Settings, key.upper(), float(value) if '.' in value else int(value))
-        Settings.FRAME_INTERVAL = 1 / Settings.FPS
 
     @staticmethod
     def save(folder: str = FOLDER, file: str = FILE):
-        delattr(Settings, 'FRAME_INTERVAL')
-
         base_path = Settings.get_repo_path()
 
         config = ConfigParser()

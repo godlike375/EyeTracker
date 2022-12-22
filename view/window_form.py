@@ -34,7 +34,7 @@ class View:
                                        command=view_model.calibrate_laser)
         self.view_model = view_model
         self._video_label = Label(self._image_frame)
-        self.interval_ms = int(Settings.FRAME_INTERVAL * SECOND_LENGTH * Settings.PROCESSED_TO_VISIBLE_RATIO)
+        self.interval_ms = int(1 / Settings.FPS_VIEWED * SECOND_LENGTH)
         self._current_image = None
 
     def setup(self):

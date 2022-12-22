@@ -33,8 +33,8 @@ class Model(ThreadLoopable):
 
         if area is not None:
             self.load_selected_area(area)
-
-        super().__init__(self._processing_loop, Settings.FRAME_INTERVAL, run_immediately)
+        FRAME_INTERVAL_SEC = 1 / Settings.FPS_PROCESSED
+        super().__init__(self._processing_loop, FRAME_INTERVAL_SEC, run_immediately)
 
     def load_selected_area(self, area):
         left_top, right_bottom = area
