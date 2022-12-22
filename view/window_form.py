@@ -61,8 +61,6 @@ class View:
         self._current_image = img
 
     def show_image(self):
-        # TODO: возможно вьюшка должна дергать вьюмодел, что теоретически должно заставлять
-        # TODO: работать модель и возвращать результат в эту функцию для отрисовки
         self._root.after(self.interval_ms, self.show_image)
         if self._current_image is None:
             return
@@ -71,7 +69,7 @@ class View:
             self._image_alive_ref.paste(image)
         else:
             imgtk = ImageTk.PhotoImage(image=image)
-            # !!! если не сохранить ссылку на этот объект, то объект тут же удалится и не будет отображаться картинка
+            # сохранять ссылку на объект обязательно, иначе он будет собираться GC и не показываться
             self._image_alive_ref = imgtk
             self._video_label.configure(image=imgtk)
         if self.view_model.selector_is_selected(AREA) and self._select_object_rect['state'] == 'disabled':
