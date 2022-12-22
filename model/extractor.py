@@ -12,6 +12,7 @@ class Extractor():
         self._camera.set(cv2.CAP_PROP_FRAME_WIDTH, Settings.CAMERA_MAX_RESOLUTION)
         self._camera.set(cv2.CAP_PROP_FRAME_HEIGHT, Settings.CAMERA_MAX_RESOLUTION)
         self._camera.set(cv2.CAP_PROP_FPS, Settings.FPS)
+        self._camera.set(cv2.CAP_PROP_BUFFERSIZE, 0)
         if not self._camera.isOpened():
             raise RuntimeError('Неверный ID камеры')
 

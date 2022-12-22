@@ -27,6 +27,7 @@ class Settings:
     NOISE_THRESHOLD = 0.035
     MAX_RANGE = 6000
     STABLE_POSITION_DURATION = 0.67
+    PROCESSED_TO_VISIBLE_RATIO = 2.5
 
     @staticmethod
     def get_repo_path(current: Path = None):
@@ -51,9 +52,12 @@ class Settings:
             for sec in config.sections():
                 for key, value in config[sec].items():
                     setattr(Settings, key.upper(), float(value) if '.' in value else int(value))
+        Settings.FRAME_INTERVAL = 1 / Settings.FPS
 
     @staticmethod
     def save(folder: str = FOLDER, file: str = FILE):
+        delattr(Settings, 'FRAME_INTERVAL')
+
         base_path = Settings.get_repo_path()
 
         config = ConfigParser()

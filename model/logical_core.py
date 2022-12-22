@@ -16,8 +16,6 @@ from view.view_model import ViewModel
 
 logger = logging.getLogger(LOGGER_NAME)
 
-FRAME_INTERVAL = 1 / Settings.FPS
-
 
 class Model(ThreadLoopable):
 
@@ -36,7 +34,7 @@ class Model(ThreadLoopable):
         if area is not None:
             self.load_selected_area(area)
 
-        super().__init__(self._processing_loop, FRAME_INTERVAL, run_immediately)
+        super().__init__(self._processing_loop, Settings.FRAME_INTERVAL, run_immediately)
 
     def load_selected_area(self, area):
         left_top, right_bottom = area

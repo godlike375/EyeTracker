@@ -9,7 +9,6 @@ from PIL import ImageTk
 
 from common.thread_helpers import LOGGER_NAME
 from common.settings import Settings, AREA, OBJECT
-from model.logical_core import FRAME_INTERVAL
 
 SECOND_LENGTH = 1000
 RESOLUTIONS = {1280: 750, 800: 630, 640: 510}
@@ -35,7 +34,7 @@ class View:
                                        command=view_model.calibrate_laser)
         self.view_model = view_model
         self._video_label = Label(self._image_frame)
-        self.interval_ms = int(FRAME_INTERVAL * SECOND_LENGTH)
+        self.interval_ms = int(Settings.FRAME_INTERVAL * SECOND_LENGTH * Settings.PROCESSED_TO_VISIBLE_RATIO)
         self._current_image = None
 
     def setup(self):
