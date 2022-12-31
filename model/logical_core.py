@@ -1,11 +1,10 @@
 import _thread
-import logging
 from threading import Thread
 from winsound import PlaySound, SND_PURGE, SND_FILENAME
 
 from common.coordinates import Point
 from common.settings import Settings, OBJECT, AREA
-from common.thread_helpers import LOGGER_NAME, ThreadLoopable
+from common.thread_helpers import ThreadLoopable
 from model.area_controller import AreaController
 from model.extractor import Extractor
 from model.frame_processing import Tracker
@@ -13,8 +12,7 @@ from model.move_controller import MoveController
 from model.selector import Selector
 from view.drawing import Processor
 from view.view_model import ViewModel
-
-logger = logging.getLogger(LOGGER_NAME)
+from common.logger import logger
 
 
 class Model(ThreadLoopable):

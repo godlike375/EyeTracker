@@ -1,4 +1,3 @@
-import logging
 from collections import deque
 from itertools import chain, repeat
 
@@ -6,10 +5,8 @@ import dlib
 
 from common.coordinates import Point, RectBased
 from common.settings import Settings
-from common.thread_helpers import LOGGER_NAME
+from common.logger import logger
 from model.area_controller import AreaController
-
-logger = logging.getLogger(LOGGER_NAME)
 
 
 class Tracker(RectBased):

@@ -1,11 +1,9 @@
-import logging
 import pickle
 from configparser import ConfigParser
 from pathlib import Path
 
-from common.thread_helpers import LOGGER_NAME
+from common.logger import logger
 
-logger = logging.getLogger(LOGGER_NAME)
 
 AREA = 'area'
 OBJECT = 'object'

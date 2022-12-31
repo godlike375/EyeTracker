@@ -1,16 +1,13 @@
-import logging
 from time import time
 
 from serial import Serial, SerialException
 
 from common.coordinates import Point
 from common.settings import Settings
-from common.thread_helpers import LOGGER_NAME
 from view.view_model import ViewModel
+from common.logger import logger
 
 READY = 'ready'
-
-logger = logging.getLogger(LOGGER_NAME)
 
 
 class MoveController:

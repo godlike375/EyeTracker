@@ -1,9 +1,5 @@
-import logging
-
 from common.coordinates import Point, RectBased
-from common.thread_helpers import LOGGER_NAME
-
-logger = logging.getLogger(LOGGER_NAME)
+from common.logger import logger
 
 
 class Selector(RectBased):

@@ -1,4 +1,3 @@
-import logging
 from tkinter import (
     Label, Tk, Frame, Button, TOP,
     BOTTOM, LEFT, RIGHT
@@ -7,15 +6,13 @@ from functools import partial
 
 from PIL import ImageTk
 
-from common.thread_helpers import LOGGER_NAME
 from common.settings import Settings, AREA, OBJECT
+from common.logger import logger
 
 SECOND_LENGTH = 1000
 RESOLUTIONS = {1280: 750, 800: 630, 640: 510}
 PADDING_X = 16
 PADDING_Y = 4
-
-logger = logging.getLogger(LOGGER_NAME)
 
 
 class View:

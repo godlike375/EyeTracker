@@ -4,8 +4,6 @@ from threading import (
 )
 from time import sleep
 
-LOGGER_NAME = 'default'
-
 
 # https://stackoverflow.com/questions/323972/is-there-any-way-to-kill-a-thread
 class StoppableThread(Thread):

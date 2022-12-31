@@ -84,17 +84,17 @@ def test_tracker_coordinates_calculation():
     tracker = Tracker()
     tracker.tracker = Mock()
     rect = Mock()
-    rect.left = Mock(return_value=1)
-    rect.top = Mock(return_value=1)
-    rect.right = Mock(return_value=11)
-    rect.bottom = Mock(return_value=11)
+    rect.left = Mock(return_value=3)
+    rect.top = Mock(return_value=3)
+    rect.right = Mock(return_value=13)
+    rect.bottom = Mock(return_value=13)
     tracker.tracker.get_position = Mock(return_value=rect)
     frame = Mock()
-    tracker.start_tracking(frame, Point(0, 0), Point(10, 10))
+    tracker.start_tracking(frame, Point(2, 2), Point(12, 12), Point(0, 0), Point(10, 10))
     coords = tracker.get_tracked_position(frame, Point(0, 0))
-    assert coords == Point(5, 5)
-    assert tracker.left_top == Point(0, 0)
-    assert tracker.right_bottom == Point(10, 10)
+    assert coords == Point(6, 6)
+    assert tracker.left_top == Point(1, 1)
+    assert tracker.right_bottom == Point(11, 11)
 
 
 @pytest.fixture
@@ -125,7 +125,7 @@ def test_extractor_invalid_camera(test_config_ini):
     try:
         Extractor(Settings.CAMERA_ID)
     except RuntimeError as e:
-        assert str(e) == 'Wrong camera ID'
+        assert str(e) == 'Неверный ID камеры'
     else:
         pytest.fail('somehow invalid source of camera is valid')
 
