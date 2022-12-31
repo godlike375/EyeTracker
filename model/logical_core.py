@@ -141,6 +141,5 @@ class Model(ThreadLoopable):
         cropped_frame = Processor.crop_frame(frame, area.left_top, area.right_bottom)
         left_top_offset = object.left_top - area.left_top
         right_bottom_offset = object.right_bottom - area.left_top
-        self._tracker.start_tracking(cropped_frame, left_top_offset, right_bottom_offset, object.left_top,
-                                     object.right_bottom)
+        self._tracker.start_tracking(cropped_frame, left_top_offset, right_bottom_offset)
         self._drawed_boxes[OBJECT] = self._tracker

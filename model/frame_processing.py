@@ -33,9 +33,9 @@ class Tracker(RectBased):
         if abs(self._center - center) >= self._length_xy * Settings.NOISE_THRESHOLD:
             self._center = center
 
-    def start_tracking(self, frame, left_top_offset, right_bottom_offset, left_top, right_bottom):
+    def start_tracking(self, frame, left_top_offset, right_bottom_offset):
         logger.debug('tracking started')
-        for coord in chain(left_top, right_bottom):
+        for coord in chain(left_top_offset, right_bottom_offset):
             self._denoisers.append(Denoiser(coord, mean_count=self._mean_count))
         self._length_xy = Point(abs(left_top_offset.x - right_bottom_offset.x),
                                 abs(left_top_offset.y - right_bottom_offset.y))
