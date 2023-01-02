@@ -10,16 +10,17 @@ from common.settings import Settings, AREA, OBJECT
 from common.logger import logger
 
 SECOND_LENGTH = 1000
-RESOLUTIONS = {1280: 750, 800: 630, 640: 510}
+RESOLUTIONS = {1280: 720, 800: 600, 640: 480}
 PADDING_X = 16
 PADDING_Y = 4
+BUTTONS_VERTICAL_OFFSET = 35
 
 
 class View:
     def __init__(self, tk: Tk, view_model):
         self._root = tk
         self._image_alive_ref = None
-        self._image_frame = Frame(self._root, width=600, height=800)
+        self._image_frame = Frame(self._root)
         self._button_frame = Frame(self._root, background='white')
         area_callback = partial(view_model.new_selection, AREA)
         object_callback = partial(view_model.new_selection, OBJECT)
@@ -37,7 +38,7 @@ class View:
     def setup(self):
         self._root.title('Eye tracker')
         WINDOW_HEIGHT = Settings.CAMERA_MAX_RESOLUTION
-        WINDOW_WIDTH = RESOLUTIONS[WINDOW_HEIGHT]
+        WINDOW_WIDTH = RESOLUTIONS[WINDOW_HEIGHT] + BUTTONS_VERTICAL_OFFSET
         window_size = f'{WINDOW_HEIGHT}x{WINDOW_WIDTH}'
         logger.debug(f'window size = {window_size}')
         self._root.geometry(window_size)

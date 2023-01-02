@@ -71,8 +71,6 @@ class Model(ThreadLoopable):
         return Processor.frame_to_image(processed)
 
     def _tracking(self, frame):
-        if not self._tracker.in_progress:
-            return
         area = self.get_or_create_selector(AREA)
         cropped_frame = Processor.crop_frame(frame, area.left_top, area.right_bottom)
         center = self._tracker.get_tracked_position(cropped_frame, area.left_top)
