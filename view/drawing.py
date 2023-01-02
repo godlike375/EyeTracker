@@ -21,12 +21,12 @@ class Processor:
         rgb = Image.fromarray(rgb)
         return rgb
 
-    @staticmethod
-    def _draw_rectangle(frame, left_top: Point, right_bottom: Point):
-        return cv2.rectangle(frame, (*left_top,), (*right_bottom,), Processor.CURRENT_COLOR, Processor.THICKNESS)
+    @classmethod
+    def _draw_rectangle(cls, frame, left_top: Point, right_bottom: Point):
+        return cv2.rectangle(frame, (*left_top,), (*right_bottom,), cls.CURRENT_COLOR, cls.THICKNESS)
 
-    @staticmethod
-    def draw_boxes(frame, boxes: list):  # RectBased list
+    @classmethod
+    def draw_boxes(cls, frame, boxes: list):  # RectBased list
         for box in boxes:
-            frame = Processor._draw_rectangle(frame, box.left_top, box.right_bottom)
+            frame = cls._draw_rectangle(frame, box.left_top, box.right_bottom)
         return frame

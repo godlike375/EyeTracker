@@ -13,8 +13,8 @@ class AreaController:
         self._dpi_xy = None
 
     @staticmethod
-    def calc_center(xy: Point, xy2: Point) -> Point:
-        return Point(int((xy.x + xy2.x) / 2), int((xy.y + xy2.y) / 2))
+    def calc_center(left_top: Point, right_bottom: Point) -> Point:
+        return Point(int((left_top.x + right_bottom.x) / 2), int((left_top.y + right_bottom.y) / 2))
 
     def set_area(self, left_top: Point, right_bottom: Point):
         self._left_top = left_top

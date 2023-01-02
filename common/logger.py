@@ -23,7 +23,7 @@ def setup_logger(level, cleanup_old=True):
         cleanup_old_logs()
     logger = logging.getLogger(LOGGER_NAME)
     logger.setLevel(level)
-    _log_format = f"[%(levelname)s] %(filename)s %(funcName)s(%(lineno)d): %(message)s"
+    _log_format = "[%(levelname)s] %(filename)s %(funcName)s(%(lineno)d): %(message)s"
     Path.mkdir(Path(FOLDER), exist_ok=True)
     logname = f'logs/log_{datetime.now().strftime("%d,%m,%Y_%H;%M;%S")}.txt'
     handler = logging.FileHandler(logname, mode='w')
