@@ -71,14 +71,14 @@ class SelectedArea:
 
         path = base_path / folder / file
         if Path.exists(path):
-            left_top, right_bottom = pickle.loads(Path.read_bytes(path))
-            return left_top, right_bottom
+            left_top, right_top, right_bottom, left_bottom = pickle.loads(Path.read_bytes(path))
+            return left_top, right_top, right_bottom, left_bottom
 
     @staticmethod
-    def save(left_top, right_bottom, folder: str = FOLDER, file: str = AREA_FILE):
+    def save(points, folder: str = FOLDER, file: str = AREA_FILE):
         base_path = Settings.get_repo_path()
         path = base_path / folder
 
         Path.mkdir(path, exist_ok=True)
         with open(path / file, 'wb') as file:
-            pickle.dump((left_top, right_bottom), file)
+            pickle.dump(tuple(points), file)

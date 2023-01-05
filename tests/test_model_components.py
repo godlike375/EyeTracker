@@ -12,7 +12,7 @@ from model.area_controller import AreaController
 from model.extractor import Extractor
 from model.frame_processing import Denoiser, Tracker
 from model.move_controller import MoveController
-from model.selector import Selector
+from model.selector import RectSelector
 
 
 def test_denoiser():
@@ -104,14 +104,14 @@ def selected_points():
 
 def test_selector(selected_points):
     callback = Mock(return_value=None)
-    selector = Selector('test_selector', callback)
+    selector = RectSelector('test_selector', callback)
     selector.draw_selected_rect = Mock(return_value=True)
     point = selected_points.__iter__()
-    funcs = [selector.start, *repeat(selector.progress, 2), selector.end]
+    funcs = [selector.left_button_click, *repeat(selector.left_button_down, 2), selector.left_button_up]
     for f in funcs:
         f(next(point))
 
-    assert selector.is_selected()
+    assert selector.is_selected
     assert selector.left_top == Point(0, 0)
     assert selector.right_bottom == Point(3, 3)
 
@@ -158,11 +158,11 @@ def intersected_coords():
 
 def test_area_controller(relative_coords, intersected_coords):
     controller = AreaController(-100, 100)
-    controller.set_area(Point(0, 0), Point(100, 100))
+    controller.set_area(Point(0, 0))
     for coord_set in relative_coords:
         assert controller.calc_relative_coords(coord_set[0]) == coord_set[1]
     for coord_set in intersected_coords:
-        assert controller.rect_intersected_borders(coord_set[0], coord_set[1]) == coord_set[2]
+        assert controller.point_is_out_of_area(coord_set[0], coord_set[1]) == coord_set[2]
 
 
 def test_move_controller():

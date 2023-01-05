@@ -3,8 +3,10 @@ from tkinter import Tk, messagebox
 
 from common.coordinates import Point
 from common.settings import OBJECT
+from model.selector import LEFT_CLICK, LEFT_DOWN, LEFT_UP
 
-MOUSE_EVENTS = ('<B1-Motion>', '<Button-1>', '<ButtonRelease-1>')
+
+MOUSE_EVENTS = ('<Button-1>', '<B1-Motion>', '<ButtonRelease-1>')
 
 
 class ViewModel:
@@ -28,33 +30,42 @@ class ViewModel:
     def center_laser(self):
         self._model.center_laser()
 
-    def selection_start(self, selector, event):
+    def left_button_click(self, selector, event):
         self._model.start_drawing_selected(selector)
-        selector.start(Point(event.x, event.y))
+        selector.left_button_click(Point(event.x, event.y))
 
-    def selection_progress(self, selector, event):
-        selector.progress(Point(event.x, event.y))
+    def left_button_down(self, selector, event):
+        selector.left_button_down(Point(event.x, event.y))
 
-    def selection_end(self, selector, event):
-        selector.end(Point(event.x, event.y))
-        for event in MOUSE_EVENTS:
-            self._root.unbind(event)
+    def left_button_up(self, selector, event):
+        selector.left_button_up(Point(event.x, event.y))
+        # TODO: привязывать события должен сам Selector
+        # for event in MOUSE_EVENTS:
+        #    self._root.unbind(event)
 
     def new_selection(self, name):
-        self._model.stop_drawing_selected(OBJECT)
+        # TODO: отрефакторить
         self._model.stop_drawing_selected(name)
+        if 'area' in name:
+            self._model.stop_drawing_selected(OBJECT)
         self._model._tracker.in_progress = False
         selector = self._model.get_or_create_selector(name)
-        binded_progress = partial(self.selection_progress, selector)
-        binded_start = partial(self.selection_start, selector)
-        binded_end = partial(self.selection_end, selector)
-        event_callbacks = (binded_progress, binded_start, binded_end)
-        for event, callback in zip(MOUSE_EVENTS, event_callbacks):
-            self._root.bind(event, callback)
+        binded_left_click = (LEFT_CLICK, partial(self.left_button_click, selector))
+        binded_left_down = (LEFT_DOWN, partial(self.left_button_down, selector))
+        binded_left_up = (LEFT_UP, partial(self.left_button_up, selector))
+        event_callbacks = dict([binded_left_click, binded_left_down, binded_left_up])
+        bindings = {}
+        for event, callback, abstract_name in zip(MOUSE_EVENTS, event_callbacks.values(), event_callbacks.keys()):
+            bindings[abstract_name] = partial(self._root.bind, event, callback)
+        unbind_left_click = (LEFT_CLICK, partial(self._root.unbind, MOUSE_EVENTS[0]))
+        unbind_left_down = (LEFT_DOWN, partial(self._root.unbind, MOUSE_EVENTS[1]))
+        unbind_left_up = (LEFT_UP, partial(self._root.unbind, MOUSE_EVENTS[2]))
+        unbindings = (unbind_left_click, unbind_left_down, unbind_left_up)
+        selector.bind_events(bindings, unbindings)
 
     def selector_is_selected(self, name):
         selector = self._model.get_or_create_selector(name)
-        return selector.is_selected()
+        return selector.is_selected
 
     @staticmethod
     def show_message(message: str, title: str = ''):

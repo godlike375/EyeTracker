@@ -18,16 +18,18 @@ def cleanup_old_logs(dir=None):
             os.remove(log)
 
 
-def setup_logger(level, cleanup_old=True):
+def setup_logger(level, cleanup_old=True, console=False):
     if cleanup_old:
         cleanup_old_logs()
     logger = logging.getLogger(LOGGER_NAME)
     logger.setLevel(level)
     _log_format = "[%(levelname)s] %(filename)s %(funcName)s(%(lineno)d): %(message)s"
     Path.mkdir(Path(FOLDER), exist_ok=True)
-    logname = f'logs/log_{datetime.now().strftime("%d,%m,%Y_%H;%M;%S")}.txt'
-    handler = logging.FileHandler(logname, mode='w')
-    handler.setFormatter(logging.Formatter(_log_format))
+    handler = logging.StreamHandler()
+    if not console:
+        logname = f'logs/log_{datetime.now().strftime("%d,%m,%Y_%H;%M;%S")}.txt'
+        handler = logging.FileHandler(logname, mode='w')
+        handler.setFormatter(logging.Formatter(_log_format))
     logger.addHandler(handler)
     return logger
 

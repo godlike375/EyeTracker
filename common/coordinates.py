@@ -1,3 +1,4 @@
+from abc import ABC
 from copy import copy
 from dataclasses import dataclass
 
@@ -76,8 +77,11 @@ class Point:
     def __str__(self):
         return f'({self.x}, {self.y})'
 
+    def __hash__(self):
+        return hash((self.x, self.y))
 
-class RectBased():
+
+class RectBased(ABC):
 
     @property
     def left_top(self):
@@ -85,4 +89,15 @@ class RectBased():
 
     @property
     def right_bottom(self):
+        pass
+
+
+class TetragonBased(RectBased):
+
+    @property
+    def right_top(self):
+        pass
+
+    @property
+    def left_bottom(self):
         pass

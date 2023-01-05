@@ -39,8 +39,8 @@ def main(args):
         model_core.stop_thread()
         Settings.save()
         area_selector = model_core.get_or_create_selector('area')
-        if area_selector.is_selected():
-            SelectedArea.save(area_selector.left_top, area_selector.right_bottom)
+        if area_selector.is_selected:
+            SelectedArea.save(area_selector.points)
         logger.debug('settings saved')
 
 
