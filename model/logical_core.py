@@ -1,4 +1,4 @@
-import _thread
+# import _thread
 from threading import Thread
 from winsound import PlaySound, SND_PURGE, SND_FILENAME
 
@@ -55,14 +55,24 @@ class Model(ThreadLoopable):
     def _processing_loop(self):
         try:
             frame = self._current_frame = self._extractor.extract_frame()
-            processed_image = self._frame_processing(frame)
+            processed_image = self._tracking_and_drawing(frame)
             self._view_model.on_image_ready(processed_image)
+        except RuntimeError as re:
+            if 'dictionary changed size during iteration' in str(re):
+                return
+            if 'dictionary keys changed during iteration' in str(re):
+                return
+            self.show_fatal_exception(re)
         except Exception as e:
-            ViewModel.show_message(title='Фатальная ошибка', message=f'{e}')
-            logger.exception(e)
-            _thread.interrupt_main()
+            self.show_fatal_exception(e)
 
-    def _frame_processing(self, frame):
+    def show_fatal_exception(self, e):
+        ViewModel.show_message(title='Фатальная ошибка. Работа программы будет продолжена, но может быть с ошибками',
+                               message=f'{e}')
+        logger.fatal(e)
+        # _thread.interrupt_main()
+
+    def _tracking_and_drawing(self, frame):
         if self._tracker.in_progress:
             self._tracking(frame)
         active_objects = self._active_drawed_objects.values()
@@ -76,6 +86,7 @@ class Model(ThreadLoopable):
     def _move_to_relative_cords(self, center):
         out_of_area = self._area_controller.point_is_out_of_area(center)
         # TODO: вынести в отдельный класс или функцию, возможно в AreaContoller
+        # TODO: пофиксить звук при комбинации пустой зоны объекта и выделения за границей
         if not out_of_area:
             relative_coords = self._area_controller.calc_relative_coords(center)
             self._laser_controller.set_new_position(relative_coords.to_int())
@@ -105,24 +116,27 @@ class Model(ThreadLoopable):
     def check_emptiness(self, selector):
         if selector.is_empty:
             logger.warning('selected area is zero in size')
-            ViewModel.show_message('Область не может быть пустой', 'Ошибка')
-            del self._active_drawed_objects[selector.name]
+            ViewModel.show_message('Область не может быть пустой или слишком малого размера', 'Ошибка')
+            self.stop_drawing_selected(selector.name)
             selector._selected = False
 
     def on_area_selected(self):
         area = self.get_or_create_selector(AREA)
         self.check_emptiness(area)
-        self._area_controller.set_area(area)
+        if area.is_selected:
+            self._area_controller.set_area(area)
 
     def on_object_selected(self):
         object = self.get_or_create_selector(OBJECT)
         self.check_emptiness(object)
+        if not object.is_selected:
+            return
         center = ((object.left_top + object.right_bottom) / 2).to_int()
         out_of_area = self._area_controller.point_is_out_of_area(center)
         if out_of_area:
             logger.warning('selected object is out of tracking borders')
             self._view_model.show_message('Нельзя выделять область за зоной слежения', 'Ошибка')
-            del self._active_drawed_objects[OBJECT]
+            self.stop_drawing_selected(object.name)
             return
         frame = self._current_frame
         self._tracker.start_tracking(frame, object.left_top, object.right_bottom)

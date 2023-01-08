@@ -1,6 +1,7 @@
 from abc import ABC
 from copy import copy
 from dataclasses import dataclass
+from math import sqrt
 
 
 @dataclass
@@ -79,6 +80,12 @@ class Point:
 
     def __hash__(self):
         return hash((self.x, self.y))
+
+    def __eq__(self, other):
+        return self.x == other.x and self.y == other.y
+
+    def calc_distance(self, other):
+        return sqrt((other.x - self.x)**2 + (other.y - self.y)**2)
 
 
 class RectBased(ABC):

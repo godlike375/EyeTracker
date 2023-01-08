@@ -4,10 +4,10 @@ from common.coordinates import Point, RectBased, TetragonBased
 from common.logger import logger
 from view.drawing import Drawable, Processor
 
-
 LEFT_CLICK = 'left_click'
 LEFT_DOWN = 'left_down'
 LEFT_UP = 'left_up'
+MIN_DISTANCE_BETWEEN_POINTS = 28
 
 
 class Selector(ABC):
@@ -33,14 +33,16 @@ class Selector(ABC):
 
     @property
     def is_empty(self):
-        return len(set(self._points)) != len(self._points)
+        distances = [i.calc_distance(j) for i, j in zip(self._points[:-1], self._points[1:])]
+        less_than_min_dist = any([i < MIN_DISTANCE_BETWEEN_POINTS for i in distances])
+        return len(set(self._points)) != len(self._points) or less_than_min_dist
 
     def _sort_points_for_viewing(self):
         # TODO: если трапецию сбоку рисовать с широким основанием, то багует или же ромб
         half_points = len(self._points) // 2
-        sorted_points = sorted(self._points, key=lambda p: p.x + p.y*2)
+        sorted_points = sorted(self._points, key=lambda p: p.x + p.y * 2)
         self._points = sorted_points[:half_points] + \
-            sorted(sorted_points[half_points:], key=lambda p: p.x*2 + p.y, reverse=True)
+            sorted(sorted_points[half_points:], key=lambda p: p.x * 2 + p.y, reverse=True)
 
     def bind_events(self, events, unbindings):
         self._unbindings = unbindings

@@ -5,6 +5,7 @@ import cv2
 from PIL import Image
 
 from common.coordinates import Point
+from common.logger import logger
 
 
 class Drawable(ABC):
@@ -22,15 +23,18 @@ class Processor:
     @staticmethod
     def frame_to_image(frame):
         # TODO: проверить, почему пустые кадры прилетают
-        if not len(frame):
-            raise Exception('Кадр с вебкамеры оказался пустым')
+        if frame is None:
+            logger.fatal('Frame is None type')
+            raise Exception('Не удалось обработать кадр')
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         rgb = Image.fromarray(rgb)
         return rgb
 
     @classmethod
     def _draw_rectangle(cls, frame, left_top: Point, right_bottom: Point):
-        return cv2.rectangle(frame, (*left_top,), (*right_bottom,), cls.CURRENT_COLOR, cls.THICKNESS)
+        if left_top and right_bottom and left_top != right_bottom and left_top != Point(0, 0):
+            return cv2.rectangle(frame, (*left_top,), (*right_bottom,), cls.CURRENT_COLOR, cls.THICKNESS)
+        return frame
 
     @classmethod
     def draw_circle(cls, frame, center: Point):
@@ -43,7 +47,5 @@ class Processor:
     @classmethod
     def draw_active_objects(cls, frame, active_objects: List[Drawable]):  # RectBased list
         for obj in active_objects:
-            # TODO: реализовать отрисовку собственными силами Selector
             frame = obj.draw_on_frame(frame)
-            # frame = cls._draw_rectangle(frame, obj.left_top, obj.right_bottom)
         return frame
