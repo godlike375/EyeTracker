@@ -14,6 +14,7 @@ class MoveController:
 
     def __init__(self, port=None, baund_rate=None, serial_off=False):
         # TODO: к настройкам должно обращаться что-то внещнее в идеале и передавать эти параметры сюда
+        # TODO: MUST HAVE сделать автоопределение порта с помощью перебора или поиска по имени устройства
         port = port or f'com{Settings.SERIAL_PORT}'
         baund_rate = baund_rate or Settings.SERIAL_BAUND_RATE
         self._timer = time()

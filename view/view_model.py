@@ -30,6 +30,9 @@ class ViewModel:
     def center_laser(self):
         self._model.center_laser()
 
+    def move_laser(self, x, y):
+        self._model.move_laser(x, y)
+
     def left_button_click(self, selector, event):
         self._model.start_drawing_selected(selector)
         selector.left_button_click(Point(event.x, event.y))

@@ -67,6 +67,7 @@ class Model(ThreadLoopable):
             self.show_fatal_exception(e)
 
     def show_fatal_exception(self, e):
+        # TODO: Возможно переместить во ViewModel
         ViewModel.show_message(title='Фатальная ошибка. Работа программы будет продолжена, но может быть с ошибками',
                                message=f'{e}')
         logger.fatal(e)
@@ -105,6 +106,10 @@ class Model(ThreadLoopable):
     def center_laser(self):
         logger.debug('laser centered')
         self._laser_controller._move_laser(Point(0, 0))
+
+    def move_laser(self, x, y):
+        logger.debug(f'laser moved to {x, y}')
+        self._laser_controller._move_laser(Point(x, y))
 
     def stop_drawing_selected(self, name):
         if name in self._active_drawed_objects:
