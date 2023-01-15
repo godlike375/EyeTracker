@@ -28,19 +28,14 @@ class View:
         move_right_top = partial(view_model.move_laser, Settings.MAX_RANGE, -Settings.MAX_RANGE)
         move_left_bottom = partial(view_model.move_laser, -Settings.MAX_RANGE, Settings.MAX_RANGE)
         move_right_bottom = partial(view_model.move_laser, Settings.MAX_RANGE, Settings.MAX_RANGE)
-        self._left_top = Button(self._button_frame, text='Лево верх',
-                                command=move_left_top)
-        self._right_top = Button(self._button_frame, text='Право верх',
-                                 command=move_right_top)
-        self._left_bottom = Button(self._button_frame, text='Лево низ',
-                                   command=move_left_bottom)
-        self._right_bottom = Button(self._button_frame, text='Право низ',
-                                    command=move_right_bottom)
+        move_center = partial(view_model.move_laser, 0, 0)
+
         calibration_menu = Menu()
         calibration_menu.add_command(label='Лево верх', command=move_left_top)
         calibration_menu.add_command(label='Право верх', command=move_right_top)
         calibration_menu.add_command(label='Лево низ', command=move_left_bottom)
         calibration_menu.add_command(label='Право низ', command=move_right_bottom)
+        calibration_menu.add_command(label='Центр', command=move_center)
         main_menu.add_cascade(label='позиционирование лазера', menu=calibration_menu)
 
         self.view_model = view_model
