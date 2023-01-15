@@ -1,6 +1,7 @@
 from time import time
 
 from serial import Serial, SerialException
+from serial.tools import list_ports
 
 from common.coordinates import Point
 from common.settings import Settings
@@ -12,25 +13,42 @@ READY = 'ready'
 
 class MoveController:
 
-    def __init__(self, port=None, baund_rate=None, serial_off=False):
+    def __init__(self, manual_port=None, baund_rate=None, serial_off=False):
         # TODO: к настройкам должно обращаться что-то внещнее в идеале и передавать эти параметры сюда
         # TODO: MUST HAVE сделать автоопределение порта с помощью перебора или поиска по имени устройства
-        port = port or f'com{Settings.SERIAL_PORT}'
+        manual_port = manual_port or f'COM{Settings.SERIAL_PORT}'
         baund_rate = baund_rate or Settings.SERIAL_BAUND_RATE
         self._timer = time()
         self._current_position = Point(0, 0)
         self._ready = True
         self._timer = time()
-        if not serial_off:
-            try:
-                self._serial = Serial(port, baund_rate, timeout=Settings.SERIAL_TIMEOUT)
-            except SerialException as e:
-                logger.exception(str(e))
-                ViewModel.show_message(f'Не удалось открыть последовательный порт под номером {port}. '
-                                       f'Программа продолжит работать без контроллера лазера.', 'Предупреждение')
-                self._serial = MockSerial()
-        else:
+
+        if serial_off:
+            ViewModel.show_message('Последовательный порт используется в режиме отладки', 'Предупреждение')
             self._serial = MockSerial()
+            return
+
+        try:
+            self._serial = Serial(manual_port, baund_rate, timeout=Settings.SERIAL_TIMEOUT)
+        except SerialException:
+            logger.exception('Manual com port was not found. Attempting to use auto-detection')
+
+        auto_detected = manual_port
+        com_ports = list_ports.comports()
+        for p in com_ports:
+            if 'usb-serial ch340' in p.description.lower():
+                auto_detected = p.device
+
+        try:
+            self._serial = Serial(auto_detected, baund_rate, timeout=Settings.SERIAL_TIMEOUT)
+        except SerialException as e:
+            logger.exception(str(e))
+            ViewModel.show_message(f'Не удалось открыть заданный настройками последовательный порт '
+                                   f'{manual_port}, а так же не удалось определить подходящий порт автоматически. '
+                                   f'Программа продолжит работать без контроллера лазера.', 'Предупреждение')
+
+
+
 
     @property
     def _can_send(self):
