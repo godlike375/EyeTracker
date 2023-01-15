@@ -86,7 +86,7 @@ class RectSelector(RectBased, Drawable, Selector):
         self._after_selection()
 
     def draw_on_frame(self, frame):
-        return Processor._draw_rectangle(frame, self._left_top, self._right_bottom)
+        return Processor.draw_rectangle(frame, self._left_top, self._right_bottom)
 
     def bind_events(self, event_bindings, unbindings):
         super().bind_events(event_bindings, unbindings)

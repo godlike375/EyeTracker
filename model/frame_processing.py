@@ -57,7 +57,7 @@ class Tracker(RectBased, Drawable):
         return self._center
 
     def draw_on_frame(self, frame):
-        frame = Processor._draw_rectangle(frame, self.left_top, self.right_bottom)
+        frame = Processor.draw_rectangle(frame, self.left_top, self.right_bottom)
         return Processor.draw_circle(frame, self._center)
 
 

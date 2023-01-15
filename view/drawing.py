@@ -31,17 +31,23 @@ class Processor:
         return rgb
 
     @classmethod
-    def _draw_rectangle(cls, frame, left_top: Point, right_bottom: Point):
+    def draw_rectangle(cls, frame, left_top: Point, right_bottom: Point):
+        left_top = left_top.to_int()
+        right_bottom = right_bottom.to_int()
+        # TODO: возможно понадобится более серьезная защита типа проверки на NAN и тд
         if left_top and right_bottom and left_top != right_bottom and left_top != Point(0, 0):
             return cv2.rectangle(frame, (*left_top,), (*right_bottom,), cls.CURRENT_COLOR, cls.THICKNESS)
         return frame
 
     @classmethod
     def draw_circle(cls, frame, center: Point):
+        center = center.to_int()
         return cv2.circle(frame, (*center,), radius=cls.THICKNESS, color=cls.COLOR_WHITE, thickness=cls.THICKNESS)
 
     @classmethod
     def draw_line(cls, frame, start: Point, end: Point):
+        start = start.to_int()
+        end = end.to_int()
         return cv2.line(frame, (*start,), (*end,), color=cls.COLOR_WHITE, thickness=cls.THICKNESS)
 
     @classmethod

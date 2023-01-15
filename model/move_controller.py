@@ -22,10 +22,9 @@ class MoveController:
         self._current_position = Point(0, 0)
         self._ready = True
         self._timer = time()
-
+        self._serial = MockSerial()
         if serial_off:
             ViewModel.show_message('Последовательный порт используется в режиме отладки', 'Предупреждение')
-            self._serial = MockSerial()
             return
 
         try:
