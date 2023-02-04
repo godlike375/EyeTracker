@@ -22,7 +22,6 @@ class Processor:
 
     @staticmethod
     def frame_to_image(frame):
-        # TODO: проверить, почему пустые кадры прилетают
         if frame is None:
             logger.fatal('Frame is None type')
             raise Exception('Не удалось обработать кадр')

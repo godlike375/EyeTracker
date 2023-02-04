@@ -1,4 +1,4 @@
-from tkinter import Label, Tk, Frame, Menu, TOP, BOTTOM, Button
+from tkinter import Label, Tk, Frame, Menu, TOP, BOTTOM
 from functools import partial
 
 from PIL import ImageTk
@@ -23,6 +23,9 @@ class View:
         main_menu.add_command(label='Выделение зоны', command=area_callback)
         main_menu.add_command(label='Выделение объекта', command=object_callback)
         main_menu.add_command(label='Откалибровать лазер', command=view_model.calibrate_laser)
+        main_menu.add_command(label='Откалибровать шумоподавление', command=view_model.calibrate_laser)
+        # TODO: MUST HAVE сделать сценарии использования (мастер настройки), чтобы пользователю не нужно было думать
+        #  о последовательности действий для настройки
 
         move_left_top = partial(view_model.move_laser, -Settings.MAX_RANGE, -Settings.MAX_RANGE)
         move_right_top = partial(view_model.move_laser, Settings.MAX_RANGE, -Settings.MAX_RANGE)
@@ -36,7 +39,7 @@ class View:
         calibration_menu.add_command(label='Лево низ', command=move_left_bottom)
         calibration_menu.add_command(label='Право низ', command=move_right_bottom)
         calibration_menu.add_command(label='Центр', command=move_center)
-        main_menu.add_cascade(label='позиционирование лазера', menu=calibration_menu)
+        main_menu.add_cascade(label='Позиционирование лазера', menu=calibration_menu)
 
         self.view_model = view_model
         self._video_label = Label(self._image_frame)
@@ -74,6 +77,3 @@ class View:
             # сохранять ссылку на объект обязательно, иначе он будет собираться GC и не показываться
             self._image_alive_ref = imgtk
             self._video_label.configure(image=imgtk)
-        # TODO: запретить нажимать позиционирование во время трекинга и
-        #  выделение объекта без выделенной зоны
-        #if self.view_model.selector_is_selected(AREA)

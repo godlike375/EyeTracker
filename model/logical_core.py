@@ -40,7 +40,7 @@ class Model(ThreadLoopable):
         area_selector._selected = True
         self._active_drawed_objects[AREA] = area_selector
         self.start_drawing_selected(area_selector)
-        # TODO: убрать
+        # TODO: убрать (upd: что убрать?)
         self.on_area_selected()
 
     def get_or_create_selector(self, name):
@@ -68,7 +68,7 @@ class Model(ThreadLoopable):
 
     def show_fatal_exception(self, e):
         # TODO: Возможно переместить во ViewModel
-        ViewModel.show_message(title='Фатальная ошибка. Работа программы будет продолжена, но может быть с ошибками',
+        ViewModel.show_message(title='Фатальная ошибка. Работа программы будет продолжена, но может стать нестабильной',
                                message=f'{e}')
         logger.fatal(e)
         # _thread.interrupt_main()

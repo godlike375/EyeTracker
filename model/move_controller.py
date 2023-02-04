@@ -4,9 +4,9 @@ from serial import Serial, SerialException
 from serial.tools import list_ports
 
 from common.coordinates import Point
+from common.logger import logger
 from common.settings import Settings
 from view.view_model import ViewModel
-from common.logger import logger
 
 READY = 'ready'
 
@@ -15,7 +15,6 @@ class MoveController:
 
     def __init__(self, manual_port=None, baund_rate=None, serial_off=False):
         # TODO: к настройкам должно обращаться что-то внещнее в идеале и передавать эти параметры сюда
-        # TODO: MUST HAVE сделать автоопределение порта с помощью перебора или поиска по имени устройства
         manual_port = manual_port or f'COM{Settings.SERIAL_PORT}'
         baund_rate = baund_rate or Settings.SERIAL_BAUND_RATE
         self._timer = time()
@@ -45,9 +44,6 @@ class MoveController:
             ViewModel.show_message(f'Не удалось открыть заданный настройками последовательный порт '
                                    f'{manual_port}, а так же не удалось определить подходящий порт автоматически. '
                                    f'Программа продолжит работать без контроллера лазера.', 'Предупреждение')
-
-
-
 
     @property
     def _can_send(self):

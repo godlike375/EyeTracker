@@ -2,7 +2,7 @@ from functools import partial
 from tkinter import Tk, messagebox
 
 from common.coordinates import Point
-from common.settings import OBJECT
+from common.settings import OBJECT, AREA
 from model.selector import LEFT_CLICK, LEFT_DOWN, LEFT_UP
 
 
@@ -31,7 +31,9 @@ class ViewModel:
         self._model.center_laser()
 
     def move_laser(self, x, y):
-        self._model.move_laser(x, y)
+        # нельзя двигать лазер вручную во время сеанса трекинга
+        if not self._model._tracker.in_progress:
+            self._model.move_laser(x, y)
 
     def left_button_click(self, selector, event):
         self._model.start_drawing_selected(selector)
@@ -49,10 +51,16 @@ class ViewModel:
     def new_selection(self, name):
         # TODO: отрефакторить
         self._model.stop_drawing_selected(name)
-        if 'area' in name:
+        if OBJECT in name:
+            area = self._model.get_or_create_selector(AREA)
+            if not area.is_selected:
+                self.show_message('Перед созданием объекта необходимо создать зону', 'Ошибка')
+                return
+        if AREA in name:
             self._model.stop_drawing_selected(OBJECT)
         self._model._tracker.in_progress = False
         selector = self._model.get_or_create_selector(name)
+
         binded_left_click = (LEFT_CLICK, partial(self.left_button_click, selector))
         binded_left_down = (LEFT_DOWN, partial(self.left_button_down, selector))
         binded_left_up = (LEFT_UP, partial(self.left_button_up, selector))
@@ -60,10 +68,12 @@ class ViewModel:
         bindings = {}
         for event, callback, abstract_name in zip(MOUSE_EVENTS, event_callbacks.values(), event_callbacks.keys()):
             bindings[abstract_name] = partial(self._root.bind, event, callback)
+
         unbind_left_click = (LEFT_CLICK, partial(self._root.unbind, MOUSE_EVENTS[0]))
         unbind_left_down = (LEFT_DOWN, partial(self._root.unbind, MOUSE_EVENTS[1]))
         unbind_left_up = (LEFT_UP, partial(self._root.unbind, MOUSE_EVENTS[2]))
         unbindings = (unbind_left_click, unbind_left_down, unbind_left_up)
+
         selector.bind_events(bindings, unbindings)
 
     def selector_is_selected(self, name):
