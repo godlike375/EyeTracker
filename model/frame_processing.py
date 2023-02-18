@@ -44,6 +44,9 @@ class Tracker(RectBased, Drawable):
         self.tracker.start_track(frame, dlib.rectangle(*left_top, *right_bottom))
         self.in_progress = True
 
+    def stop_tracking(self):
+        self.in_progress = False
+
     def get_tracked_position(self, frame) -> Point:
         self.tracker.update(frame)
         rect = self.tracker.get_position()

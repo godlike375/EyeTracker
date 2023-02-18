@@ -2,7 +2,7 @@ from functools import partial
 from tkinter import Tk, messagebox
 
 from common.coordinates import Point
-from common.settings import OBJECT, AREA
+from common.settings import OBJECT, AREA, Settings
 from model.selector import LEFT_CLICK, LEFT_DOWN, LEFT_UP
 
 
@@ -49,7 +49,7 @@ class ViewModel:
         #    self._root.unbind(event)
 
     def new_selection(self, name):
-        # TODO: отрефакторить
+        # TODO: отрефакторить (надо бы перенести в модель)
         self._model.stop_drawing_selected(name)
         if OBJECT in name:
             area = self._model.get_or_create_selector(AREA)
@@ -75,6 +75,21 @@ class ViewModel:
         unbindings = (unbind_left_click, unbind_left_down, unbind_left_up)
 
         selector.bind_events(bindings, unbindings)
+
+    def calibrate_noise_threshold(self):
+        # TODO: надо бы старую область запоминать
+        self._model.stop_drawing_selected(AREA)
+        area = self._model.get_or_create_selector(AREA)
+        width = self._view.window_width
+        height = self._view.window_height
+        area._points = [Point(0, 0), Point(height, 0), Point(height, width), Point(0, width)]
+        area._sort_points_for_viewing()
+        area.is_selected = True
+        self._model.on_area_selected()
+        self.new_selection(OBJECT)
+        self._model._calibrate_threshold_mode = True
+        Settings.NOISE_THRESHOLD = 0.0
+        # TODO: Если до этого зона была выделена, то она должна восстановиться после калибровки
 
     def selector_is_selected(self, name):
         selector = self._model.get_or_create_selector(name)

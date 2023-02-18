@@ -31,6 +31,13 @@ class Selector(ABC):
     def is_selected(self):
         return self._selected
 
+    @is_selected.setter
+    def is_selected(self, selected):
+        if type(selected) is bool:
+            self._selected = selected
+        else:
+            raise NotImplementedError('assigned data type is not bool')
+
     @property
     def is_empty(self):
         distances = [i.calc_distance(j) for i, j in zip(self._points[:-1], self._points[1:])]
@@ -63,6 +70,14 @@ class RectSelector(RectBased, Drawable, Selector):
     def right_bottom(self):
         return self._right_bottom
 
+    @left_top.setter
+    def left_top(self, value):
+        self._left_top = value
+
+    @right_bottom.setter
+    def right_bottom(self, value):
+        self._right_bottom = value
+
     def left_button_click(self, event):
         logger.debug(f'start selecting {event.x, event.y}')
         # self._points.clear() т.к. объект переиспользуется, то надо очищать точки в нем
@@ -83,7 +98,8 @@ class RectSelector(RectBased, Drawable, Selector):
         self._selected = True
         for i in self._unbindings:
             i[1]()
-        self._after_selection()
+        if self._after_selection is not None:
+            self._after_selection()
 
     def draw_on_frame(self, frame):
         return Processor.draw_rectangle(frame, self._left_top, self._right_bottom)
@@ -112,7 +128,8 @@ class TetragonSelector(TetragonBased, Drawable, Selector):
             self._sort_points_for_viewing()
             for i in self._unbindings:
                 i[1]()
-            self._after_selection()
+            if self._after_selection is not None:
+                self._after_selection()
 
     def draw_on_frame(self, frame):
         if not self._selected:

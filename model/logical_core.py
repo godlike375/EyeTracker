@@ -15,6 +15,10 @@ from view.drawing import Processor
 from view.view_model import ViewModel
 
 
+CALIBRATION_THRESHOLD_STEP = 0.0025
+OBJECT_NOT_MOVING_TIME_SEC = 5
+
+
 class Model(ThreadLoopable):
 
     def __init__(self, view_model: ViewModel, run_immediately: bool = True, area: tuple = None):
@@ -25,7 +29,8 @@ class Model(ThreadLoopable):
                                                max_xy=Settings.MAX_RANGE)
         self._laser_controller = MoveController(serial_off=False)
         self._current_frame = None
-        self._active_drawed_objects = dict()  # {name: RectBased}
+        self._active_drawed_objects = dict()  # {name: Selector}
+        self._calibrate_threshold_mode = False
         self._beeped = False
 
         if area is not None:
@@ -81,8 +86,25 @@ class Model(ThreadLoopable):
         return Processor.frame_to_image(processed)
 
     def _tracking(self, frame):
+        from time import time
         center = self._tracker.get_tracked_position(frame)
-        self._move_to_relative_cords(center)
+        if not self._calibrate_threshold_mode:
+            self._move_to_relative_cords(center)
+            return
+
+        if not hasattr(self, '_last_position'):
+            self._last_position = center
+            self._not_moving_time = time()
+        if not (center == self._last_position):
+            Settings.NOISE_THRESHOLD += CALIBRATION_THRESHOLD_STEP
+            self._last_position = center
+            self._not_moving_time = time()
+        elif time() - self._not_moving_time > OBJECT_NOT_MOVING_TIME_SEC:
+            self._view_model.show_message('Калибровка успешно завершена')
+            self._calibrate_threshold_mode = False
+            self._tracker.stop_tracking()
+            self.stop_drawing_selected(OBJECT)
+
 
     def _move_to_relative_cords(self, center):
         out_of_area = self._area_controller.point_is_out_of_area(center)

@@ -23,7 +23,7 @@ class View:
         main_menu.add_command(label='Выделение зоны', command=area_callback)
         main_menu.add_command(label='Выделение объекта', command=object_callback)
         main_menu.add_command(label='Откалибровать лазер', command=view_model.calibrate_laser)
-        main_menu.add_command(label='Откалибровать шумоподавление', command=view_model.calibrate_laser)
+        main_menu.add_command(label='Откалибровать шумоподавление', command=view_model.calibrate_noise_threshold)
         # TODO: MUST HAVE сделать сценарии использования (мастер настройки), чтобы пользователю не нужно было думать
         #  о последовательности действий для настройки
 
@@ -49,7 +49,9 @@ class View:
     def setup(self):
         self._root.title('Eye tracker')
         WINDOW_HEIGHT = Settings.CAMERA_MAX_RESOLUTION
+        self.window_height = WINDOW_HEIGHT
         WINDOW_WIDTH = RESOLUTIONS[WINDOW_HEIGHT]
+        self.window_width = WINDOW_WIDTH
         window_size = f'{WINDOW_HEIGHT}x{WINDOW_WIDTH}'
         logger.debug(f'window size = {window_size}')
         self._root.geometry(window_size)
