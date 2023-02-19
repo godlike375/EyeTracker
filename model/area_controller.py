@@ -12,12 +12,16 @@ class AreaController:
         self._max_xy = Point(0, 0)
         self._dpi_xy = Point(0, 0)
         self._M = None
+        self._is_set = False
 
     @staticmethod
     def calc_center(left_top: Point, right_bottom: Point) -> Point:
         return Point(int((left_top.x + right_bottom.x) / 2), int((left_top.y + right_bottom.y) / 2))
 
     def set_area(self, area: TetragonSelector):
+        if area is None:
+            self._is_set = False
+            return
         import numpy as np
         import cv2
         tl, tr, br, bl = area.points
@@ -45,6 +49,7 @@ class AreaController:
             ViewModel.show_message('Область не может быть пустой', 'Ошибка')
             return
         self.center = Point(max_size / 2, max_size / 2)
+        self._is_set = True
         logger.debug(f'set area {area.points}')
 
     def translate_coordinates(self, point: Point):
@@ -57,6 +62,8 @@ class AreaController:
         return Point(int(X), int(Y))
 
     def point_is_out_of_area(self, point: Point) -> Point:
+        if not self._is_set:
+            return False
         # https://docs.opencv.org/4.x/da/d54/group__imgproc__transform.html#gaf73673a7e8e18ec6963e3774e6a94b87
         translated = self.translate_coordinates(point)
         return translated.x < 0 or translated.x > self._max_xy.x \

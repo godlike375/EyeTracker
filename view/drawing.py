@@ -50,7 +50,7 @@ class Processor:
         return cv2.line(frame, (*start,), (*end,), color=cls.COLOR_WHITE, thickness=cls.THICKNESS)
 
     @classmethod
-    def draw_active_objects(cls, frame, active_objects: List[Drawable]):  # RectBased list
+    def draw_active_objects(cls, frame, active_objects: List[Drawable]):
         for obj in active_objects:
             frame = obj.draw_on_frame(frame)
         return frame

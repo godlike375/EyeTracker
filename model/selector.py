@@ -93,7 +93,9 @@ class RectSelector(RectBased, Drawable, Selector):
         self._right_bottom.x, self._right_bottom.y = event.x, event.y
         self._points.append(Point(event.x, event.y))
         self._sort_points_for_viewing()
-        # биндинг от зоны сохраняется, а нужен от объекта
+        # FIXME: биндинг от зоны сохраняется, а нужен от объекта
+        # Воспроизвести получалось через выделение нулевой зоны, потом нажать выделение объекта,
+        # переключиться на другое окно, потом переключиться обратно и выделить объект
         self._left_top, self._right_bottom = self._points
         self._selected = True
         for i in self._unbindings:

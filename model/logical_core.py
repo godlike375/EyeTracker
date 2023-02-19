@@ -105,7 +105,6 @@ class Model(ThreadLoopable):
             self._tracker.stop_tracking()
             self.stop_drawing_selected(OBJECT)
 
-
     def _move_to_relative_cords(self, center):
         out_of_area = self._area_controller.point_is_out_of_area(center)
         # TODO: вынести в отдельный класс или функцию, возможно в AreaContoller
@@ -150,8 +149,9 @@ class Model(ThreadLoopable):
     def on_area_selected(self):
         area = self.get_or_create_selector(AREA)
         self.check_emptiness(area)
-        if area.is_selected:
-            self._area_controller.set_area(area)
+        if not area.is_selected:
+            area = None
+        self._area_controller.set_area(area)
 
     def on_object_selected(self):
         object = self.get_or_create_selector(OBJECT)
@@ -162,7 +162,7 @@ class Model(ThreadLoopable):
         out_of_area = self._area_controller.point_is_out_of_area(center)
         if out_of_area:
             logger.warning('selected object is out of tracking borders')
-            self._view_model.show_message('Нельзя выделять область за зоной слежения', 'Ошибка')
+            ViewModel.show_message('Нельзя выделять область за зоной слежения', 'Ошибка')
             self.stop_drawing_selected(object.name)
             return
         frame = self._current_frame
