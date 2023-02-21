@@ -8,6 +8,7 @@ LEFT_CLICK = 'left_click'
 LEFT_DOWN = 'left_down'
 LEFT_UP = 'left_up'
 MIN_DISTANCE_BETWEEN_POINTS = 28
+MIN_POINTS_SELECTED = 2
 
 
 class Selector(ABC):
@@ -29,7 +30,7 @@ class Selector(ABC):
 
     @property
     def is_selected(self):
-        return self._selected
+        return self._selected and not self.is_empty
 
     @is_selected.setter
     def is_selected(self, selected):
@@ -40,6 +41,8 @@ class Selector(ABC):
 
     @property
     def is_empty(self):
+        if len(self._points) < MIN_POINTS_SELECTED:
+            return True
         distances = [i.calc_distance(j) for i, j in zip(self._points[:-1], self._points[1:])]
         less_than_min_dist = any([i < MIN_DISTANCE_BETWEEN_POINTS for i in distances])
         return len(set(self._points)) != len(self._points) or less_than_min_dist

@@ -2,9 +2,9 @@ from functools import partial
 from tkinter import Tk, messagebox
 
 from common.coordinates import Point
+from common.logger import logger
 from common.settings import OBJECT, AREA, Settings
 from model.selector import LEFT_CLICK, LEFT_DOWN, LEFT_UP
-
 
 MOUSE_EVENTS = ('<Button-1>', '<B1-Motion>', '<ButtonRelease-1>')
 
@@ -25,18 +25,18 @@ class ViewModel:
         self._view.set_current_image(image)
 
     def calibrate_laser(self):
-        self._model.calibrate_laser()
+        self._model.laser_service.calibrate_laser()
 
     def center_laser(self):
-        self._model.center_laser()
+        self._model.laser_service.center_laser()
 
     def move_laser(self, x, y):
         # нельзя двигать лазер вручную во время сеанса трекинга
         if not self._model._tracker.in_progress:
-            self._model.move_laser(x, y)
+            self._model.laser_service.move_laser(x, y)
 
     def left_button_click(self, selector, event):
-        self._model.start_drawing_selected(selector)
+        self._model.selecting_service.start_drawing_selected(selector)
         selector.left_button_click(Point(event.x, event.y))
 
     def left_button_down(self, selector, event):
@@ -50,14 +50,14 @@ class ViewModel:
 
     def new_selection(self, name):
         # TODO: отрефакторить (надо бы перенести в модель)
-        self._model.stop_drawing_selected(name)
+        self._model.selecting_service.stop_drawing_selected(name)
         if OBJECT in name:
             area = self._model.get_or_create_selector(AREA)
             if not area.is_selected:
                 self.show_message('Перед созданием объекта необходимо создать зону', 'Ошибка')
                 return
         if AREA in name:
-            self._model.stop_drawing_selected(OBJECT)
+            self._model.selecting_service.stop_drawing_selected(OBJECT)
         self._model._tracker.in_progress = False
         selector = self._model.get_or_create_selector(name)
 
@@ -77,8 +77,8 @@ class ViewModel:
         selector.bind_events(bindings, unbindings)
 
     def calibrate_noise_threshold(self):
-        # TODO: надо бы старую область запоминать
-        self._model.stop_drawing_selected(AREA)
+        # TODO: необходимо запоминать и восстанавливать старую область
+        self._model.selecting_service.stop_drawing_selected(AREA)
         area = self._model.get_or_create_selector(AREA)
         width = self._view.window_width
         height = self._view.window_height
@@ -87,14 +87,21 @@ class ViewModel:
         area.is_selected = True
         self._model.on_area_selected()
         self.new_selection(OBJECT)
-        self._model._calibrate_threshold_mode = True
+        self._model.threshold_calibrator.in_progress = True
         Settings.NOISE_THRESHOLD = 0.0
         # TODO: Если до этого зона была выделена, то она должна восстановиться после калибровки
 
     def selector_is_selected(self, name):
-        selector = self._model.get_or_create_selector(name)
+        selector = self._model.selecting_service.get_or_create_selector(name)
         return selector.is_selected
 
     @staticmethod
     def show_message(message: str, title: str = ''):
         messagebox.showerror(title, message)
+
+    @classmethod
+    def show_fatal_exception(cls, e):
+        # TODO: Возможно переместить во ViewModel
+        cls.show_message(title='Фатальная ошибка. Работа программы будет продолжена, но может стать нестабильной',
+                         message=f'{e}')
+        logger.fatal(e)

@@ -3,12 +3,11 @@ from pathlib import Path
 from tkinter import Tk, messagebox
 
 import common.settings
+from common.logger import logger
 from common.settings import Settings, SelectedArea
-from model.logical_core import Model
+from model.domain_services import Orchestrator
 from view.view_model import ViewModel
 from view.window_form import View
-from common.logger import logger
-
 
 
 def main(args):
@@ -26,7 +25,7 @@ def main(args):
         view_model = ViewModel(root)
         form = View(root, view_model).setup()
         view_model.set_view(form)
-        model_core = Model(view_model, area=area)
+        model_core = Orchestrator(view_model, area=area)
         view_model.set_model(model_core)
         logger.debug('mainloop started')
         root.mainloop()
@@ -35,7 +34,7 @@ def main(args):
         ViewModel.show_message(title='Фатальная ошибка', message=f'{e}')
         logger.exception(e)
     else:
-        model_core.center_laser()
+        model_core.laser_service.center_laser()
         model_core.stop_thread()
         Settings.save()
         area_selector = model_core.get_or_create_selector('area')

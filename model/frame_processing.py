@@ -1,11 +1,12 @@
 from collections import deque
 from itertools import chain, repeat
+from time import time
 
 import dlib
 
 from common.coordinates import Point, RectBased
-from common.settings import Settings
 from common.logger import logger
+from common.settings import Settings, OBJECT
 from model.area_controller import AreaController
 from view.drawing import Drawable, Processor
 
@@ -18,6 +19,7 @@ class Tracker(RectBased, Drawable):
         self._length_xy = None
         self._center = None
         self.in_progress = False
+        self.name = OBJECT
 
     @property
     def left_top(self):
@@ -62,6 +64,34 @@ class Tracker(RectBased, Drawable):
     def draw_on_frame(self, frame):
         frame = Processor.draw_rectangle(frame, self.left_top, self.right_bottom)
         return Processor.draw_circle(frame, self._center)
+
+
+class NoiseThresholdCalibrator:
+    CALIBRATION_THRESHOLD_STEP = 0.0025
+    OBJECT_NOT_MOVING_TIME_SEC = 5
+
+    # В течение 5 секунд цель трекинга не должна двигаться
+    def __init__(self):
+        # TODO: возможно здесь понадобятся геттер и сеттер для лучшей защиты от смены состояния.
+        #  Или нет, если вынести код калибровки в одно логическое место
+        self.in_progress = False
+        self._last_position = None
+        self._last_timestamp = time()
+        # TODO: сделать нормальным классом
+
+    def is_calibration_successful(self, center):
+        if self._last_position is None:
+            self._last_position = center
+            self._last_timestamp = time()
+            return False
+        if not (center == self._last_position):
+            Settings.NOISE_THRESHOLD += NoiseThresholdCalibrator.CALIBRATION_THRESHOLD_STEP
+            self._last_position = center
+            self._last_timestamp = time()
+            return False
+        elif time() - self._last_timestamp > NoiseThresholdCalibrator.OBJECT_NOT_MOVING_TIME_SEC:
+            self.in_progress = False
+            return True
 
 
 class Denoiser:

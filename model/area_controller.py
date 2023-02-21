@@ -1,6 +1,10 @@
+from threading import Thread
+from winsound import PlaySound, SND_PURGE, SND_FILENAME
+
 from common.coordinates import Point
 from common.logger import logger
 from model.selector import TetragonSelector
+from view.drawing import Processor
 from view.view_model import ViewModel
 
 
@@ -13,6 +17,7 @@ class AreaController:
         self._dpi_xy = Point(0, 0)
         self._M = None
         self._is_set = False
+        self._beeped = False
 
     @staticmethod
     def calc_center(left_top: Point, right_bottom: Point) -> Point:
@@ -61,13 +66,25 @@ class AreaController:
         Y = (m[1, 0] * x + m[1, 1] * y + m[1, 2]) / common_denominator
         return Point(int(X), int(Y))
 
-    def point_is_out_of_area(self, point: Point) -> Point:
+    def point_is_out_of_area(self, point: Point, beep_sound=False) -> bool:
         if not self._is_set:
+            self._beeped = False
             return False
         # https://docs.opencv.org/4.x/da/d54/group__imgproc__transform.html#gaf73673a7e8e18ec6963e3774e6a94b87
         translated = self.translate_coordinates(point)
-        return translated.x < 0 or translated.x > self._max_xy.x \
+        out_of_area = translated.x < 0 or translated.x > self._max_xy.x \
             or translated.y < 0 or translated.y > self._max_xy.y
+        if not beep_sound:
+            return out_of_area
+
+        if out_of_area and not self._beeped:
+            Thread(target=PlaySound, args=(r'alert.wav', SND_FILENAME | SND_PURGE)).start()
+            self._beeped = True
+            Processor.CURRENT_COLOR = Processor.COLOR_RED
+        if not out_of_area:
+            Processor.CURRENT_COLOR = Processor.COLOR_WHITE
+            self._beeped = False
+        return out_of_area
 
     def calc_relative_coords(self, object_center: Point) -> Point:
         relative = object_center - self.center
