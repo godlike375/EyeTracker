@@ -68,7 +68,6 @@ class Tracker(RectBased, Drawable):
 
 class NoiseThresholdCalibrator:
     CALIBRATION_THRESHOLD_STEP = 0.0025
-    OBJECT_NOT_MOVING_TIME_SEC = 5
 
     # В течение 5 секунд цель трекинга не должна двигаться
     def __init__(self):
@@ -89,7 +88,7 @@ class NoiseThresholdCalibrator:
             self._last_position = center
             self._last_timestamp = time()
             return False
-        elif time() - self._last_timestamp > NoiseThresholdCalibrator.OBJECT_NOT_MOVING_TIME_SEC:
+        elif time() - self._last_timestamp > Settings.OBJECT_NOT_MOVING_TIME_SEC:
             self.in_progress = False
             return True
 

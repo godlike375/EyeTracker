@@ -9,6 +9,7 @@ LEFT_DOWN = 'left_down'
 LEFT_UP = 'left_up'
 MIN_DISTANCE_BETWEEN_POINTS = 28
 MIN_POINTS_SELECTED = 2
+EVENT_NAME = 1
 
 
 class Selector(ABC):
@@ -101,8 +102,8 @@ class RectSelector(RectBased, Drawable, Selector):
         # переключиться на другое окно, потом переключиться обратно и выделить объект
         self._left_top, self._right_bottom = self._points
         self._selected = True
-        for i in self._unbindings:
-            i[1]()
+        for unbind in self._unbindings:
+            unbind[EVENT_NAME]()
         if self._after_selection is not None:
             self._after_selection()
 
@@ -131,8 +132,8 @@ class TetragonSelector(TetragonBased, Drawable, Selector):
         if self._current_point_number == TetragonSelector.MAX_POINTS:
             self._selected = True
             self._sort_points_for_viewing()
-            for i in self._unbindings:
-                i[1]()
+            for unbind in self._unbindings:
+                unbind[EVENT_NAME]()
             if self._after_selection is not None:
                 self._after_selection()
 

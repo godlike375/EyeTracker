@@ -48,8 +48,11 @@ class ViewModel:
         # for event in MOUSE_EVENTS:
         #    self._root.unbind(event)
 
-    def new_selection(self, name):
+    def new_selection(self, name, retry=False):
         # TODO: отрефакторить (надо бы перенести в модель)
+        if self._model.threshold_calibrator.in_progress and not retry:
+            ViewModel.show_message('Выполняется калибровка шумоподавления, необходимо дождаться её окончания', 'Ошибка')
+            return
         self._model.selecting_service.stop_drawing_selected(name)
         if OBJECT in name:
             area = self._model.get_or_create_selector(AREA)
@@ -101,7 +104,6 @@ class ViewModel:
 
     @classmethod
     def show_fatal_exception(cls, e):
-        # TODO: Возможно переместить во ViewModel
         cls.show_message(title='Фатальная ошибка. Работа программы будет продолжена, но может стать нестабильной',
                          message=f'{e}')
         logger.fatal(e)

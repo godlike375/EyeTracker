@@ -63,6 +63,7 @@ class View:
         return self
 
     def set_current_image(self, img):
+        # TODO: похоже, эта проверка неактуальна
         if img is None:
             raise RuntimeError('processed image is None')
         self._current_image = img

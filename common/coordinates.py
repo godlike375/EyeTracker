@@ -99,6 +99,7 @@ class RectBased(ABC):
         pass
 
 
+# TODO: этот интерфейс не используется, его нужно либо использовать либо убрать
 class TetragonBased(RectBased):
 
     @property

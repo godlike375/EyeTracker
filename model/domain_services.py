@@ -130,17 +130,24 @@ class Orchestrator(ThreadLoopable):
             relative_coords = self._area_controller.calc_relative_coords(center)
             self.laser_service.set_new_position(relative_coords.to_int())
 
+    def check_selected(self, name):
+        selector = self.get_or_create_selector(name)
+        self.selecting_service.check_emptiness(selector)
+        if not selector.is_selected:
+            return False, None
+        return True, selector
+
     def on_area_selected(self):
-        area = self.get_or_create_selector(AREA)
-        self.selecting_service.check_emptiness(area)
-        if not area.is_selected:
-            area = None
+        selected, area = self.check_selected(AREA)
+        if not selected:
+            self._view_model.new_selection(AREA, retry=True)
+            return
         self._area_controller.set_area(area)
 
     def on_object_selected(self):
-        object = self.get_or_create_selector(OBJECT)
-        self.selecting_service.check_emptiness(object)
-        if not object.is_selected:
+        selected, object = self.check_selected(OBJECT)
+        if not selected:
+            self._view_model.new_selection(OBJECT, retry=True)
             return
         center = ((object.left_top + object.right_bottom) / 2).to_int()
         out_of_area = self._area_controller.point_is_out_of_area(center)
