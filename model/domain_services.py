@@ -16,6 +16,7 @@ from view.view_model import ViewModel
 class SelectingService:
     def __init__(self):
         self._active_drawn_objects = dict()  # {name: Selector}
+        self.object_is_selecting = False
 
     def load_selected_area(self, area, area_selected_callback):
         area_selector = TetragonSelector(AREA, area_selected_callback, area)
@@ -85,6 +86,7 @@ class Orchestrator(ThreadLoopable):
         self.laser_service = LaserService()
         self._current_frame = None
         self.threshold_calibrator = NoiseThresholdCalibrator()
+        self.previous_area = None
 
         if area is not None:
             self.selecting_service.load_selected_area(area, self.on_area_selected)
@@ -122,6 +124,8 @@ class Orchestrator(ThreadLoopable):
         if self.threshold_calibrator.is_calibration_successful(center):
             self._tracker.stop_tracking()
             self.selecting_service.stop_drawing_selected(OBJECT)
+            self.selecting_service.start_drawing_selected(self.previous_area)
+            self._area_controller.set_area(self.previous_area)
             ViewModel.show_message('Калибровка успешно завершена')
 
     def _move_to_relative_cords(self, center):
@@ -146,16 +150,20 @@ class Orchestrator(ThreadLoopable):
 
     def on_object_selected(self):
         selected, object = self.check_selected(OBJECT)
-        if not selected:
+        out_of_area = True
+        if selected:
+            center = ((object.left_top + object.right_bottom) / 2).to_int()
+            out_of_area = self._area_controller.point_is_out_of_area(center)
+            if out_of_area:
+                logger.warning('selected object is out of tracking borders')
+                ViewModel.show_message('Нельзя выделять область за зоной слежения', 'Ошибка')
+                self.selecting_service.stop_drawing_selected(OBJECT)
+
+        if not selected or out_of_area:
             self._view_model.new_selection(OBJECT, retry=True)
             return
-        center = ((object.left_top + object.right_bottom) / 2).to_int()
-        out_of_area = self._area_controller.point_is_out_of_area(center)
-        if out_of_area:
-            logger.warning('selected object is out of tracking borders')
-            ViewModel.show_message('Нельзя выделять область за зоной слежения', 'Ошибка')
-            self.selecting_service.stop_drawing_selected(object.name)
-            return
+
         frame = self._current_frame
         self._tracker.start_tracking(frame, object.left_top, object.right_bottom)
         self.selecting_service.start_drawing_selected(self._tracker)
+        self.selecting_service.object_is_selecting = False
