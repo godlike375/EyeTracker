@@ -32,7 +32,7 @@ class ViewModel:
 
     def move_laser(self, x, y):
         # нельзя двигать лазер вручную во время сеанса трекинга
-        if not self._model._tracker.in_progress:
+        if not self._model.tracker.in_progress:
             self._model.laser_service.move_laser(x, y)
 
     def left_button_click(self, selector, event):
@@ -69,7 +69,7 @@ class ViewModel:
         if AREA in name:
             self._model.previous_area = self._model.get_or_create_selector(name)
             self._model.selecting_service.stop_drawing_selected(OBJECT)
-        self._model._tracker.in_progress = False
+        self._model.tracker.in_progress = False
         selector = self._model.get_or_create_selector(name)
 
         binded_left_click = (LEFT_CLICK, partial(self.left_button_click, selector))
@@ -106,6 +106,9 @@ class ViewModel:
     def selector_is_selected(self, name):
         selector = self._model.selecting_service.get_or_create_selector(name)
         return selector.is_selected
+
+    def stop_tracking(self):
+        self._model.tracker.stop_tracking()
 
     @staticmethod
     def show_message(message: str, title: str = ''):

@@ -82,7 +82,7 @@ class Orchestrator(ThreadLoopable):
         self.selecting_service = SelectingService()
         self._area_controller = AreaController(min_xy=-Settings.MAX_RANGE,
                                                max_xy=Settings.MAX_RANGE)
-        self._tracker = Tracker()
+        self.tracker = Tracker()
         self.laser_service = LaserService()
         self._current_frame = None
         self.threshold_calibrator = NoiseThresholdCalibrator()
@@ -111,18 +111,18 @@ class Orchestrator(ThreadLoopable):
             ViewModel.show_fatal_exception(e)
 
     def _tracking_and_drawing(self, frame):
-        if self._tracker.in_progress:
+        if self.tracker.in_progress:
             self._tracking(frame)
         processed = Processor.draw_active_objects(frame, self.selecting_service.get_active_objects())
         return Processor.frame_to_image(processed)
 
     def _tracking(self, frame):
-        center = self._tracker.get_tracked_position(frame)
+        center = self.tracker.get_tracked_position(frame)
         if not self.threshold_calibrator.in_progress:
             self._move_to_relative_cords(center)
             return
         if self.threshold_calibrator.is_calibration_successful(center):
-            self._tracker.stop_tracking()
+            self.tracker.stop_tracking()
             self.selecting_service.stop_drawing_selected(OBJECT)
             self.selecting_service.start_drawing_selected(self.previous_area)
             self._area_controller.set_area(self.previous_area)
@@ -164,6 +164,6 @@ class Orchestrator(ThreadLoopable):
             return
 
         frame = self._current_frame
-        self._tracker.start_tracking(frame, object.left_top, object.right_bottom)
-        self.selecting_service.start_drawing_selected(self._tracker)
+        self.tracker.start_tracking(frame, object.left_top, object.right_bottom)
+        self.selecting_service.start_drawing_selected(self.tracker)
         self.selecting_service.object_is_selecting = False

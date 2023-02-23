@@ -24,6 +24,7 @@ class View:
         main_menu.add_command(label='Выделение объекта', command=object_callback)
         main_menu.add_command(label='Откалибровать лазер', command=view_model.calibrate_laser)
         main_menu.add_command(label='Откалибровать шумоподавление', command=view_model.calibrate_noise_threshold)
+        main_menu.add_command(label='Остановить трекинг', command=view_model.stop_tracking)
         # TODO: MUST HAVE сделать сценарии использования (мастер настройки), чтобы пользователю не нужно было думать
         #  о последовательности действий для настройки
 
