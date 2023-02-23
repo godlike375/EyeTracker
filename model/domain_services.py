@@ -156,7 +156,7 @@ class Orchestrator(ThreadLoopable):
             out_of_area = self._area_controller.point_is_out_of_area(center)
             if out_of_area:
                 logger.warning('selected object is out of tracking borders')
-                ViewModel.show_message('Нельзя выделять область за зоной слежения', 'Ошибка')
+                ViewModel.show_warning('Нельзя выделять область за зоной слежения')
                 self.selecting_service.stop_drawing_selected(OBJECT)
 
         if not selected or out_of_area:
@@ -167,3 +167,56 @@ class Orchestrator(ThreadLoopable):
         self.tracker.start_tracking(frame, object.left_top, object.right_bottom)
         self.selecting_service.start_drawing_selected(self.tracker)
         self.selecting_service.object_is_selecting = False
+
+    def new_selection(self, name, retry=False):
+        if self.threshold_calibrator.in_progress and not retry:
+            ViewModel.show_warning('Выполняется калибровка шумоподавления, необходимо дождаться её окончания')
+            return
+
+        if AREA in name and self.selecting_service.object_is_selecting:
+            ViewModel.show_warning('Необходимо завершить выделение объекта')
+            return
+
+        self.selecting_service.stop_drawing_selected(name)
+
+        if OBJECT in name:
+            area = self.get_or_create_selector(AREA)
+            if not area.is_selected:
+                ViewModel.show_warning('Перед созданием объекта необходимо создать зону')
+                return
+            self.selecting_service.object_is_selecting = True
+
+        if AREA in name:
+            self.previous_area = self.get_or_create_selector(name)
+            self.selecting_service.stop_drawing_selected(OBJECT)
+        self.tracker.in_progress = False
+        return self.get_or_create_selector(name)
+
+    def calibrate_noise_threshold(self, width, height):
+        self.previous_area = self.get_or_create_selector(AREA)
+        self.selecting_service.stop_drawing_selected(AREA)
+        area = self.get_or_create_selector(AREA)
+        area._points = [Point(0, 0), Point(height, 0), Point(height, width), Point(0, width)]
+        area._sort_points_for_viewing()
+        area.is_selected = True
+        self.on_area_selected()
+        self.new_selection(OBJECT)
+        self.threshold_calibrator.in_progress = True
+        Settings.NOISE_THRESHOLD = 0.0
+
+    def calibrate_laser(self):
+        # TODO: по возможности отрефакторить дублирование условий
+        if not self.tracker.in_progress:
+            self.laser_service.calibrate_laser()
+
+    def center_laser(self):
+        if not self.tracker.in_progress:
+            self.laser_service.center_laser()
+
+    def move_laser(self, x, y):
+        if not self.tracker.in_progress:
+            self.laser_service.move_laser(x, y)
+
+    def stop_tracking(self):
+        self.tracker.stop_tracking()
+        self.selecting_service.stop_drawing_selected(OBJECT)

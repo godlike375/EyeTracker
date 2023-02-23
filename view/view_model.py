@@ -3,7 +3,6 @@ from tkinter import Tk, messagebox
 
 from common.coordinates import Point
 from common.logger import logger
-from common.settings import OBJECT, AREA, Settings
 from model.selector import LEFT_CLICK, LEFT_DOWN, LEFT_UP
 
 MOUSE_EVENTS = ('<Button-1>', '<B1-Motion>', '<ButtonRelease-1>')
@@ -25,18 +24,15 @@ class ViewModel:
         self._view.set_current_image(image)
 
     def calibrate_laser(self):
-        self._model.laser_service.calibrate_laser()
+        self._model.calibrate_laser()
 
     def center_laser(self):
-        self._model.laser_service.center_laser()
+        self._model.center_laser()
 
     def move_laser(self, x, y):
-        # нельзя двигать лазер вручную во время сеанса трекинга
-        if not self._model.tracker.in_progress:
-            self._model.laser_service.move_laser(x, y)
+        self._model.move_laser(x, y)
 
     def left_button_click(self, selector, event):
-        self._model.selecting_service.start_drawing_selected(selector)
         selector.left_button_click(Point(event.x, event.y))
 
     def left_button_down(self, selector, event):
@@ -44,33 +40,12 @@ class ViewModel:
 
     def left_button_up(self, selector, event):
         selector.left_button_up(Point(event.x, event.y))
-        # TODO: привязывать события должен сам Selector
-        # for event in MOUSE_EVENTS:
-        #    self._root.unbind(event)
 
     def new_selection(self, name, retry=False):
-        if self._model.threshold_calibrator.in_progress and not retry:
-            ViewModel.show_message('Выполняется калибровка шумоподавления, необходимо дождаться её окончания', 'Ошибка')
+        selector = self._model.new_selection(name, retry)
+
+        if selector is None:
             return
-
-        if AREA in name and self._model.selecting_service.object_is_selecting:
-            self.show_message('Необходимо завершить выделение объекта', 'Ошибка')
-            return
-
-        self._model.selecting_service.stop_drawing_selected(name)
-
-        if OBJECT in name:
-            area = self._model.get_or_create_selector(AREA)
-            if not area.is_selected:
-                self.show_message('Перед созданием объекта необходимо создать зону', 'Ошибка')
-                return
-            self._model.selecting_service.object_is_selecting = True
-
-        if AREA in name:
-            self._model.previous_area = self._model.get_or_create_selector(name)
-            self._model.selecting_service.stop_drawing_selected(OBJECT)
-        self._model.tracker.in_progress = False
-        selector = self._model.get_or_create_selector(name)
 
         binded_left_click = (LEFT_CLICK, partial(self.left_button_click, selector))
         binded_left_down = (LEFT_DOWN, partial(self.left_button_down, selector))
@@ -86,33 +61,25 @@ class ViewModel:
         unbindings = (unbind_left_click, unbind_left_down, unbind_left_up)
 
         selector.bind_events(bindings, unbindings)
+        self._model.selecting_service.start_drawing_selected(selector)
 
     def calibrate_noise_threshold(self):
-        self._model.previous_area = self._model.get_or_create_selector(AREA)
-
-        self._model.selecting_service.stop_drawing_selected(AREA)
-        area = self._model.get_or_create_selector(AREA)
-        width = self._view.window_width
-        height = self._view.window_height
-        area._points = [Point(0, 0), Point(height, 0), Point(height, width), Point(0, width)]
-        area._sort_points_for_viewing()
-        area.is_selected = True
-        self._model.on_area_selected()
-        self.new_selection(OBJECT)
-        self._model.threshold_calibrator.in_progress = True
-        Settings.NOISE_THRESHOLD = 0.0
-        # TODO: Если до этого зона была выделена, то она должна восстановиться после калибровки
+        self._model.calibrate_noise_threshold(self._view.window_width, self._view.window_height)
 
     def selector_is_selected(self, name):
         selector = self._model.selecting_service.get_or_create_selector(name)
         return selector.is_selected
 
     def stop_tracking(self):
-        self._model.tracker.stop_tracking()
+        self._model.stop_tracking()
 
     @staticmethod
     def show_message(message: str, title: str = ''):
         messagebox.showerror(title, message)
+
+    @staticmethod
+    def show_warning(message: str):
+        messagebox.showerror('Предупреждение', message)
 
     @classmethod
     def show_fatal_exception(cls, e):

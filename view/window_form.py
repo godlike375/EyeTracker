@@ -64,9 +64,6 @@ class View:
         return self
 
     def set_current_image(self, img):
-        # TODO: похоже, эта проверка неактуальна
-        if img is None:
-            raise RuntimeError('processed image is None')
         self._current_image = img
 
     def show_image(self):
@@ -77,7 +74,5 @@ class View:
         if self._image_alive_ref is not None:
             self._image_alive_ref.paste(image)
         else:
-            imgtk = ImageTk.PhotoImage(image=image)
-            # сохранять ссылку на объект обязательно, иначе он будет собираться GC и не показываться
-            self._image_alive_ref = imgtk
-            self._video_label.configure(image=imgtk)
+            self._image_alive_ref = ImageTk.PhotoImage(image=image)
+            self._video_label.configure(image=self._image_alive_ref)
