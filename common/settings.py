@@ -21,7 +21,7 @@ class Settings:
     SERIAL_BAUND_RATE = 115200
     SERIAL_TIMEOUT = 0.01
     SERIAL_PORT = 8
-    MEAN_TRACKING_COUNT = 3
+    MEAN_TRACKING_COUNT = 2
     NOISE_THRESHOLD = 0.0
     OBJECT_NOT_MOVING_TIME_SEC = 10
     MAX_RANGE = 6000
@@ -43,6 +43,7 @@ class Settings:
     @staticmethod
     def load(folder: str = FOLDER, file: str = FILE):
         base_path = Settings.get_repo_path()
+        # TODO: добавить защиту от некорректных параметров (mean_count > 0, не str и тд)
 
         path = base_path / folder / file
         if Path.exists(path):

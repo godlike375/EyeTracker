@@ -73,6 +73,15 @@ class ViewModel:
     def stop_tracking(self):
         self._model.stop_tracking()
 
+    def progress_bar_set_visibility(self, visible):
+        self._view.progress_bar_set_visibility(visible)
+
+    def progress_bar_set_value(self, val):
+        self._view.progress_bar_set_value(val)
+
+    def progress_bar_get_value(self):
+        return self._view.progress_bar_get_value()
+
     @staticmethod
     def show_message(message: str, title: str = ''):
         messagebox.showerror(title, message)

@@ -11,6 +11,9 @@ from model.area_controller import AreaController
 from view.drawing import Drawable, Processor
 
 
+PERCENT_FROM_DECIMAL = 100
+
+
 class Tracker(RectBased, Drawable):
     def __init__(self, mean_count=Settings.MEAN_TRACKING_COUNT):
         self._mean_count = mean_count
@@ -91,6 +94,9 @@ class NoiseThresholdCalibrator:
         elif time() - self._last_timestamp > Settings.OBJECT_NOT_MOVING_TIME_SEC:
             self.in_progress = False
             return True
+
+    def calibration_progress(self):
+        return int(((time() - self._last_timestamp) / Settings.OBJECT_NOT_MOVING_TIME_SEC) * PERCENT_FROM_DECIMAL)
 
 
 class Denoiser:

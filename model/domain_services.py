@@ -13,6 +13,9 @@ from view.drawing import Processor, Drawable
 from view.view_model import ViewModel
 
 
+MIN_THROTTLE_DIFFERENCE = 1
+
+
 class SelectingService:
     def __init__(self):
         self._active_drawn_objects = dict()  # {name: Selector}
@@ -82,7 +85,7 @@ class Orchestrator(ThreadLoopable):
         self.selecting_service = SelectingService()
         self._area_controller = AreaController(min_xy=-Settings.MAX_RANGE,
                                                max_xy=Settings.MAX_RANGE)
-        self.tracker = Tracker()
+        self.tracker = Tracker(Settings.MEAN_TRACKING_COUNT)
         self.laser_service = LaserService()
         self._current_frame = None
         self.threshold_calibrator = NoiseThresholdCalibrator()
@@ -126,7 +129,12 @@ class Orchestrator(ThreadLoopable):
             self.selecting_service.stop_drawing_selected(OBJECT)
             self.selecting_service.start_drawing_selected(self.previous_area)
             self._area_controller.set_area(self.previous_area)
+            self._view_model.progress_bar_set_visibility(False)
             ViewModel.show_message('Калибровка успешно завершена')
+        else:
+            progress_value = self.threshold_calibrator.calibration_progress()
+            if abs(self._view_model.progress_bar_get_value() - progress_value) > MIN_THROTTLE_DIFFERENCE:
+                self._view_model.progress_bar_set_value(progress_value)
 
     def _move_to_relative_cords(self, center):
         out_of_area = self._area_controller.point_is_out_of_area(center, beep_sound=True)
@@ -200,9 +208,11 @@ class Orchestrator(ThreadLoopable):
         area._sort_points_for_viewing()
         area.is_selected = True
         self.on_area_selected()
-        self.new_selection(OBJECT)
+        self._view_model.new_selection(OBJECT)
         self.threshold_calibrator.in_progress = True
         Settings.NOISE_THRESHOLD = 0.0
+        self._view_model.progress_bar_set_visibility(True)
+        self._view_model.progress_bar_set_value(0)
 
     def calibrate_laser(self):
         # TODO: по возможности отрефакторить дублирование условий

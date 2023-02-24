@@ -23,7 +23,7 @@ def main(args):
     try:
         root = Tk()
         view_model = ViewModel(root)
-        form = View(root, view_model).setup()
+        form = View(root, view_model)
         view_model.set_view(form)
         model_core = Orchestrator(view_model, area=area)
         view_model.set_model(model_core)
