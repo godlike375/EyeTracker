@@ -17,8 +17,8 @@ ROOT_DIR = None
 class Settings:
     CAMERA_ID = 0  # the second web-camera
     CAMERA_MAX_RESOLUTION = 640  # max height
-    FPS_PROCESSED = 60  # target frames per second
-    SERIAL_BAUND_RATE = 115200
+    FPS_PROCESSED = 64  # target frames per second
+    SERIAL_BAUD_RATE = 19200
     SERIAL_TIMEOUT = 0.01
     SERIAL_PORT = 8
     MEAN_TRACKING_COUNT = 2
@@ -26,7 +26,7 @@ class Settings:
     OBJECT_NOT_MOVING_TIME_SEC = 10
     MAX_RANGE = 6000
     STABLE_POSITION_DURATION = 0.67
-    FPS_VIEWED = 30
+    FPS_VIEWED = 25
 
     @staticmethod
     def get_repo_path(current: Path = None):

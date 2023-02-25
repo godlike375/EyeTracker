@@ -130,6 +130,7 @@ class Orchestrator(ThreadLoopable):
             self.selecting_service.start_drawing_selected(self.previous_area)
             self._area_controller.set_area(self.previous_area)
             self._view_model.progress_bar_set_visibility(False)
+            Settings.NOISE_THRESHOLD = round(Settings.NOISE_THRESHOLD, 5)
             ViewModel.show_message('Калибровка успешно завершена')
         else:
             progress_value = self.threshold_calibrator.calibration_progress()

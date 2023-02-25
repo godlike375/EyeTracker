@@ -13,10 +13,10 @@ READY = 'ready'
 
 class MoveController:
 
-    def __init__(self, manual_port=None, baund_rate=None, serial_off=False):
+    def __init__(self, manual_port=None, baud_rate=None, serial_off=False):
         # TODO: к настройкам должно обращаться что-то внещнее в идеале и передавать эти параметры сюда
         manual_port = manual_port or f'COM{Settings.SERIAL_PORT}'
-        baund_rate = baund_rate or Settings.SERIAL_BAUND_RATE
+        baud_rate = baud_rate or Settings.SERIAL_BAUD_RATE
         self._timer = time()
         self._current_position = Point(0, 0)
         self._ready = True
@@ -27,7 +27,7 @@ class MoveController:
             return
 
         try:
-            self._serial = Serial(manual_port, baund_rate, timeout=Settings.SERIAL_TIMEOUT)
+            self._serial = Serial(manual_port, baud_rate, timeout=Settings.SERIAL_TIMEOUT)
         except SerialException:
             logger.exception('Manual com port was not found. Attempting to use auto-detection')
 
@@ -38,7 +38,7 @@ class MoveController:
                 auto_detected = p.device
 
         try:
-            self._serial = Serial(auto_detected, baund_rate, timeout=Settings.SERIAL_TIMEOUT)
+            self._serial = Serial(auto_detected, baud_rate, timeout=Settings.SERIAL_TIMEOUT)
         except SerialException as e:
             logger.exception(str(e))
             ViewModel.show_message(f'Не удалось открыть заданный настройками последовательный порт '

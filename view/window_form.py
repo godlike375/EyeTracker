@@ -1,4 +1,8 @@
-from tkinter import Label, Tk, Frame, Menu, TOP, BOTTOM, X
+from tkinter import (
+    Label, Tk, Frame, Menu,
+    TOP, BOTTOM, X, Toplevel,
+    Text, Button
+                     )
 from tkinter.ttk import Progressbar
 from functools import partial
 
@@ -56,6 +60,7 @@ class View:
         position_menu.add_command(label='Право низ', command=move_right_bottom)
         position_menu.add_command(label='Центр', command=move_center)
         main_menu.add_cascade(label='Позиционирование лазера', menu=position_menu)
+        main_menu.add_command(label='Настройки', command=self.open_settings)
 
     def setup_layout(self):
         self._root.title('Eye tracker')
@@ -100,3 +105,21 @@ class View:
 
     def progress_bar_get_value(self):
         return self._progress_bar['value']
+
+    def open_settings(self):
+        self.settings = Toplevel(self._root)
+        self.settings.title('Настройки')
+        self._params = {}
+        for param in dir(Settings):
+            if param.isupper():
+                label = Label(self.settings, text=param)
+                label.pack()
+
+                edit = Text(self.settings, width=12, height=1)
+                self._params[param] = edit
+                edit.pack()
+                text_param = str(getattr(Settings, param))
+                edit.insert(0.0, text_param)
+        save_settings = partial(self._view_model.save_settings, self._params)
+        save_button = Button(self.settings, command=save_settings, text='Сохранить')
+        save_button.pack()

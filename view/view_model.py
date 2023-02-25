@@ -1,9 +1,10 @@
 from functools import partial
-from tkinter import Tk, messagebox
+from tkinter import Tk, messagebox, END
 
 from common.coordinates import Point
 from common.logger import logger
 from model.selector import LEFT_CLICK, LEFT_DOWN, LEFT_UP
+from common.settings import Settings
 
 MOUSE_EVENTS = ('<Button-1>', '<B1-Motion>', '<ButtonRelease-1>')
 
@@ -81,6 +82,13 @@ class ViewModel:
 
     def progress_bar_get_value(self):
         return self._view.progress_bar_get_value()
+
+    def save_settings(self, params):
+        for name, text_edit in params.items():
+            text_param = text_edit.get(0.0, END)
+            number_param = float(text_param) if '.' in text_param else int(text_param)
+            setattr(Settings, name, number_param)
+            # TODO: добавить защиту от некоорректного ввода
 
     @staticmethod
     def show_message(message: str, title: str = ''):
