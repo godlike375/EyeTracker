@@ -10,10 +10,11 @@ from PIL import ImageTk
 
 from common.settings import Settings, AREA, OBJECT
 from common.logger import logger
+from model.camera_extractor import FLIP_SIDE_NONE, FLIP_SIDE_VERTICAL, FLIP_SIDE_HORIZONTAL
 
 SECOND_LENGTH = 1000
 RESOLUTIONS = {1280: 720, 800: 600, 640: 480}
-WIDTH_OFFSET = 40
+INDICATORS_OFFSET = 40
 
 
 class View:
@@ -22,14 +23,16 @@ class View:
         self._root = tk
         self._view_model = view_model
         self.interval_ms = int(1 / Settings.FPS_VIEWED * SECOND_LENGTH)
+        self._last_image_height = 0
+        self._last_image_width = 0
         self._current_image = None
         self._image_alive_ref = None
 
         self._video_frame = Frame(self._root)
         self._video_label = Label(self._video_frame)
 
-        self._under_menu_frame = Frame(self._video_frame)
-        self._progress_bar = Progressbar(self._under_menu_frame)
+        self._indicators_frame = Frame(self._video_frame)
+        self._progress_bar = Progressbar(self._indicators_frame)
 
         self.setup_menus()
         self.setup_layout()
@@ -60,25 +63,56 @@ class View:
         position_menu.add_command(label='Право низ', command=move_right_bottom)
         position_menu.add_command(label='Центр', command=move_center)
         main_menu.add_cascade(label='Позиционирование лазера', menu=position_menu)
+
+        rotate_0 = partial(self._view_model.rotate_image, 0)
+        rotate_90 = partial(self._view_model.rotate_image, 90)
+        rotate_180 = partial(self._view_model.rotate_image, 180)
+        rotate_270 = partial(self._view_model.rotate_image, 270)
+
+        rotation_menu = Menu()
+        rotation_menu.add_command(label='0°', command=rotate_0)
+        rotation_menu.add_command(label='90°', command=rotate_90)
+        rotation_menu.add_command(label='180°', command=rotate_180)
+        rotation_menu.add_command(label='270°', command=rotate_270)
+
+        flip_none = partial(self._view_model.flip_image, side=FLIP_SIDE_NONE)
+        flip_vertical = partial(self._view_model.flip_image, side=FLIP_SIDE_VERTICAL)
+        flip_horizontal = partial(self._view_model.flip_image, side=FLIP_SIDE_HORIZONTAL)
+
+        rotation_menu.add_command(label='Зеркально по вертикали', command=flip_vertical)
+        rotation_menu.add_command(label='Зеркально по горизонтали', command=flip_horizontal)
+        rotation_menu.add_command(label='Не отражать зеркально', command=flip_none)
+
+        main_menu.add_cascade(label='Поворот изображения', menu=rotation_menu)
+
         main_menu.add_command(label='Настройки', command=self.open_settings)
 
     def setup_layout(self):
         self._root.title('Eye tracker')
 
-        WINDOW_HEIGHT = Settings.CAMERA_MAX_RESOLUTION
-        self.window_height = WINDOW_HEIGHT
-        WINDOW_WIDTH = RESOLUTIONS[WINDOW_HEIGHT] + WIDTH_OFFSET
-        self.window_width = WINDOW_WIDTH
-        window_size = f'{WINDOW_HEIGHT}x{WINDOW_WIDTH}'
-        logger.debug(f'window size = {window_size}')
-        self._root.geometry(window_size)
+        self.setup_window_geometry()
+
         self._root.configure(background='white')
 
-        self._video_frame.pack(side=BOTTOM)
-        self._video_label.pack(side=BOTTOM)
-        self._under_menu_frame.pack(side=TOP, fill=X)
+        self._video_frame.pack(side=TOP)
+        self._video_label.pack(side=TOP)
+        self._indicators_frame.pack(side=BOTTOM, fill=X)
         self.progress_bar_set_visibility(False)
         self.show_image()
+
+    def setup_window_geometry(self, reverse=False):
+        WINDOW_HEIGHT = Settings.CAMERA_MAX_HEIGHT
+        self.window_height = WINDOW_HEIGHT
+        WINDOW_WIDTH = RESOLUTIONS[WINDOW_HEIGHT] + INDICATORS_OFFSET
+        self.window_width = WINDOW_WIDTH
+        window_size = f'{WINDOW_HEIGHT}x{WINDOW_WIDTH}' if not reverse else \
+            f'{WINDOW_WIDTH + 130 - INDICATORS_OFFSET}x{WINDOW_HEIGHT - 170 + INDICATORS_OFFSET}'
+        self._root.geometry(window_size)
+
+        if reverse:
+            self._image_alive_ref = None
+
+        logger.debug(f'window size = {window_size}')
 
     def set_current_image(self, img):
         self._current_image = img
@@ -88,7 +122,14 @@ class View:
         if self._current_image is None:
             return
         image = self._current_image
+
+        if image.width != self._last_image_width or image.height != self._last_image_height:
+            self._image_alive_ref = None
+            self._last_image_height = image.height
+            self._last_image_width = image.width
+
         if self._image_alive_ref is not None:
+            # Для повышения производительности вставляем в готовый лейбл изображение, не пересоздавая
             self._image_alive_ref.paste(image)
         else:
             self._image_alive_ref = ImageTk.PhotoImage(image=image)

@@ -89,6 +89,20 @@ class ViewModel:
             number_param = float(text_param) if '.' in text_param else int(text_param)
             setattr(Settings, name, number_param)
             # TODO: добавить защиту от некоорректного ввода
+            # TODO: сделать автоприменение всех параметров
+            #  (например во View они используются только в конструкторе, нужно повторно инициализировать все
+            #  необходимые модули через общие методы типа settings_initialize или что-то подобное сделать)
+
+    def rotate_image(self, degree):
+        # TODO: запретить повороты во время трекинга
+        self._model.rotate_image(degree)
+
+    def flip_image(self, side):
+        # TODO: запретить повороты во время трекинга
+        self._model.flip_image(side)
+
+    def setup_window_geometry(self, reverse):
+        self._view.setup_window_geometry(reverse)
 
     @staticmethod
     def show_message(message: str, title: str = ''):

@@ -5,7 +5,7 @@ from common.logger import logger
 from common.settings import Settings, OBJECT, AREA
 from common.thread_helpers import ThreadLoopable
 from model.area_controller import AreaController
-from model.extractor import Extractor
+from model.camera_extractor import FrameExtractor
 from model.frame_processing import Tracker, NoiseThresholdCalibrator
 from model.move_controller import MoveController
 from model.selector import RectSelector, TetragonSelector
@@ -81,7 +81,7 @@ class Orchestrator(ThreadLoopable):
 
     def __init__(self, view_model: ViewModel, run_immediately: bool = True, area: tuple = None):
         self._view_model = view_model
-        self._extractor = Extractor(Settings.CAMERA_ID)
+        self._extractor = FrameExtractor(Settings.CAMERA_ID)
         self.selecting_service = SelectingService()
         self._area_controller = AreaController(min_xy=-Settings.MAX_RANGE,
                                                max_xy=Settings.MAX_RANGE)
@@ -111,6 +111,7 @@ class Orchestrator(ThreadLoopable):
                 return
             ViewModel.show_fatal_exception(re)
         except Exception as e:
+            # TODO: через traceback или еще что-то сделать более подробный вывод
             ViewModel.show_fatal_exception(e)
 
     def _tracking_and_drawing(self, frame):
@@ -231,3 +232,13 @@ class Orchestrator(ThreadLoopable):
     def stop_tracking(self):
         self.tracker.stop_tracking()
         self.selecting_service.stop_drawing_selected(OBJECT)
+
+    def rotate_image(self, degree):
+        self._extractor.set_frame_rotate(degree)
+        if degree == 90 or degree == 270:
+            self._view_model.setup_window_geometry(reverse=True)
+        else:
+            self._view_model.setup_window_geometry(reverse=False)
+
+    def flip_image(self, side):
+        self._extractor.set_frame_flip(side)

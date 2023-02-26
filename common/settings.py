@@ -15,9 +15,9 @@ ROOT_DIR = None
 
 
 class Settings:
-    CAMERA_ID = 0  # the second web-camera
-    CAMERA_MAX_RESOLUTION = 640  # max height
-    FPS_PROCESSED = 64  # target frames per second
+    CAMERA_ID = 0
+    CAMERA_MAX_HEIGHT = 640  # max height
+    FPS_PROCESSED = 64
     SERIAL_BAUD_RATE = 19200
     SERIAL_TIMEOUT = 0.01
     SERIAL_PORT = 8

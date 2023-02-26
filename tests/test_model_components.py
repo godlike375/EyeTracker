@@ -9,7 +9,7 @@ from common.coordinates import Point
 from common.settings import Settings, ROOT_FOLDER
 from common.thread_helpers import ThreadLoopable
 from model.area_controller import AreaController
-from model.extractor import Extractor
+from model.camera_extractor import FrameExtractor
 from model.frame_processing import Denoiser, Tracker
 from model.move_controller import MoveController
 from model.selector import RectSelector
@@ -123,7 +123,7 @@ def test_selector_swap_coordinates(selected_points):
 def test_extractor_invalid_camera(test_config_ini):
     load_mock_config(test_config_ini)
     try:
-        Extractor(Settings.CAMERA_ID)
+        FrameExtractor(Settings.CAMERA_ID)
     except RuntimeError as e:
         assert str(e) == 'Неверный ID камеры'
     else:
@@ -132,7 +132,7 @@ def test_extractor_invalid_camera(test_config_ini):
 
 def test_extractor():
     Settings.load()
-    extractor = Extractor(Settings.CAMERA_ID)
+    extractor = FrameExtractor(Settings.CAMERA_ID)
     extractor._camera = Mock()
     extractor._camera.read = Mock(return_value=(Mock(), Mock()))
     extractor.extract_frame()

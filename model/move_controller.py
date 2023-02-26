@@ -21,7 +21,7 @@ class MoveController:
         self._current_position = Point(0, 0)
         self._ready = True
         self._timer = time()
-        self._serial = MockSerial()
+        self._serial = SerialStub()
         if serial_off:
             ViewModel.show_message('Последовательный порт используется в режиме отладки', 'Предупреждение')
             return
@@ -41,9 +41,9 @@ class MoveController:
             self._serial = Serial(auto_detected, baud_rate, timeout=Settings.SERIAL_TIMEOUT)
         except SerialException as e:
             logger.exception(str(e))
-            ViewModel.show_message(f'Не удалось открыть заданный настройками последовательный порт '
+            ViewModel.show_warning(f'Не удалось открыть заданный настройкой SERIAL_PORT последовательный порт '
                                    f'{manual_port}, а так же не удалось определить подходящий порт автоматически. '
-                                   f'Программа продолжит работать без контроллера лазера.', 'Предупреждение')
+                                   f'Программа продолжит работать без контроллера лазера.')
 
     @property
     def _can_send(self):
@@ -75,7 +75,7 @@ class MoveController:
         self._move_laser(position)
 
 
-class MockSerial(Serial):
+class SerialStub(Serial):
     READY_INTERVAL = 0.005  # sec
 
     def __init__(self):
@@ -83,7 +83,7 @@ class MockSerial(Serial):
 
     @property
     def _is_ready(self):
-        ready = time() - self._ready_timer >= MockSerial.READY_INTERVAL
+        ready = time() - self._ready_timer >= SerialStub.READY_INTERVAL
         if ready:
             self._ready_timer = time()
         return ready
