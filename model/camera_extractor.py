@@ -1,8 +1,9 @@
 import cv2
 import numpy as np
 
-from common.settings import Settings
-from view.view_model import ViewModel
+from common.settings import settings
+from view import view_output
+
 
 DEGREE_TO_CV2_MAP = {90: cv2.ROTATE_90_CLOCKWISE,
                      180: cv2.ROTATE_180,
@@ -16,23 +17,23 @@ DEFAULT_CAMERA_ID = 0
 
 
 class FrameExtractor():
-    def __init__(self, source: int = Settings.CAMERA_ID):
+    def __init__(self, source: int = settings.CAMERA_ID):
         self._frame_rotate_degree = 0
         self._frame_flip_side = FLIP_SIDE_NONE
         self.set_source(source)
 
     def try_set_camera(self, camera_id):
         self._camera = cv2.VideoCapture(camera_id)
-        self._camera.set(cv2.CAP_PROP_FRAME_WIDTH, Settings.CAMERA_MAX_HEIGHT)
-        self._camera.set(cv2.CAP_PROP_FRAME_HEIGHT, Settings.CAMERA_MAX_HEIGHT)
-        self._camera.set(cv2.CAP_PROP_FPS, Settings.FPS_PROCESSED)
+        self._camera.set(cv2.CAP_PROP_FRAME_WIDTH, settings.CAMERA_MAX_HEIGHT_RESOLUTION)
+        self._camera.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.CAMERA_MAX_HEIGHT_RESOLUTION)
+        self._camera.set(cv2.CAP_PROP_FPS, settings.FPS_PROCESSED)
         self._camera.set(cv2.CAP_PROP_BUFFERSIZE, 0)
         return self._camera.isOpened()
 
     def set_source(self, source):
         if not self.try_set_camera(source):
             if not self.try_set_camera(DEFAULT_CAMERA_ID):
-                ViewModel.show_warning(
+                view_output.show_warning(
                     f'Не удалось открыть заданную настройкой CAMERA_ID камеру '
                     f'{source}, а так же не удалось определить подходящую камеру автоматически. '
                     f'Программа продолжит работать без контроллера камеры.'

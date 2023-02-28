@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch, mock_open
 import pytest
 
 from common.coordinates import Point
-from common.settings import Settings, ROOT_FOLDER
+from common.settings import settings, ROOT_FOLDER
 from common.thread_helpers import ThreadLoopable
 from model.area_controller import AreaController
 from model.camera_extractor import FrameExtractor
@@ -42,25 +42,25 @@ def test_config_ini():
 def load_mock_config(test_config_ini):
     with patch("builtins.open", mock_open(read_data=test_config_ini)):
         with patch("pathlib.Path.exists", Mock(return_value=True)):
-            Settings.load('', '')
+            settings.load('', '')
 
 
 def test_load_valid_settings(test_config_ini):
     extract_upper_fields = lambda d: {k: d[k] for k in d if k.isupper()}
-    default = extract_upper_fields(vars(Settings))
+    default = extract_upper_fields(vars(settings))
     load_mock_config(test_config_ini)
-    loaded = extract_upper_fields(vars(Settings))
+    loaded = extract_upper_fields(vars(settings))
     assert default != loaded
-    assert loaded['MAX_RANGE'] == 5000
+    assert loaded['MAX_LASER_RANGE_PLUS_MINUS'] == 5000
     assert loaded['CAMERA_ID'] == 5
 
 
 def test_save_and_load_settings():
     extract_upper_fields = lambda d: {k: d[k] for k in d if k.isupper()}
-    default = extract_upper_fields(vars(Settings))
-    Settings.save(folder='tests', file='test_saved_config.ini')
-    Settings.load(folder='tests', file='test_saved_config.ini')
-    assert default == extract_upper_fields(vars(Settings))
+    default = extract_upper_fields(vars(settings))
+    settings.save(folder='tests', file='test_saved_config.ini')
+    settings.load(folder='tests', file='test_saved_config.ini')
+    assert default == extract_upper_fields(vars(settings))
 
 
 def test_thread_loopable():
@@ -123,7 +123,7 @@ def test_selector_swap_coordinates(selected_points):
 def test_extractor_invalid_camera(test_config_ini):
     load_mock_config(test_config_ini)
     try:
-        FrameExtractor(Settings.CAMERA_ID)
+        FrameExtractor(settings.CAMERA_ID)
     except RuntimeError as e:
         assert str(e) == 'Неверный ID камеры'
     else:
@@ -131,8 +131,8 @@ def test_extractor_invalid_camera(test_config_ini):
 
 
 def test_extractor():
-    Settings.load()
-    extractor = FrameExtractor(Settings.CAMERA_ID)
+    settings.load()
+    extractor = FrameExtractor(settings.CAMERA_ID)
     extractor._camera = Mock()
     extractor._camera.read = Mock(return_value=(Mock(), Mock()))
     extractor.extract_frame()
@@ -166,7 +166,7 @@ def test_area_controller(relative_coords, intersected_coords):
 
 
 def test_move_controller():
-    Settings.STABLE_POSITION_DURATION = 0.01
+    settings.STABLE_POSITION_DURATION = 0.01
     controller = MoveController(serial_off=True)
     controller.set_new_position(Point(10, 10))
     controller.set_new_position(Point(100, 100))
@@ -178,8 +178,8 @@ def test_move_controller():
 
 def test_repo_path():
     try:
-        Settings.get_repo_path(Path.cwd().parent.parent)
+        settings.get_repo_path(Path.cwd().parent.parent)
     except FileNotFoundError as e:
         assert str(e) == f'Корневая директория программы "{ROOT_FOLDER}" не найдена'
-    path = Settings.get_repo_path()
+    path = settings.get_repo_path()
     assert path.name == ROOT_FOLDER

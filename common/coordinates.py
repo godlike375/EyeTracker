@@ -97,15 +97,3 @@ class RectBased(ABC):
     @property
     def right_bottom(self):
         pass
-
-
-# TODO: этот интерфейс не используется, его нужно либо использовать либо убрать
-class TetragonBased(RectBased):
-
-    @property
-    def right_top(self):
-        pass
-
-    @property
-    def left_bottom(self):
-        pass

@@ -14,7 +14,7 @@ def cleanup_old_logs(dir=None):
     if not Path.exists(folder):
         return
     for log in Path.iterdir(folder):
-        if time() - log.stat().st_mtime > timedelta(days=30).total_seconds():
+        if time() - log.stat().st_mtime > timedelta(weeks=1).total_seconds():
             os.remove(log)
 
 

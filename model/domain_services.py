@@ -2,7 +2,7 @@ from typing import List
 
 from common.coordinates import Point
 from common.logger import logger
-from common.settings import Settings, OBJECT, AREA
+from common.settings import settings, OBJECT, AREA
 from common.thread_helpers import ThreadLoopable
 from model.area_controller import AreaController
 from model.camera_extractor import FrameExtractor
@@ -11,6 +11,7 @@ from model.move_controller import MoveController
 from model.selector import RectSelector, TetragonSelector
 from view.drawing import Processor, Drawable
 from view.view_model import ViewModel
+from view import view_output
 
 
 MIN_THROTTLE_DIFFERENCE = 1
@@ -41,7 +42,7 @@ class SelectingService:
     def check_emptiness(self, selector):
         if selector.is_empty:
             logger.warning('selected area is zero in size')
-            ViewModel.show_message('Область не может быть пустой или слишком малого размера', 'Ошибка')
+            view_output.show_message('Область не может быть пустой или слишком малого размера', 'Ошибка')
             self.stop_drawing_selected(selector.name)
 
     def get_active_objects(self) -> List[Drawable]:
@@ -81,11 +82,11 @@ class Orchestrator(ThreadLoopable):
 
     def __init__(self, view_model: ViewModel, run_immediately: bool = True, area: tuple = None):
         self._view_model = view_model
-        self._extractor = FrameExtractor(Settings.CAMERA_ID)
+        self._extractor = FrameExtractor(settings.CAMERA_ID)
         self.selecting_service = SelectingService()
-        self._area_controller = AreaController(min_xy=-Settings.MAX_RANGE,
-                                               max_xy=Settings.MAX_RANGE)
-        self.tracker = Tracker(Settings.MEAN_TRACKING_COUNT)
+        self._area_controller = AreaController(min_xy=-settings.MAX_LASER_RANGE_PLUS_MINUS,
+                                               max_xy=settings.MAX_LASER_RANGE_PLUS_MINUS)
+        self.tracker = Tracker(settings.TRACKING_FRAMES_MEAN_NUMBER)
         self.laser_service = LaserService()
         self._current_frame = None
         self.threshold_calibrator = NoiseThresholdCalibrator()
@@ -93,7 +94,7 @@ class Orchestrator(ThreadLoopable):
 
         if area is not None:
             self.selecting_service.load_selected_area(area, self.on_area_selected)
-        FRAME_INTERVAL_SEC = 1 / Settings.FPS_PROCESSED
+        FRAME_INTERVAL_SEC = 1 / settings.FPS_PROCESSED
         super().__init__(self._processing_loop, FRAME_INTERVAL_SEC, run_immediately)
 
     def get_or_create_selector(self, name):
@@ -109,10 +110,10 @@ class Orchestrator(ThreadLoopable):
                 return
             if 'dictionary keys changed during iteration' in str(re):
                 return
-            ViewModel.show_fatal_exception(re)
+            view_output.show_fatal(re)
         except Exception as e:
-            # TODO: через traceback или еще что-то сделать более подробный вывод
-            ViewModel.show_fatal_exception(e)
+            view_output.show_fatal(e)
+            logger.exception('Unexpected exception:')
 
     def _tracking_and_drawing(self, frame):
         if self.tracker.in_progress:
@@ -131,8 +132,8 @@ class Orchestrator(ThreadLoopable):
             self.selecting_service.start_drawing_selected(self.previous_area)
             self._area_controller.set_area(self.previous_area)
             self._view_model.progress_bar_set_visibility(False)
-            Settings.NOISE_THRESHOLD = round(Settings.NOISE_THRESHOLD, 5)
-            ViewModel.show_message('Калибровка успешно завершена')
+            settings.NOISE_THRESHOLD_PERCENT = round(settings.NOISE_THRESHOLD_PERCENT, 5)
+            view_output.show_message('Калибровка успешно завершена')
         else:
             progress_value = self.threshold_calibrator.calibration_progress()
             if abs(self._view_model.progress_bar_get_value() - progress_value) > MIN_THROTTLE_DIFFERENCE:
@@ -166,7 +167,7 @@ class Orchestrator(ThreadLoopable):
             out_of_area = self._area_controller.point_is_out_of_area(center)
             if out_of_area:
                 logger.warning('selected object is out of tracking borders')
-                ViewModel.show_warning('Нельзя выделять область за зоной слежения')
+                view_output.show_warning('Нельзя выделять область за зоной слежения')
                 self.selecting_service.stop_drawing_selected(OBJECT)
 
         if not selected or out_of_area:
@@ -180,11 +181,11 @@ class Orchestrator(ThreadLoopable):
 
     def new_selection(self, name, retry=False):
         if self.threshold_calibrator.in_progress and not retry:
-            ViewModel.show_warning('Выполняется калибровка шумоподавления, необходимо дождаться её окончания')
+            view_output.show_warning('Выполняется калибровка шумоподавления, необходимо дождаться её окончания')
             return
 
         if AREA in name and self.selecting_service.object_is_selecting:
-            ViewModel.show_warning('Необходимо завершить выделение объекта')
+            view_output.show_warning('Необходимо завершить выделение объекта')
             return
 
         self.selecting_service.stop_drawing_selected(name)
@@ -192,7 +193,7 @@ class Orchestrator(ThreadLoopable):
         if OBJECT in name:
             area = self.get_or_create_selector(AREA)
             if not area.is_selected:
-                ViewModel.show_warning('Перед созданием объекта необходимо создать зону')
+                view_output.show_warning('Перед созданием объекта необходимо создать зону')
                 return
             self.selecting_service.object_is_selecting = True
 
@@ -212,7 +213,7 @@ class Orchestrator(ThreadLoopable):
         self.on_area_selected()
         self._view_model.new_selection(OBJECT)
         self.threshold_calibrator.in_progress = True
-        Settings.NOISE_THRESHOLD = 0.0
+        settings.NOISE_THRESHOLD_PERCENT = 0.0
         self._view_model.progress_bar_set_visibility(True)
         self._view_model.progress_bar_set_value(0)
 
@@ -234,6 +235,8 @@ class Orchestrator(ThreadLoopable):
         self.selecting_service.stop_drawing_selected(OBJECT)
 
     def rotate_image(self, degree):
+        if self.tracker.in_progress:
+            view_output.show_warning('Запрещено поворачивать изображение во время слежения за объектом')
         self._extractor.set_frame_rotate(degree)
         if degree == 90 or degree == 270:
             self._view_model.setup_window_geometry(reverse=True)
@@ -241,4 +244,6 @@ class Orchestrator(ThreadLoopable):
             self._view_model.setup_window_geometry(reverse=False)
 
     def flip_image(self, side):
+        if self.tracker.in_progress:
+            view_output.show_warning('Запрещено отражать зеркально изображение во время слежения за объектом')
         self._extractor.set_frame_flip(side)

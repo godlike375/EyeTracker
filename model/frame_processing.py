@@ -6,7 +6,7 @@ import dlib
 
 from common.coordinates import Point, RectBased
 from common.logger import logger
-from common.settings import Settings, OBJECT
+from common.settings import settings, OBJECT
 from model.area_controller import AreaController
 from view.drawing import Drawable, Processor
 
@@ -15,7 +15,7 @@ PERCENT_FROM_DECIMAL = 100
 
 
 class Tracker(RectBased, Drawable):
-    def __init__(self, mean_count=Settings.MEAN_TRACKING_COUNT):
+    def __init__(self, mean_count=settings.TRACKING_FRAMES_MEAN_NUMBER):
         self._mean_count = mean_count
         self.tracker = dlib.correlation_tracker()
         self._denoisers: list[Denoiser] = []
@@ -36,7 +36,7 @@ class Tracker(RectBased, Drawable):
         left_cur_pos = Point(int(self._denoisers[0].get()), int(self._denoisers[1].get()))
         right_cur_pos = Point(int(self._denoisers[2].get()), int(self._denoisers[3].get()))
         center = AreaController.calc_center(left_cur_pos, right_cur_pos)
-        if abs(self._center - center) >= self._length_xy * Settings.NOISE_THRESHOLD:
+        if abs(self._center - center) >= self._length_xy * settings.NOISE_THRESHOLD_PERCENT:
             self._center = center
 
     def start_tracking(self, frame, left_top, right_bottom):
@@ -79,7 +79,6 @@ class NoiseThresholdCalibrator:
         self.in_progress = False
         self._last_position = None
         self._last_timestamp = time()
-        # TODO: сделать нормальным классом
 
     def is_calibration_successful(self, center):
         if self._last_position is None:
@@ -87,16 +86,16 @@ class NoiseThresholdCalibrator:
             self._last_timestamp = time()
             return False
         if not (center == self._last_position):
-            Settings.NOISE_THRESHOLD += NoiseThresholdCalibrator.CALIBRATION_THRESHOLD_STEP
+            settings.NOISE_THRESHOLD_PERCENT += NoiseThresholdCalibrator.CALIBRATION_THRESHOLD_STEP
             self._last_position = center
             self._last_timestamp = time()
             return False
-        elif time() - self._last_timestamp > Settings.OBJECT_NOT_MOVING_TIME_SEC:
+        elif time() - self._last_timestamp > settings.OBJECT_NOT_MOVING_DURATION:
             self.in_progress = False
             return True
 
     def calibration_progress(self):
-        return int(((time() - self._last_timestamp) / Settings.OBJECT_NOT_MOVING_TIME_SEC) * PERCENT_FROM_DECIMAL)
+        return int(((time() - self._last_timestamp) / settings.OBJECT_NOT_MOVING_DURATION) * PERCENT_FROM_DECIMAL)
 
 
 class Denoiser:

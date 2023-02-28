@@ -1,6 +1,6 @@
 from abc import ABC
 
-from common.coordinates import Point, RectBased, TetragonBased
+from common.coordinates import Point, RectBased
 from common.logger import logger
 from view.drawing import Drawable, Processor
 
@@ -24,10 +24,10 @@ class Selector(ABC):
         self._points.append(Point(event.x, event.y))
 
     def left_button_down(self, event):
-        pass
+        ...
 
     def left_button_up(self, event):
-        pass
+        ...
 
     @property
     def is_selected(self):
@@ -57,6 +57,14 @@ class Selector(ABC):
 
     def bind_events(self, events, unbindings):
         self._unbindings = unbindings
+
+    def unbind_events(self):
+        self._selected = True
+        self._sort_points_for_viewing()
+        for unbind in self._unbindings:
+            unbind[EVENT_NAME]()
+        if self._after_selection is not None:
+            self._after_selection()
 
 
 class RectSelector(RectBased, Drawable, Selector):
@@ -96,16 +104,11 @@ class RectSelector(RectBased, Drawable, Selector):
         logger.debug(f'end selecting {self.name} {event.x, event.y}')
         self._right_bottom.x, self._right_bottom.y = event.x, event.y
         self._points.append(Point(event.x, event.y))
-        self._sort_points_for_viewing()
         # FIXME: биндинг от зоны сохраняется, а нужен от объекта
         # Воспроизвести получалось через выделение нулевой зоны, потом нажать выделение объекта,
         # переключиться на другое окно, потом переключиться обратно и выделить объект
         self._left_top, self._right_bottom = self._points
-        self._selected = True
-        for unbind in self._unbindings:
-            unbind[EVENT_NAME]()
-        if self._after_selection is not None:
-            self._after_selection()
+        self.unbind_events()
 
     def draw_on_frame(self, frame):
         return Processor.draw_rectangle(frame, self._left_top, self._right_bottom)
@@ -116,7 +119,7 @@ class RectSelector(RectBased, Drawable, Selector):
             bind()
 
 
-class TetragonSelector(TetragonBased, Drawable, Selector):
+class TetragonSelector(Drawable, Selector):
     MAX_POINTS = 4
 
     def __init__(self, name: str, callback, points=None):
@@ -130,12 +133,7 @@ class TetragonSelector(TetragonBased, Drawable, Selector):
             super().left_button_click(event)
         self._current_point_number += 1
         if self._current_point_number == TetragonSelector.MAX_POINTS:
-            self._selected = True
-            self._sort_points_for_viewing()
-            for unbind in self._unbindings:
-                unbind[EVENT_NAME]()
-            if self._after_selection is not None:
-                self._after_selection()
+            self.unbind_events()
 
     def draw_on_frame(self, frame):
         if not self._selected:

@@ -5,7 +5,7 @@ from common.coordinates import Point
 from common.logger import logger
 from model.selector import TetragonSelector
 from view.drawing import Processor
-from view.view_model import ViewModel
+from view import view_output
 
 
 class AreaController:
@@ -51,7 +51,7 @@ class AreaController:
             self._dpi_xy = Point(self._resolution_xy / self._max_xy.x, self._resolution_xy / self._max_xy.y)
         except ZeroDivisionError:
             # TODO: проверить, остался ли этот кейс
-            ViewModel.show_message('Область не может быть пустой', 'Ошибка')
+            view_output.show_message('Область не может быть пустой', 'Ошибка')
             return
         self.center = Point(max_size / 2, max_size / 2)
         self._is_set = True

@@ -1,27 +1,35 @@
 import argparse
 from pathlib import Path
-from tkinter import Tk, messagebox
+from tkinter import Tk
 
 import common.settings
 from common.logger import logger
-from common.settings import Settings, SelectedArea
+from common.settings import settings, SelectedArea
 from model.domain_services import Orchestrator
 from view.view_model import ViewModel
 from view.window_form import View
+from view import view_output
 
 
 def main(args):
     common.settings.ROOT_DIR = Path(__file__).absolute().parent
     if args.root_dir:
         common.settings.ROOT_DIR = args.root_dir
+    root = Tk()
     try:
-        Settings.load()
-        area = SelectedArea.load()
-        logger.debug('settings loaded')
+        settings.load()
     except Exception as e:
-        messagebox.showerror(title='Ошибка загрузки конфигурации', message=f'{e}')
+        view_output.show_message(title='Ошибка загрузки конфигурации',
+                            message=f'{e} \nРабота программы будет продолжена, но возможны сбои в работе.'
+                                    f' Рекоммендуется перезагрузка')
+        logger.exception(e)
     try:
-        root = Tk()
+        area = SelectedArea.load()
+    except Exception as e:
+        view_output.show_message(title='Ошибка загрузки области', message=f'{e} \nРабота программы будет продолжена')
+        logger.exception(e)
+    logger.debug('settings loaded')
+    try:
         view_model = ViewModel(root)
         form = View(root, view_model)
         view_model.set_view(form)
@@ -31,12 +39,12 @@ def main(args):
         root.mainloop()
         logger.debug('mainloop finished')
     except Exception as e:
-        ViewModel.show_message(title='Фатальная ошибка', message=f'{e}')
+        view_output.show_message(title='Фатальная ошибка', message=f'{e}')
         logger.exception(e)
     else:
         model_core.laser_service.center_laser()
         model_core.stop_thread()
-        Settings.save()
+        settings.save()
         area_selector = model_core.get_or_create_selector('area')
         if area_selector.is_selected:
             SelectedArea.save(area_selector.points)

@@ -1,10 +1,10 @@
 from functools import partial
-from tkinter import Tk, messagebox, END
+from tkinter import Tk, END
 
 from common.coordinates import Point
-from common.logger import logger
 from model.selector import LEFT_CLICK, LEFT_DOWN, LEFT_UP
-from common.settings import Settings
+from common.settings import settings
+from view import view_output
 
 MOUSE_EVENTS = ('<Button-1>', '<B1-Motion>', '<ButtonRelease-1>')
 
@@ -85,35 +85,19 @@ class ViewModel:
 
     def save_settings(self, params):
         for name, text_edit in params.items():
-            text_param = text_edit.get(0.0, END)
-            number_param = float(text_param) if '.' in text_param else int(text_param)
-            setattr(Settings, name, number_param)
-            # TODO: добавить защиту от некоорректного ввода
-            # TODO: сделать автоприменение всех параметров
-            #  (например во View они используются только в конструкторе, нужно повторно инициализировать все
-            #  необходимые модули через общие методы типа settings_initialize или что-то подобное сделать)
+            try:
+                text_param = text_edit.get(0.0, END)
+                number_param = float(text_param) if '.' in text_param else int(text_param)
+                setattr(settings, name, number_param)
+            except Exception as e:
+                view_output.show_warning(e)
+        view_output.show_warning('Большинство параметров будут применены после перезапуска программы')
 
     def rotate_image(self, degree):
-        # TODO: запретить повороты во время трекинга
         self._model.rotate_image(degree)
 
     def flip_image(self, side):
-        # TODO: запретить повороты во время трекинга
         self._model.flip_image(side)
 
     def setup_window_geometry(self, reverse):
         self._view.setup_window_geometry(reverse)
-
-    @staticmethod
-    def show_message(message: str, title: str = ''):
-        messagebox.showerror(title, message)
-
-    @staticmethod
-    def show_warning(message: str):
-        messagebox.showerror('Предупреждение', message)
-
-    @classmethod
-    def show_fatal_exception(cls, e):
-        cls.show_message(title='Фатальная ошибка. Работа программы будет продолжена, но может стать нестабильной',
-                         message=f'{e}')
-        logger.fatal(e)

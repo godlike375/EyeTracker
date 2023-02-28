@@ -8,7 +8,7 @@ from functools import partial
 
 from PIL import ImageTk
 
-from common.settings import Settings, AREA, OBJECT
+from common.settings import settings, AREA, OBJECT
 from common.logger import logger
 from model.camera_extractor import FLIP_SIDE_NONE, FLIP_SIDE_VERTICAL, FLIP_SIDE_HORIZONTAL
 
@@ -19,10 +19,8 @@ INDICATORS_OFFSET = 40
 
 class View:
     def __init__(self, tk: Tk, view_model):
-        # TODO: отрефакторить код
         self._root = tk
         self._view_model = view_model
-        self.interval_ms = int(1 / Settings.FPS_VIEWED * SECOND_LENGTH)
         self._last_image_height = 0
         self._last_image_width = 0
         self._current_image = None
@@ -50,10 +48,11 @@ class View:
         # TODO: MUST HAVE сделать сценарии использования (мастер настройки), чтобы пользователю не нужно было думать
         #  о последовательности действий для настройки
 
-        move_left_top = partial(self._view_model.move_laser, -Settings.MAX_RANGE, -Settings.MAX_RANGE)
-        move_right_top = partial(self._view_model.move_laser, Settings.MAX_RANGE, -Settings.MAX_RANGE)
-        move_left_bottom = partial(self._view_model.move_laser, -Settings.MAX_RANGE, Settings.MAX_RANGE)
-        move_right_bottom = partial(self._view_model.move_laser, Settings.MAX_RANGE, Settings.MAX_RANGE)
+        MAX_LASER_RANGE_PLUS_MINUS = settings.MAX_LASER_RANGE_PLUS_MINUS
+        move_left_top = partial(self._view_model.move_laser, -MAX_LASER_RANGE_PLUS_MINUS, -MAX_LASER_RANGE_PLUS_MINUS)
+        move_right_top = partial(self._view_model.move_laser, MAX_LASER_RANGE_PLUS_MINUS, -MAX_LASER_RANGE_PLUS_MINUS)
+        move_left_bottom = partial(self._view_model.move_laser, -MAX_LASER_RANGE_PLUS_MINUS, MAX_LASER_RANGE_PLUS_MINUS)
+        move_right_bottom = partial(self._view_model.move_laser, MAX_LASER_RANGE_PLUS_MINUS, MAX_LASER_RANGE_PLUS_MINUS)
         move_center = partial(self._view_model.move_laser, 0, 0)
 
         position_menu = Menu()
@@ -101,7 +100,7 @@ class View:
         self.show_image()
 
     def setup_window_geometry(self, reverse=False):
-        WINDOW_HEIGHT = Settings.CAMERA_MAX_HEIGHT
+        WINDOW_HEIGHT = settings.CAMERA_MAX_HEIGHT_RESOLUTION
         self.window_height = WINDOW_HEIGHT
         WINDOW_WIDTH = RESOLUTIONS[WINDOW_HEIGHT] + INDICATORS_OFFSET
         self.window_width = WINDOW_WIDTH
@@ -118,7 +117,8 @@ class View:
         self._current_image = img
 
     def show_image(self):
-        self._root.after(self.interval_ms, self.show_image)
+        interval_ms = int(1 / settings.FPS_VIEWED * SECOND_LENGTH)
+        self._root.after(interval_ms, self.show_image)
         if self._current_image is None:
             return
         image = self._current_image
@@ -151,7 +151,7 @@ class View:
         self.settings = Toplevel(self._root)
         self.settings.title('Настройки')
         self._params = {}
-        for param in dir(Settings):
+        for param in dir(settings):
             if param.isupper():
                 label = Label(self.settings, text=param)
                 label.pack()
@@ -159,7 +159,7 @@ class View:
                 edit = Text(self.settings, width=12, height=1)
                 self._params[param] = edit
                 edit.pack()
-                text_param = str(getattr(Settings, param))
+                text_param = str(getattr(settings, param))
                 edit.insert(0.0, text_param)
         save_settings = partial(self._view_model.save_settings, self._params)
         save_button = Button(self.settings, command=save_settings, text='Сохранить')

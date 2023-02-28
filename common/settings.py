@@ -1,9 +1,11 @@
 import pickle
+from abc import ABC, abstractmethod
 from configparser import ConfigParser
 from pathlib import Path
+from sys import maxsize
 
 from common.logger import logger
-
+from view import view_output
 
 AREA = 'area'
 OBJECT = 'object'
@@ -12,21 +14,99 @@ FILE = 'eyetracker_settings.ini'
 AREA_FILE = 'selected_area.pickle'
 ROOT_FOLDER = 'EyeTracker'
 ROOT_DIR = None
+INFINITE = maxsize
+
+INTERGER_TYPE_ERROR = 'The value should be integer'
+
+
+class Limitation(ABC):
+    def __init__(self, limit_type):
+        self._limit_type = limit_type
+
+    @abstractmethod
+    def satisfies_limitation(self, value): ...
+
+    @abstractmethod
+    def print_value(self, value): ...
+
+    def print_type(self):
+        return f'{self._limit_type}'
+
+    def satisfies_type(self, value):
+        return type(value) is self._limit_type
+
+
+class OptionList(Limitation):
+    def __init__(self, options: list):
+        super().__init__(type(options[0]))
+        self._options = options
+
+    def satisfies_limitation(self, value):
+        return value in self._options
+
+    def print_value(self, value):
+        return f'{value} должно быть одним из {self._options} '
+
+
+class Range(Limitation):
+    def __init__(self, min, max):
+        super().__init__(type(min))
+        self._min = min
+        self._max = max
+
+    def satisfies_limitation(self, value):
+        return self._min <= value and value <= self._max
+
+    def print_value(self, value):
+        return f'{self._min} < {value} < {self._max}'
+
+
+LIMITATIONS = {
+    'CAMERA_ID': Range(0, INFINITE),
+    'CAMERA_MAX_HEIGHT_RESOLUTION': Range(640, 640),
+    # TODO: теоретически, можно здесь менять параметр, но даунскейлить потом до 640, чтобы красиво выводилось
+    'FPS_VIEWED': Range(1, INFINITE),
+    'FPS_PROCESSED': Range(1, INFINITE),
+    'SERIAL_BAUD_RATE': OptionList([110, 300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200]),
+    'SERIAL_TIMEOUT': Range(0.01, INFINITE),
+    'SERIAL_PORT': Range(0, INFINITE),
+    'TRACKING_FRAMES_MEAN_NUMBER': Range(1, INFINITE),
+    'NOISE_THRESHOLD_PERCENT': Range(0.0, INFINITE),
+    'OBJECT_NOT_MOVING_DURATION': Range(1, 30),
+    'STABLE_POSITION_DURATION': Range(0.5, 1.0),
+    'MAX_LASER_RANGE_PLUS_MINUS': Range(1, INFINITE)
+}
 
 
 class Settings:
-    CAMERA_ID = 0
-    CAMERA_MAX_HEIGHT = 640  # max height
-    FPS_PROCESSED = 64
-    SERIAL_BAUD_RATE = 19200
-    SERIAL_TIMEOUT = 0.01
-    SERIAL_PORT = 8
-    MEAN_TRACKING_COUNT = 2
-    NOISE_THRESHOLD = 0.0
-    OBJECT_NOT_MOVING_TIME_SEC = 10
-    MAX_RANGE = 6000
-    STABLE_POSITION_DURATION = 0.67
-    FPS_VIEWED = 25
+
+    def __init__(self):
+        self.CAMERA_ID = 0
+        self.CAMERA_MAX_HEIGHT_RESOLUTION = 640
+        self.FPS_VIEWED = 25
+        self.FPS_PROCESSED = 64
+        self.SERIAL_BAUD_RATE = 19200
+        self.SERIAL_TIMEOUT = 0.01
+        self.SERIAL_PORT = 8
+        self.TRACKING_FRAMES_MEAN_NUMBER = 2
+        self.NOISE_THRESHOLD_PERCENT = 0.0
+        self.OBJECT_NOT_MOVING_DURATION = 10  # в секундах
+        self.STABLE_POSITION_DURATION = 0.67
+        self.MAX_LASER_RANGE_PLUS_MINUS = 6000  # меняется в согласовании с аппаратной частью
+
+    def __setattr__(self, key, value):
+        try:
+            if key not in LIMITATIONS:
+                raise KeyError(f'Параметр {key} не найден в списке доступных параметров. Он будет проигнорирован.')
+            limitation = LIMITATIONS[key]
+            if not limitation.satisfies_type(value):
+                raise TypeError(f'Значение параметра {key} должно иметь тип {limitation.print_type()}')
+            if not limitation.satisfies_limitation(value):
+                raise ValueError(
+                    f'Значение параметра  {key} должно удовлетворять условиям {limitation.print_value(value)}')
+            super().__setattr__(key, value)
+        except Exception as e:
+            view_output.show_warning(e)
 
     @staticmethod
     def get_repo_path(current: Path = None):
@@ -35,15 +115,15 @@ class Settings:
             if current_path == current_path.parent:
                 if ROOT_DIR is not None:
                     return Path(ROOT_DIR)
-                logger.exception(f'Корневая директория программы "{ROOT_FOLDER}" не найдена')
+                warning = f'Корневая директория программы "{ROOT_FOLDER}" не найдена'
+                view_output.show_warning(warning)
+                logger.log(warning)
                 return Path.cwd()
             current_path = current_path.parent
         return current_path
 
-    @staticmethod
-    def load(folder: str = FOLDER, file: str = FILE):
-        base_path = Settings.get_repo_path()
-        # TODO: добавить защиту от некорректных параметров (mean_count > 0, не str и тд)
+    def load(self, folder: str = FOLDER, file: str = FILE):
+        base_path = self.get_repo_path()
 
         path = base_path / folder / file
         if Path.exists(path):
@@ -51,19 +131,21 @@ class Settings:
             config.read(str(path))
             for sec in config.sections():
                 for key, value in config[sec].items():
-                    setattr(Settings, key.upper(), float(value) if '.' in value else int(value))
+                    setattr(self, key.upper(), float(value) if '.' in value else int(value))
 
-    @staticmethod
-    def save(folder: str = FOLDER, file: str = FILE):
-        base_path = Settings.get_repo_path()
+    def save(self, folder: str = FOLDER, file: str = FILE):
+        base_path = self.get_repo_path()
 
         config = ConfigParser()
-        fields = {k: vars(Settings)[k] for k in vars(Settings) if k.isupper()}
+        fields = {k: vars(self)[k] for k in vars(self) if k.isupper()}
         config['settings'] = fields
         path = base_path / folder
         Path.mkdir(path, exist_ok=True)
         with open(path / file, 'w') as file:
             config.write(file)
+
+
+settings = Settings()
 
 
 class SelectedArea:

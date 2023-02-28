@@ -5,8 +5,8 @@ from serial.tools import list_ports
 
 from common.coordinates import Point
 from common.logger import logger
-from common.settings import Settings
-from view.view_model import ViewModel
+from common.settings import settings
+from view import view_output
 
 READY = 'ready'
 
@@ -15,19 +15,19 @@ class MoveController:
 
     def __init__(self, manual_port=None, baud_rate=None, serial_off=False):
         # TODO: к настройкам должно обращаться что-то внещнее в идеале и передавать эти параметры сюда
-        manual_port = manual_port or f'COM{Settings.SERIAL_PORT}'
-        baud_rate = baud_rate or Settings.SERIAL_BAUD_RATE
+        manual_port = manual_port or f'COM{settings.SERIAL_PORT}'
+        baud_rate = baud_rate or settings.SERIAL_BAUD_RATE
         self._timer = time()
         self._current_position = Point(0, 0)
         self._ready = True
         self._timer = time()
         self._serial = SerialStub()
         if serial_off:
-            ViewModel.show_message('Последовательный порт используется в режиме отладки', 'Предупреждение')
+            view_output.show_message('Последовательный порт используется в режиме отладки', 'Предупреждение')
             return
 
         try:
-            self._serial = Serial(manual_port, baud_rate, timeout=Settings.SERIAL_TIMEOUT)
+            self._serial = Serial(manual_port, baud_rate, timeout=settings.SERIAL_TIMEOUT)
         except SerialException:
             logger.exception('Manual com port was not found. Attempting to use auto-detection')
 
@@ -38,16 +38,16 @@ class MoveController:
                 auto_detected = p.device
 
         try:
-            self._serial = Serial(auto_detected, baud_rate, timeout=Settings.SERIAL_TIMEOUT)
+            self._serial = Serial(auto_detected, baud_rate, timeout=settings.SERIAL_TIMEOUT)
         except SerialException as e:
             logger.exception(str(e))
-            ViewModel.show_warning(f'Не удалось открыть заданный настройкой SERIAL_PORT последовательный порт '
-                                   f'{manual_port}, а так же не удалось определить подходящий порт автоматически. '
-                                   f'Программа продолжит работать без контроллера лазера.')
+            view_output.show_warning(f'Не удалось открыть заданный настройкой SERIAL_PORT последовательный порт '
+                                     f'{manual_port}, а так же не удалось определить подходящий порт автоматически. '
+                                     f'Программа продолжит работать без контроллера лазера.')
 
     @property
     def _can_send(self):
-        if time() - self._timer > Settings.STABLE_POSITION_DURATION:
+        if time() - self._timer > settings.STABLE_POSITION_DURATION:
             return True
         return False
 
