@@ -85,9 +85,9 @@ class Settings:
         self.CAMERA_MAX_HEIGHT_RESOLUTION = 640
         self.FPS_VIEWED = 25
         self.FPS_PROCESSED = 64
-        self.SERIAL_BAUD_RATE = 19200
+        self.SERIAL_BAUD_RATE = 115200
         self.SERIAL_TIMEOUT = 0.01
-        self.SERIAL_PORT = 8
+        self.SERIAL_PORT = 1
         self.TRACKING_FRAMES_MEAN_NUMBER = 2
         self.NOISE_THRESHOLD_PERCENT = 0.0
         self.OBJECT_NOT_MOVING_DURATION = 10  # в секундах

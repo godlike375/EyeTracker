@@ -167,7 +167,7 @@ class Orchestrator(ThreadLoopable):
             out_of_area = self._area_controller.point_is_out_of_area(center)
             if out_of_area:
                 logger.warning('selected object is out of tracking borders')
-                view_output.show_warning('Нельзя выделять область за зоной слежения')
+                view_output.show_warning('Нельзя выделять объект за областью слежения')
                 self.selecting_service.stop_drawing_selected(OBJECT)
 
         if not selected or out_of_area:
@@ -193,7 +193,7 @@ class Orchestrator(ThreadLoopable):
         if OBJECT in name:
             area = self.get_or_create_selector(AREA)
             if not area.is_selected:
-                view_output.show_warning('Перед созданием объекта необходимо создать зону')
+                view_output.show_warning('Перед выделением объекта необходимо выделить область')
                 return
             self.selecting_service.object_is_selecting = True
 
@@ -223,22 +223,27 @@ class Orchestrator(ThreadLoopable):
             self.laser_service.calibrate_laser()
 
     def center_laser(self):
-        if not self.tracker.in_progress:
-            self.laser_service.center_laser()
+        if self.tracker.in_progress:
+            view_output.show_warning('Запрещено позиционирования лазера во время слежения за объектом')
+            return
+        self.laser_service.center_laser()
 
     def move_laser(self, x, y):
-        if not self.tracker.in_progress:
-            self.laser_service.move_laser(x, y)
+        if self.tracker.in_progress:
+            view_output.show_warning('Запрещено позиционирования лазера во время слежения за объектом')
+            return
+        self.laser_service.move_laser(x, y)
 
     def stop_tracking(self):
         self.tracker.stop_tracking()
         self.selecting_service.stop_drawing_selected(OBJECT)
 
     def rotate_image(self, degree):
+        # TODO: сделать запоминание угла поворота и режима отражения между запусками программы
         if self.tracker.in_progress:
             view_output.show_warning('Запрещено поворачивать изображение во время слежения за объектом')
         self._extractor.set_frame_rotate(degree)
-        if degree == 90 or degree == 270:
+        if degree in (90, 270):
             self._view_model.setup_window_geometry(reverse=True)
         else:
             self._view_model.setup_window_geometry(reverse=False)

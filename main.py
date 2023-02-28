@@ -23,10 +23,11 @@ def main(args):
                             message=f'{e} \nРабота программы будет продолжена, но возможны сбои в работе.'
                                     f' Рекоммендуется перезагрузка')
         logger.exception(e)
+    area = None
     try:
         area = SelectedArea.load()
     except Exception as e:
-        view_output.show_message(title='Ошибка загрузки области', message=f'{e} \nРабота программы будет продолжена')
+        view_output.show_warning(message=f'Ошибка загрузки ранее выделенной области \n{e} \nРабота программы будет продолжена')
         logger.exception(e)
     logger.debug('settings loaded')
     try:

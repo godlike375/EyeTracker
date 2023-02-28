@@ -40,11 +40,11 @@ class View:
         self._root.config(menu=main_menu)
         area_callback = partial(self._view_model.new_selection, AREA)
         object_callback = partial(self._view_model.new_selection, OBJECT)
-        main_menu.add_command(label='Выделение зоны', command=area_callback)
-        main_menu.add_command(label='Выделение объекта', command=object_callback)
+        main_menu.add_command(label='Выделелить область', command=area_callback)
+        main_menu.add_command(label='Выделить объект', command=object_callback)
         main_menu.add_command(label='Откалибровать лазер', command=self._view_model.calibrate_laser)
         main_menu.add_command(label='Откалибровать шумоподавление', command=self._view_model.calibrate_noise_threshold)
-        main_menu.add_command(label='Остановить трекинг', command=self._view_model.stop_tracking)
+        main_menu.add_command(label='Остановить слежение', command=self._view_model.stop_tracking)
         # TODO: MUST HAVE сделать сценарии использования (мастер настройки), чтобы пользователю не нужно было думать
         #  о последовательности действий для настройки
 
@@ -61,7 +61,7 @@ class View:
         position_menu.add_command(label='Лево низ', command=move_left_bottom)
         position_menu.add_command(label='Право низ', command=move_right_bottom)
         position_menu.add_command(label='Центр', command=move_center)
-        main_menu.add_cascade(label='Позиционирование лазера', menu=position_menu)
+        main_menu.add_cascade(label='Позиционировать лазер', menu=position_menu)
 
         rotate_0 = partial(self._view_model.rotate_image, 0)
         rotate_90 = partial(self._view_model.rotate_image, 90)
@@ -78,11 +78,11 @@ class View:
         flip_vertical = partial(self._view_model.flip_image, side=FLIP_SIDE_VERTICAL)
         flip_horizontal = partial(self._view_model.flip_image, side=FLIP_SIDE_HORIZONTAL)
 
-        rotation_menu.add_command(label='Зеркально по вертикали', command=flip_vertical)
-        rotation_menu.add_command(label='Зеркально по горизонтали', command=flip_horizontal)
+        rotation_menu.add_command(label='Отразить зеркально по вертикали', command=flip_vertical)
+        rotation_menu.add_command(label='Отразить зеркально по горизонтали', command=flip_horizontal)
         rotation_menu.add_command(label='Не отражать зеркально', command=flip_none)
 
-        main_menu.add_cascade(label='Поворот изображения', menu=rotation_menu)
+        main_menu.add_cascade(label='Поворот и отражение изображения', menu=rotation_menu)
 
         main_menu.add_command(label='Настройки', command=self.open_settings)
 
