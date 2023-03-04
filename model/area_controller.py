@@ -1,11 +1,17 @@
 from threading import Thread
 from winsound import PlaySound, SND_PURGE, SND_FILENAME
 
+import numpy as np
+import cv2
+
 from common.coordinates import Point
 from common.logger import logger
-from model.selector import TetragonSelector
+from model.selector import AreaSelector
 from view.drawing import Processor
 from view import view_output
+
+
+SOUND_NAME = r'alert.wav'
 
 
 class AreaController:
@@ -23,12 +29,7 @@ class AreaController:
     def calc_center(left_top: Point, right_bottom: Point) -> Point:
         return Point(int((left_top.x + right_bottom.x) / 2), int((left_top.y + right_bottom.y) / 2))
 
-    def set_area(self, area: TetragonSelector):
-        if area is None:
-            self._is_set = False
-            return
-        import numpy as np
-        import cv2
+    def set_area(self, area: AreaSelector):
         tl, tr, br, bl = area.points
         # TODO: отрефакторить
         width_a = np.sqrt(((br.x - bl.x) ** 2) + ((br.y - bl.y) ** 2))
@@ -78,7 +79,7 @@ class AreaController:
             return out_of_area
 
         if out_of_area and not self._beeped:
-            Thread(target=PlaySound, args=(r'alert.wav', SND_FILENAME | SND_PURGE)).start()
+            Thread(target=PlaySound, args=(SOUND_NAME, SND_FILENAME | SND_PURGE)).start()
             self._beeped = True
             Processor.CURRENT_COLOR = Processor.COLOR_RED
         if not out_of_area:

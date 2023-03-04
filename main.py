@@ -4,7 +4,7 @@ from tkinter import Tk
 
 import common.settings
 from common.logger import logger
-from common.settings import settings, SelectedArea
+from common.settings import settings, SelectedArea, AREA
 from model.domain_services import Orchestrator
 from view.view_model import ViewModel
 from view.window_form import View
@@ -46,8 +46,9 @@ def main(args):
         model_core.laser_service.center_laser()
         model_core.stop_thread()
         settings.save()
-        area_selector = model_core.get_or_create_selector('area')
-        if area_selector.is_selected:
+        area_is_selected = model_core.selecting_service.selector_is_selected(AREA)
+        if area_is_selected:
+            area_selector = model_core.selecting_service.get_selector(AREA)
             SelectedArea.save(area_selector.points)
         logger.debug('settings saved')
 

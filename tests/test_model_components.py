@@ -12,7 +12,7 @@ from model.area_controller import AreaController
 from model.camera_extractor import FrameExtractor
 from model.frame_processing import Denoiser, Tracker
 from model.move_controller import MoveController
-from model.selector import RectSelector
+from model.selector import ObjectSelector
 
 
 def test_denoiser():
@@ -104,10 +104,10 @@ def selected_points():
 
 def test_selector(selected_points):
     callback = Mock(return_value=None)
-    selector = RectSelector('test_selector', callback)
+    selector = ObjectSelector('test_selector', callback)
     selector.draw_selected_rect = Mock(return_value=True)
     point = selected_points.__iter__()
-    funcs = [selector.left_button_click, *repeat(selector.left_button_down, 2), selector.left_button_up]
+    funcs = [selector.left_button_click, *repeat(selector.left_button_down_moved, 2), selector.left_button_up]
     for f in funcs:
         f(next(point))
 

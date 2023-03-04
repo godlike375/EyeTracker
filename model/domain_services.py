@@ -2,60 +2,83 @@ from typing import List
 
 from common.coordinates import Point
 from common.logger import logger
-from common.settings import settings, OBJECT, AREA
+from common.settings import settings, OBJECT, AREA, TRACKER
 from common.thread_helpers import ThreadLoopable
 from model.area_controller import AreaController
 from model.camera_extractor import FrameExtractor
 from model.frame_processing import Tracker, NoiseThresholdCalibrator
 from model.move_controller import MoveController
-from model.selector import RectSelector, TetragonSelector
+from model.selector import ObjectSelector, AreaSelector
+from view import view_output
 from view.drawing import Processor, Drawable
 from view.view_model import ViewModel
-from view import view_output
-
 
 MIN_THROTTLE_DIFFERENCE = 1
 
 
 class SelectingService:
-    def __init__(self):
+    def __init__(self, area_selected_callback, object_selected_callback):
         self._active_drawn_objects = dict()  # {name: Selector}
         self.object_is_selecting = False
+        self._on_area_selected = area_selected_callback
+        self._on_object_selected = object_selected_callback
 
-    def load_selected_area(self, area, area_selected_callback):
-        area_selector = TetragonSelector(AREA, area_selected_callback, area)
+    def load_selected_area(self, area):
+        area_selector = AreaSelector(AREA, self._on_area_selected, area)
         if area_selector.is_empty:
             return
         area_selector._selected = True
-        self._active_drawn_objects[AREA] = area_selector
-        self.start_drawing_selected(area_selector)
-        # TODO: убрать (upd: что убрать?)
-        area_selected_callback()
+        self.start_drawing(area_selector, AREA)
+        self._on_area_selected()
 
-    def stop_drawing_selected(self, name):
+    def stop_drawing(self, name):
         if name in self._active_drawn_objects:
             del self._active_drawn_objects[name]
 
-    def start_drawing_selected(self, selector):
-        self._active_drawn_objects[selector.name] = selector
+    def start_drawing(self, selector, name):
+        self._active_drawn_objects[name] = selector
 
-    def check_emptiness(self, selector):
-        if selector.is_empty:
+    def check_emptiness(self, selector, name):
+        if selector is None or selector.is_empty:
             logger.warning('selected area is zero in size')
-            view_output.show_message('Область не может быть пустой или слишком малого размера', 'Ошибка')
-            self.stop_drawing_selected(selector.name)
+            view_output.show_message('Выделенная область не может быть слишком маленького размера.', 'Ошибка')
+            self.stop_drawing(name)
 
     def get_active_objects(self) -> List[Drawable]:
         return self._active_drawn_objects.values()
 
-    def get_or_create_selector(self, name, area_selected_callback, object_selected_callback):
+    def create_selector(self, name):
+        logger.debug(f'creating new selector {name}')
+        on_selected = self._on_object_selected if OBJECT in name else self._on_area_selected
+        selector = ObjectSelector(name, on_selected) if OBJECT in name else AreaSelector(name, on_selected)
+        self._active_drawn_objects[name] = selector
+        return selector
+
+    def get_selector(self, name):
+        return self._active_drawn_objects.get(name)
+
+    def selector_exists(self, name):
+        return name in self._active_drawn_objects
+
+    def selector_is_selected(self, name):
         selector = self._active_drawn_objects.get(name)
         if selector is None:
-            logger.debug(f'creating new selector {name}')
-            on_selected = object_selected_callback if OBJECT in name else area_selected_callback
-            selector = RectSelector(name, on_selected) if OBJECT in name else TetragonSelector(name, on_selected)
-            self._active_drawn_objects[name] = selector
-        return selector
+            return False
+        return selector.is_selected
+
+    def cancel_selecting(self):
+        if not self.selector_exists(AREA):
+            return
+        self.get_selector(AREA).cancel_selecting()
+        self.stop_drawing(AREA)
+        if not self.selector_exists(OBJECT):
+            return
+        object = self.get_selector(OBJECT)
+        self.stop_drawing(OBJECT)
+        self.object_is_selecting = False
+        if object.name == TRACKER:
+            return
+        object.cancel_selecting()
 
 
 class LaserService():
@@ -83,7 +106,7 @@ class Orchestrator(ThreadLoopable):
     def __init__(self, view_model: ViewModel, run_immediately: bool = True, area: tuple = None):
         self._view_model = view_model
         self._extractor = FrameExtractor(settings.CAMERA_ID)
-        self.selecting_service = SelectingService()
+        self.selecting_service = SelectingService(self.on_area_selected, self.on_object_selected)
         self._area_controller = AreaController(min_xy=-settings.MAX_LASER_RANGE_PLUS_MINUS,
                                                max_xy=settings.MAX_LASER_RANGE_PLUS_MINUS)
         self.tracker = Tracker(settings.TRACKING_FRAMES_MEAN_NUMBER)
@@ -93,12 +116,9 @@ class Orchestrator(ThreadLoopable):
         self.previous_area = None
 
         if area is not None:
-            self.selecting_service.load_selected_area(area, self.on_area_selected)
+            self.selecting_service.load_selected_area(area)
         FRAME_INTERVAL_SEC = 1 / settings.FPS_PROCESSED
         super().__init__(self._processing_loop, FRAME_INTERVAL_SEC, run_immediately)
-
-    def get_or_create_selector(self, name):
-        return self.selecting_service.get_or_create_selector(name, self.on_area_selected, self.on_object_selected)
 
     def _processing_loop(self):
         try:
@@ -127,17 +147,21 @@ class Orchestrator(ThreadLoopable):
             self._move_to_relative_cords(center)
             return
         if self.threshold_calibrator.is_calibration_successful(center):
-            self.tracker.stop_tracking()
-            self.selecting_service.stop_drawing_selected(OBJECT)
-            self.selecting_service.start_drawing_selected(self.previous_area)
-            self._area_controller.set_area(self.previous_area)
-            self._view_model.progress_bar_set_visibility(False)
+            self.restore_previous_area()
             settings.NOISE_THRESHOLD_PERCENT = round(settings.NOISE_THRESHOLD_PERCENT, 5)
-            view_output.show_message('Калибровка успешно завершена')
+            view_output.show_message('Калибровка шумоподавления успешно завершена.')
         else:
             progress_value = self.threshold_calibrator.calibration_progress()
             if abs(self._view_model.progress_bar_get_value() - progress_value) > MIN_THROTTLE_DIFFERENCE:
                 self._view_model.progress_bar_set_value(progress_value)
+
+    def restore_previous_area(self):
+        self.tracker.stop()
+        self.selecting_service.stop_drawing(OBJECT)
+        if self.previous_area is not None:
+            self.selecting_service.start_drawing(self.previous_area, AREA)
+            self._area_controller.set_area(self.previous_area)
+        self._view_model.progress_bar_set_visibility(False)
 
     def _move_to_relative_cords(self, center):
         out_of_area = self._area_controller.point_is_out_of_area(center, beep_sound=True)
@@ -146,9 +170,9 @@ class Orchestrator(ThreadLoopable):
             self.laser_service.set_new_position(relative_coords.to_int())
 
     def check_selected(self, name):
-        selector = self.get_or_create_selector(name)
-        self.selecting_service.check_emptiness(selector)
-        if not selector.is_selected:
+        selector = self.selecting_service.get_selector(name)
+        self.selecting_service.check_emptiness(selector, name)
+        if not self.selecting_service.selector_is_selected(name):
             return False, None
         return True, selector
 
@@ -157,18 +181,19 @@ class Orchestrator(ThreadLoopable):
         if not selected:
             self._view_model.new_selection(AREA, retry=True)
             return
+        self.previous_area = area
         self._area_controller.set_area(area)
 
     def on_object_selected(self):
         selected, object = self.check_selected(OBJECT)
-        out_of_area = True
+        out_of_area = False
         if selected:
             center = ((object.left_top + object.right_bottom) / 2).to_int()
             out_of_area = self._area_controller.point_is_out_of_area(center)
             if out_of_area:
                 logger.warning('selected object is out of tracking borders')
-                view_output.show_warning('Нельзя выделять объект за областью слежения')
-                self.selecting_service.stop_drawing_selected(OBJECT)
+                view_output.show_warning('Запрещено выделять объект за областью слежения.')
+                self.selecting_service.stop_drawing(OBJECT)
 
         if not selected or out_of_area:
             self._view_model.new_selection(OBJECT, retry=True)
@@ -176,72 +201,83 @@ class Orchestrator(ThreadLoopable):
 
         frame = self._current_frame
         self.tracker.start_tracking(frame, object.left_top, object.right_bottom)
-        self.selecting_service.start_drawing_selected(self.tracker)
+        self.selecting_service.start_drawing(self.tracker, OBJECT)
         self.selecting_service.object_is_selecting = False
 
     def new_selection(self, name, retry=False):
         if self.threshold_calibrator.in_progress and not retry:
-            view_output.show_warning('Выполняется калибровка шумоподавления, необходимо дождаться её окончания')
+            view_output.show_warning('Выполняется калибровка шумоподавления, необходимо дождаться её окончания.')
             return
 
         if AREA in name and self.selecting_service.object_is_selecting:
-            view_output.show_warning('Необходимо завершить выделение объекта')
+            view_output.show_warning('Необходимо завершить выделение объекта.')
             return
 
-        self.selecting_service.stop_drawing_selected(name)
-
         if OBJECT in name:
-            area = self.get_or_create_selector(AREA)
-            if not area.is_selected:
-                view_output.show_warning('Перед выделением объекта необходимо выделить область')
+            if not self.selecting_service.selector_is_selected(AREA):
+                view_output.show_warning('Перед выделением объекта необходимо выделить область слежения.')
                 return
             self.selecting_service.object_is_selecting = True
 
         if AREA in name:
-            self.previous_area = self.get_or_create_selector(name)
-            self.selecting_service.stop_drawing_selected(OBJECT)
+            self.selecting_service.stop_drawing(OBJECT)
+
+        self.selecting_service.stop_drawing(name)
+
         self.tracker.in_progress = False
-        return self.get_or_create_selector(name)
+        return self.selecting_service.create_selector(name)
 
     def calibrate_noise_threshold(self, width, height):
-        self.previous_area = self.get_or_create_selector(AREA)
-        self.selecting_service.stop_drawing_selected(AREA)
-        area = self.get_or_create_selector(AREA)
+        if self.tracker.in_progress:
+            view_output.show_warning('Запрещено калибровка шумоподавления во время слежения за объектом.')
+            return
+
+        if self.selecting_service.selector_is_selected(AREA):
+            self.previous_area = self.selecting_service.get_selector(AREA)
+            self.selecting_service.stop_drawing(AREA)
+
+        area = self.selecting_service.create_selector(AREA)
         area._points = [Point(0, 0), Point(height, 0), Point(height, width), Point(0, width)]
         area._sort_points_for_viewing()
         area.is_selected = True
-        self.on_area_selected()
+        self._area_controller.set_area(area)
         self._view_model.new_selection(OBJECT)
-        self.threshold_calibrator.in_progress = True
+        self.threshold_calibrator.start()
         settings.NOISE_THRESHOLD_PERCENT = 0.0
         self._view_model.progress_bar_set_visibility(True)
         self._view_model.progress_bar_set_value(0)
 
     def calibrate_laser(self):
         # TODO: по возможности отрефакторить дублирование условий
+        if self.tracker.in_progress:
+            view_output.show_warning('Запрещена калибровка лазера во время слежения за объектом.')
+            return
         if not self.tracker.in_progress:
             self.laser_service.calibrate_laser()
 
     def center_laser(self):
         if self.tracker.in_progress:
-            view_output.show_warning('Запрещено позиционирования лазера во время слежения за объектом')
+            view_output.show_warning('Запрещено позиционирования лазера во время слежения за объектом.')
             return
         self.laser_service.center_laser()
 
     def move_laser(self, x, y):
         if self.tracker.in_progress:
-            view_output.show_warning('Запрещено позиционирования лазера во время слежения за объектом')
+            view_output.show_warning('Запрещено позиционирования лазера во время слежения за объектом.')
             return
         self.laser_service.move_laser(x, y)
 
-    def stop_tracking(self):
-        self.tracker.stop_tracking()
-        self.selecting_service.stop_drawing_selected(OBJECT)
+    def cancel_active_process(self):
+        self.selecting_service.cancel_selecting()
+        self.threshold_calibrator.stop()
+        self.restore_previous_area()
+        settings.NOISE_THRESHOLD_PERCENT = 0.0
 
     def rotate_image(self, degree):
         # TODO: сделать запоминание угла поворота и режима отражения между запусками программы
         if self.tracker.in_progress:
             view_output.show_warning('Запрещено поворачивать изображение во время слежения за объектом')
+            return
         self._extractor.set_frame_rotate(degree)
         if degree in (90, 270):
             self._view_model.setup_window_geometry(reverse=True)
@@ -251,4 +287,5 @@ class Orchestrator(ThreadLoopable):
     def flip_image(self, side):
         if self.tracker.in_progress:
             view_output.show_warning('Запрещено отражать зеркально изображение во время слежения за объектом')
+            return
         self._extractor.set_frame_flip(side)

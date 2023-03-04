@@ -19,11 +19,12 @@ class Selector(ABC):
         self._after_selection = callback
         self._selected = False
         self._points = list(points) if points else []
+        self._unbindings = []
 
     def left_button_click(self, event):
         self._points.append(Point(event.x, event.y))
 
-    def left_button_down(self, event):
+    def left_button_down_moved(self, event):
         ...
 
     def left_button_up(self, event):
@@ -58,7 +59,7 @@ class Selector(ABC):
     def bind_events(self, events, unbindings):
         self._unbindings = unbindings
 
-    def unbind_events(self):
+    def finish_selecting(self):
         self._selected = True
         self._sort_points_for_viewing()
         for unbind in self._unbindings:
@@ -66,8 +67,19 @@ class Selector(ABC):
         if self._after_selection is not None:
             self._after_selection()
 
+    def cancel_selecting(self):
+        if self._selected:
+            # Отменить можно только то, что не до конца выделено
+            return
+        self._selected = False
+        self._points.clear()
+        for unbind in self._unbindings:
+            unbind[EVENT_NAME]()
 
-class RectSelector(RectBased, Drawable, Selector):
+
+class ObjectSelector(RectBased, Drawable, Selector):
+    MAX_POINTS = 2
+
     def __init__(self, name: str, callback, points=None):
         super().__init__(name, callback, points)
         self._selected = False
@@ -91,24 +103,24 @@ class RectSelector(RectBased, Drawable, Selector):
         self._right_bottom = value
 
     def left_button_click(self, event):
-        logger.debug(f'start selecting {event.x, event.y}')
-        # self._points.clear() т.к. объект переиспользуется, то надо очищать точки в нем
-        # TODO: убрать переиспользование
-        super().left_button_click(event)
+        self._points = [Point(event.x, event.y)]
+        # BUG: Баг с событиями: если много раз выделять пустой объект (просто кликать по экрану),
+        # то очередь событий ломается и может клик сработать несколько раз
         self._left_top.x, self._left_top.y = event.x, event.y
+        logger.debug(f'start selecting {event.x, event.y}')
 
-    def left_button_down(self, event):
+    def left_button_down_moved(self, event):
         self._right_bottom.x, self._right_bottom.y = event.x, event.y
 
     def left_button_up(self, event):
         logger.debug(f'end selecting {self.name} {event.x, event.y}')
-        self._right_bottom.x, self._right_bottom.y = event.x, event.y
         self._points.append(Point(event.x, event.y))
-        # FIXME: биндинг от зоны сохраняется, а нужен от объекта
-        # Воспроизвести получалось через выделение нулевой зоны, потом нажать выделение объекта,
-        # переключиться на другое окно, потом переключиться обратно и выделить объект
+        points_count = len(self._points)
+        # Условие относится к багу, описанному выше. Такие невалидные состояния отметаем
+        if points_count < ObjectSelector.MAX_POINTS:
+            return
         self._left_top, self._right_bottom = self._points
-        self.unbind_events()
+        self.finish_selecting()
 
     def draw_on_frame(self, frame):
         return Processor.draw_rectangle(frame, self._left_top, self._right_bottom)
@@ -118,8 +130,16 @@ class RectSelector(RectBased, Drawable, Selector):
         for bind in event_bindings.values():
             bind()
 
+    @property
+    def is_empty(self):
+        ltx, lty, rbx, rby = *self._left_top, *self._right_bottom
+        return ltx == rbx or lty == rby or\
+            abs(ltx - rbx) < MIN_DISTANCE_BETWEEN_POINTS or\
+            abs(lty - rby) < MIN_DISTANCE_BETWEEN_POINTS or\
+            super().is_empty
 
-class TetragonSelector(Drawable, Selector):
+
+class AreaSelector(Drawable, Selector):
     MAX_POINTS = 4
 
     def __init__(self, name: str, callback, points=None):
@@ -129,11 +149,11 @@ class TetragonSelector(Drawable, Selector):
     def left_button_click(self, event):
         logger.debug(f'selecting {self._current_point_number} point at {event.x, event.y}')
 
-        if self._current_point_number < TetragonSelector.MAX_POINTS:
+        if self._current_point_number < AreaSelector.MAX_POINTS:
             super().left_button_click(event)
         self._current_point_number += 1
-        if self._current_point_number == TetragonSelector.MAX_POINTS:
-            self.unbind_events()
+        if self._current_point_number == AreaSelector.MAX_POINTS:
+            self.finish_selecting()
 
     def draw_on_frame(self, frame):
         if not self._selected:

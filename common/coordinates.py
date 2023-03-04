@@ -97,3 +97,15 @@ class RectBased(ABC):
     @property
     def right_bottom(self):
         pass
+
+
+class ProcessBased(ABC):
+
+    def __init__(self):
+        self.in_progress = False
+
+    def start(self):
+        self.in_progress = True
+
+    def stop(self):
+        self.in_progress = False

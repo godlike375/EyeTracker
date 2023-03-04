@@ -4,9 +4,9 @@ from time import time
 
 import dlib
 
-from common.coordinates import Point, RectBased
+from common.coordinates import Point, RectBased, ProcessBased
 from common.logger import logger
-from common.settings import settings, OBJECT
+from common.settings import settings, TRACKER
 from model.area_controller import AreaController
 from view.drawing import Drawable, Processor
 
@@ -14,7 +14,7 @@ from view.drawing import Drawable, Processor
 PERCENT_FROM_DECIMAL = 100
 
 
-class Tracker(RectBased, Drawable):
+class Tracker(RectBased, Drawable, ProcessBased):
     def __init__(self, mean_count=settings.TRACKING_FRAMES_MEAN_NUMBER):
         self._mean_count = mean_count
         self.tracker = dlib.correlation_tracker()
@@ -22,7 +22,7 @@ class Tracker(RectBased, Drawable):
         self._length_xy = None
         self._center = None
         self.in_progress = False
-        self.name = OBJECT
+        self.name = TRACKER
 
     @property
     def left_top(self):
@@ -47,10 +47,7 @@ class Tracker(RectBased, Drawable):
                                 abs(left_top.y - right_bottom.y))
         self._center = AreaController.calc_center(left_top, right_bottom)
         self.tracker.start_track(frame, dlib.rectangle(*left_top, *right_bottom))
-        self.in_progress = True
-
-    def stop_tracking(self):
-        self.in_progress = False
+        self.start()
 
     def get_tracked_position(self, frame) -> Point:
         self.tracker.update(frame)
@@ -69,7 +66,7 @@ class Tracker(RectBased, Drawable):
         return Processor.draw_circle(frame, self._center)
 
 
-class NoiseThresholdCalibrator:
+class NoiseThresholdCalibrator(ProcessBased):
     CALIBRATION_THRESHOLD_STEP = 0.0025
 
     # В течение 5 секунд цель трекинга не должна двигаться

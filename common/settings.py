@@ -9,6 +9,7 @@ from view import view_output
 
 AREA = 'area'
 OBJECT = 'object'
+TRACKER = 'tracker'
 FOLDER = 'config'
 FILE = 'eyetracker_settings.ini'
 AREA_FILE = 'selected_area.pickle'
