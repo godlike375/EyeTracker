@@ -15,10 +15,11 @@ class Drawable(ABC):
 
 class Processor:
     # white
-    COLOR_WHITE = (255, 255, 255)
+    COLOR_GREEN = (0, 255, 0)
     COLOR_RED = (0, 0, 255)
     THICKNESS = 2
-    CURRENT_COLOR = COLOR_WHITE
+    CURRENT_COLOR = COLOR_GREEN
+    FONT_SCALE = 0.8
 
     @staticmethod
     def frame_to_image(frame):
@@ -41,13 +42,19 @@ class Processor:
     @classmethod
     def draw_circle(cls, frame, center: Point):
         center = center.to_int()
-        return cv2.circle(frame, (*center,), radius=cls.THICKNESS, color=cls.COLOR_WHITE, thickness=cls.THICKNESS)
+        return cv2.circle(frame, (*center,), radius=cls.THICKNESS, color=cls.CURRENT_COLOR, thickness=cls.THICKNESS)
 
     @classmethod
     def draw_line(cls, frame, start: Point, end: Point):
         start = start.to_int()
         end = end.to_int()
-        return cv2.line(frame, (*start,), (*end,), color=cls.COLOR_WHITE, thickness=cls.THICKNESS)
+        return cv2.line(frame, (*start,), (*end,), color=cls.CURRENT_COLOR, thickness=cls.THICKNESS)
+
+    @classmethod
+    def draw_text(cls, frame, text: str, coords: Point):
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        return cv2.putText(frame, text, (coords.x, coords.y), font,
+                           cls.FONT_SCALE, Processor.CURRENT_COLOR, cls.THICKNESS, cv2.LINE_AA)
 
     @classmethod
     def draw_active_objects(cls, frame, active_objects: List[Drawable]):

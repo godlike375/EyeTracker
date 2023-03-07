@@ -10,6 +10,7 @@ LEFT_UP = 'left_up'
 MIN_DISTANCE_BETWEEN_POINTS = 28
 MIN_POINTS_SELECTED = 2
 EVENT_NAME = 1
+POINTS_ORIENTATION = ['TL', 'TR', 'BR', 'BL']
 
 
 class Selector(ABC):
@@ -52,9 +53,12 @@ class Selector(ABC):
     def _sort_points_for_viewing(self):
         # FIXME: если трапецию сбоку рисовать с широким основанием, то багует или же ромб
         half_points = len(self._points) // 2
-        sorted_points = sorted(self._points, key=lambda p: p.x + p.y * 2)
-        self._points = sorted_points[:half_points] + \
-            sorted(sorted_points[half_points:], key=lambda p: p.x * 2 + p.y, reverse=True)
+        sorted_by_y = sorted(self._points, key=lambda p: p.y, reverse=False)
+        top_points = sorted_by_y[:half_points]
+        bottom_points = sorted_by_y[half_points:]
+        top_points.sort(key=lambda p: p.x)
+        bottom_points.sort(key=lambda p: p.x, reverse=True)
+        self._points = top_points + bottom_points
 
     def bind_events(self, events, unbindings):
         self._unbindings = unbindings
@@ -133,9 +137,9 @@ class ObjectSelector(RectBased, Drawable, Selector):
     @property
     def is_empty(self):
         ltx, lty, rbx, rby = *self._left_top, *self._right_bottom
-        return ltx == rbx or lty == rby or\
-            abs(ltx - rbx) < MIN_DISTANCE_BETWEEN_POINTS or\
-            abs(lty - rby) < MIN_DISTANCE_BETWEEN_POINTS or\
+        return ltx == rbx or lty == rby or \
+            abs(ltx - rbx) < MIN_DISTANCE_BETWEEN_POINTS or \
+            abs(lty - rby) < MIN_DISTANCE_BETWEEN_POINTS or \
             super().is_empty
 
 
@@ -163,6 +167,9 @@ class AreaSelector(Drawable, Selector):
             for a, b in zip(self._points[:-1], self._points[1:]):
                 frame = Processor.draw_line(frame, a, b)
             frame = Processor.draw_line(frame, self._points[-1], self._points[0])
+
+        for point, name in zip(self._points, POINTS_ORIENTATION):
+            frame = Processor.draw_text(frame, name, point)
         return frame
 
     def bind_events(self, event_bindings, unbindings):

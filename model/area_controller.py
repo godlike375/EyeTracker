@@ -1,15 +1,14 @@
 from threading import Thread
 from winsound import PlaySound, SND_PURGE, SND_FILENAME
 
-import numpy as np
 import cv2
+import numpy as np
 
 from common.coordinates import Point
 from common.logger import logger
 from model.selector import AreaSelector
-from view.drawing import Processor
 from view import view_output
-
+from view.drawing import Processor
 
 SOUND_NAME = r'alert.wav'
 
@@ -21,7 +20,7 @@ class AreaController:
         self._resolution_xy = abs(min_xy - max_xy)
         self._max_xy = Point(0, 0)
         self._dpi_xy = Point(0, 0)
-        self._M = None
+        self._translation_matrix = None
         self._is_set = False
         self._beeped = False
 
@@ -30,22 +29,23 @@ class AreaController:
         return Point(int((left_top.x + right_bottom.x) / 2), int((left_top.y + right_bottom.y) / 2))
 
     def set_area(self, area: AreaSelector):
-        tl, tr, br, bl = area.points
-        # TODO: отрефакторить
-        width_a = np.sqrt(((br.x - bl.x) ** 2) + ((br.y - bl.y) ** 2))
-        width_b = np.sqrt(((tr.x - tl.x) ** 2) + ((tr.y - tl.y) ** 2))
-        max_width = max(int(width_a), int(width_b))
+        points = area.points
+        tl, tr, br, bl = points
+        # https://theailearner.com/tag/cv2-getperspectivetransform/
+        bottom_width = np.sqrt(((br.x - bl.x) ** 2) + ((br.y - bl.y) ** 2))
+        top_width = np.sqrt(((tr.x - tl.x) ** 2) + ((tr.y - tl.y) ** 2))
+        max_width = max(int(bottom_width), int(top_width))
 
-        height_a = np.sqrt(((tr.x - br.x) ** 2) + ((tr.y - br.y) ** 2))
-        height_b = np.sqrt(((tl.x - bl.x) ** 2) + ((tl.y - bl.y) ** 2))
-        max_height = max(int(height_a), int(height_b))
+        right_height = np.sqrt(((tr.x - br.x) ** 2) + ((tr.y - br.y) ** 2))
+        left_height = np.sqrt(((tl.x - bl.x) ** 2) + ((tl.y - bl.y) ** 2))
+        max_height = max(int(right_height), int(left_height))
         max_size = max(max_height, max_width)
-        dst = np.array([[0, 0], [max_size, 0], [max_size, max_size], [0, max_size]], dtype="float32")
+        transformed_points_array = np.array([[0, 0], [max_size, 0], [max_size, max_size], [0, max_size]],
+                                            dtype="float32")
 
-        tupled = np.array([(*pt,) for pt in area.points], dtype="float32")
-        M = cv2.getPerspectiveTransform(tupled, dst)
+        points_array = np.array([(*pt,) for pt in points], dtype="float32")
 
-        self._M = M
+        self._translation_matrix = cv2.getPerspectiveTransform(points_array, transformed_points_array)
 
         self._max_xy = Point(max_size, max_size)
         try:
@@ -56,10 +56,10 @@ class AreaController:
             return
         self.center = Point(max_size / 2, max_size / 2)
         self._is_set = True
-        logger.debug(f'set area {area.points}')
+        logger.debug(f'set area {points}')
 
     def translate_coordinates(self, point: Point):
-        m = self._M
+        m = self._translation_matrix
         x = point.x
         y = point.y
         common_denominator = (m[2, 0] * x + m[2, 1] * y + m[2, 2])
@@ -67,7 +67,7 @@ class AreaController:
         Y = (m[1, 0] * x + m[1, 1] * y + m[1, 2]) / common_denominator
         return Point(int(X), int(Y))
 
-    def point_is_out_of_area(self, point: Point, beep_sound=False) -> bool:
+    def point_is_out_of_area(self, point: Point, beep_sound_allowed=False) -> bool:
         if not self._is_set:
             self._beeped = False
             return False
@@ -75,17 +75,18 @@ class AreaController:
         translated = self.translate_coordinates(point)
         out_of_area = translated.x < 0 or translated.x > self._max_xy.x \
             or translated.y < 0 or translated.y > self._max_xy.y
-        if not beep_sound:
-            return out_of_area
+        if beep_sound_allowed:
+            self.beep(out_of_area)
+        return out_of_area
 
+    def beep(self, out_of_area):
         if out_of_area and not self._beeped:
             Thread(target=PlaySound, args=(SOUND_NAME, SND_FILENAME | SND_PURGE)).start()
             self._beeped = True
             Processor.CURRENT_COLOR = Processor.COLOR_RED
         if not out_of_area:
-            Processor.CURRENT_COLOR = Processor.COLOR_WHITE
+            Processor.CURRENT_COLOR = Processor.COLOR_GREEN
             self._beeped = False
-        return out_of_area
 
     def calc_relative_coords(self, object_center: Point) -> Point:
         relative = object_center - self.center

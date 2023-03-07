@@ -41,7 +41,7 @@ class SelectingService:
     def check_emptiness(self, selector, name):
         if selector is None or selector.is_empty:
             logger.warning('selected area is zero in size')
-            view_output.show_message('Выделенная область не может быть слишком маленького размера.', 'Ошибка')
+            view_output.show_message('Выделенная область слишком мала или некорректно выделена.', 'Ошибка')
             self.stop_drawing(name)
 
     def get_active_objects(self) -> List[Drawable]:
@@ -164,7 +164,7 @@ class Orchestrator(ThreadLoopable):
         self._view_model.progress_bar_set_visibility(False)
 
     def _move_to_relative_cords(self, center):
-        out_of_area = self._area_controller.point_is_out_of_area(center, beep_sound=True)
+        out_of_area = self._area_controller.point_is_out_of_area(center, beep_sound_allowed=True)
         if not out_of_area:
             relative_coords = self._area_controller.calc_relative_coords(center)
             self.laser_service.set_new_position(relative_coords.to_int())
@@ -278,6 +278,8 @@ class Orchestrator(ThreadLoopable):
         if self.tracker.in_progress:
             view_output.show_warning('Запрещено поворачивать изображение во время слежения за объектом')
             return
+        self.cancel_active_process()
+        self.selecting_service.stop_drawing(AREA)
         self._extractor.set_frame_rotate(degree)
         if degree in (90, 270):
             self._view_model.setup_window_geometry(reverse=True)
@@ -288,4 +290,6 @@ class Orchestrator(ThreadLoopable):
         if self.tracker.in_progress:
             view_output.show_warning('Запрещено отражать зеркально изображение во время слежения за объектом')
             return
+        self.cancel_active_process()
+        self.selecting_service.stop_drawing(AREA)
         self._extractor.set_frame_flip(side)
