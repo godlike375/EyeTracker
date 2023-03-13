@@ -85,8 +85,8 @@ class Settings:
     def __init__(self):
         self.CAMERA_ID = 0
         self.CAMERA_MAX_HEIGHT_RESOLUTION = 640
-        self.FPS_VIEWED = 25
-        self.FPS_PROCESSED = 64
+        self.FPS_VIEWED = 19
+        self.FPS_PROCESSED = 76
         self.SERIAL_BAUD_RATE = 115200
         self.SERIAL_TIMEOUT = 0.01
         self.SERIAL_PORT = 1
