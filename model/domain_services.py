@@ -3,7 +3,7 @@ from typing import List
 from common.coordinates import Point
 from common.logger import logger
 from common.settings import settings, OBJECT, AREA, TRACKER
-from common.thread_helpers import ThreadLoopable
+from common.thread_helpers import ThreadLoopable, MutableValue
 from model.area_controller import AreaController
 from model.camera_extractor import FrameExtractor
 from model.frame_processing import Tracker, NoiseThresholdCalibrator
@@ -13,7 +13,7 @@ from view import view_output
 from view.drawing import Processor, Drawable
 from view.view_model import ViewModel
 
-MIN_THROTTLE_DIFFERENCE = 1
+MIN_THROTTLE_DIFFERENCE = 1.5
 
 
 class SelectingService:
@@ -117,14 +117,18 @@ class Orchestrator(ThreadLoopable):
 
         if area is not None:
             self.selecting_service.load_selected_area(area)
-        FRAME_INTERVAL_SEC = 1 / settings.FPS_PROCESSED
-        super().__init__(self._processing_loop, FRAME_INTERVAL_SEC, run_immediately)
+        self._frame_interval = MutableValue(1 / settings.FPS_VIEWED)
+        super().__init__(self._processing_loop, self._frame_interval, run_immediately)
 
     def _processing_loop(self):
         try:
-            frame = self._current_frame = self._extractor.extract_frame()
-            processed_image = self._tracking_and_drawing(frame)
-            self._view_model.on_image_ready(processed_image)
+            frame = self._extractor.extract_frame()
+            if self.selecting_service.object_is_selecting or \
+                    not Processor.frames_are_same(frame, self._current_frame):
+                processed_image = self._tracking_and_drawing(frame)
+                self._view_model.on_image_ready(processed_image)
+            self._current_frame = frame
+
         except RuntimeError as re:
             if 'dictionary changed size during iteration' in str(re):
                 return
@@ -199,10 +203,10 @@ class Orchestrator(ThreadLoopable):
             self._view_model.new_selection(OBJECT, retry=True)
             return
 
-        frame = self._current_frame
-        self.tracker.start_tracking(frame, object.left_top, object.right_bottom)
+        self.tracker.start_tracking(self._current_frame, object.left_top, object.right_bottom)
         self.selecting_service.start_drawing(self.tracker, OBJECT)
         self.selecting_service.object_is_selecting = False
+        self._frame_interval.value = 1 / settings.FPS_PROCESSED
 
     def new_selection(self, name, retry=False):
         if self.threshold_calibrator.in_progress and not retry:
@@ -272,6 +276,7 @@ class Orchestrator(ThreadLoopable):
         self.threshold_calibrator.stop()
         self.restore_previous_area()
         settings.NOISE_THRESHOLD_PERCENT = 0.0
+        self._frame_interval.value = 1 / settings.FPS_VIEWED
 
     def rotate_image(self, degree):
         # TODO: сделать запоминание угла поворота и режима отражения между запусками программы

@@ -66,16 +66,17 @@ LIMITATIONS = {
     'CAMERA_ID': Range(0, INFINITE),
     'CAMERA_MAX_HEIGHT_RESOLUTION': Range(640, 640),
     # TODO: теоретически, можно здесь менять параметр, но даунскейлить потом до 640, чтобы красиво выводилось
-    'FPS_VIEWED': Range(1, INFINITE),
-    'FPS_PROCESSED': Range(1, INFINITE),
+    'FPS_VIEWED': Range(8, INFINITE),
+    'FPS_PROCESSED': Range(32, INFINITE),
     'SERIAL_BAUD_RATE': OptionList([110, 300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200]),
     'SERIAL_TIMEOUT': Range(0.01, INFINITE),
     'SERIAL_PORT': Range(0, INFINITE),
-    'TRACKING_FRAMES_MEAN_NUMBER': Range(1, INFINITE),
+    'TRACKING_FRAMES_MEAN_NUMBER': Range(1, 5),
     'NOISE_THRESHOLD_PERCENT': Range(0.0, INFINITE),
-    'OBJECT_NOT_MOVING_DURATION': Range(1, 30),
+    'OBJECT_NOT_MOVING_DURATION': Range(4, 20),
     'STABLE_POSITION_DURATION': Range(0.5, 1.0),
-    'MAX_LASER_RANGE_PLUS_MINUS': Range(1, INFINITE)
+    'MAX_LASER_RANGE_PLUS_MINUS': Range(1, INFINITE),
+    'DOWNSCALE_FACTOR': Range(0.05, 0.5)
 }
 
 
@@ -91,9 +92,10 @@ class Settings:
         self.SERIAL_PORT = 1
         self.TRACKING_FRAMES_MEAN_NUMBER = 2
         self.NOISE_THRESHOLD_PERCENT = 0.0
-        self.OBJECT_NOT_MOVING_DURATION = 10  # в секундах
+        self.OBJECT_NOT_MOVING_DURATION = 8  # в секундах
         self.STABLE_POSITION_DURATION = 0.67
         self.MAX_LASER_RANGE_PLUS_MINUS = 6000  # меняется в согласовании с аппаратной частью
+        self.DOWNSCALE_FACTOR = 0.2
 
     def __setattr__(self, key, value):
         try:

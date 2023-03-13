@@ -41,21 +41,27 @@ class Tracker(RectBased, Drawable, ProcessBased):
 
     def start_tracking(self, frame, left_top, right_bottom):
         logger.debug('tracking started')
-        for coord in chain(left_top, right_bottom):
-            self._denoisers.append(Denoiser(coord, mean_count=self._mean_count))
+        frame = Processor.resize_frame(frame, settings.DOWNSCALE_FACTOR)
         self._length_xy = Point(abs(left_top.x - right_bottom.x),
                                 abs(left_top.y - right_bottom.y))
+
+        left_top, right_bottom = \
+            (left_top * settings.DOWNSCALE_FACTOR).to_int(), \
+            (right_bottom * settings.DOWNSCALE_FACTOR).to_int()
+        for coord in chain(left_top, right_bottom):
+            self._denoisers.append(Denoiser(coord, mean_count=self._mean_count))
         self._center = AreaController.calc_center(left_top, right_bottom)
         self.tracker.start_track(frame, dlib.rectangle(*left_top, *right_bottom))
         self.start()
 
     def get_tracked_position(self, frame) -> Point:
+        frame = Processor.resize_frame(frame, settings.DOWNSCALE_FACTOR)
         self.tracker.update(frame)
         rect = self.tracker.get_position()
-        for i, coord in enumerate(map(int, (rect.left(),
-                                            rect.top(),
-                                            rect.right(),
-                                            rect.bottom()
+        for i, coord in enumerate(map(int, (rect.left() / settings.DOWNSCALE_FACTOR,
+                                            rect.top() / settings.DOWNSCALE_FACTOR,
+                                            rect.right() / settings.DOWNSCALE_FACTOR,
+                                            rect.bottom() / settings.DOWNSCALE_FACTOR
                                             ))):
             self._denoisers[i].add(coord)
         self.update_center()

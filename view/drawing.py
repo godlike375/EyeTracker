@@ -2,10 +2,16 @@ from abc import ABC
 from typing import List
 
 import cv2
+import numpy as np
 from PIL import Image
 
 from common.coordinates import Point
 from common.logger import logger
+from common.settings import settings
+
+
+SAME_FRAMES_THRESHOLD = 0.387
+SPLIT_PARTS = 12
 
 
 class Drawable(ABC):
@@ -61,3 +67,17 @@ class Processor:
         for obj in active_objects:
             frame = obj.draw_on_frame(frame)
         return frame
+
+    @staticmethod
+    def resize_frame(frame, percent):
+        width = int(frame.shape[1] * percent)
+        height = int(frame.shape[0] * percent)
+        return cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
+
+    @classmethod
+    def frames_are_same(cls, one, another):
+        if one is None or another is None:
+            return False
+        one = cls.resize_frame(one, settings.DOWNSCALE_FACTOR)
+        another = cls.resize_frame(another, settings.DOWNSCALE_FACTOR)
+        return all(i.mean() > SAME_FRAMES_THRESHOLD for i in np.split((one == another), SPLIT_PARTS))

@@ -25,6 +25,7 @@ class View:
         self._last_image_height = 0
         self._last_image_width = 0
         self._current_image = None
+        self._prev_image = None
         self._image_alive_ref = None
 
         self._video_frame = Frame(self._root)
@@ -127,7 +128,7 @@ class View:
     def show_image(self):
         interval_ms = int(1 / settings.FPS_VIEWED * SECOND_LENGTH)
         self._root.after(interval_ms, self.show_image)
-        if self._current_image is None:
+        if self._current_image is None or self._prev_image is self._current_image:
             return
         image = self._current_image
 
