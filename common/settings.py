@@ -3,6 +3,8 @@ from abc import ABC, abstractmethod
 from configparser import ConfigParser
 from pathlib import Path
 from sys import maxsize
+from os.path import exists
+from os import remove
 
 from common.logger import logger
 from view import view_output
@@ -12,10 +14,14 @@ OBJECT = 'object'
 TRACKER = 'tracker'
 FOLDER = 'config'
 FILE = 'eyetracker_settings.ini'
+PRIVATE_FILE = 'private_settings.ini'
 AREA_FILE = 'selected_area.pickle'
 ROOT_FOLDER = 'EyeTracker'
 ROOT_DIR = None
 INFINITE = maxsize
+FLIP_SIDE_NONE = -1
+FLIP_SIDE_VERTICAL = 0
+FLIP_SIDE_HORIZONTAL = 1
 
 INTERGER_TYPE_ERROR = 'The value should be integer'
 
@@ -31,7 +37,10 @@ class Limitation(ABC):
     def print_value(self, value): ...
 
     def print_type(self):
-        return f'{self._limit_type}'
+        human_readable_type = 'целым'
+        if self._limit_type is type(float):
+            human_readable_type = 'нецелым'
+        return f'{human_readable_type}'
 
     def satisfies_type(self, value):
         return type(value) is self._limit_type
@@ -76,7 +85,9 @@ LIMITATIONS = {
     'OBJECT_NOT_MOVING_DURATION': Range(4, 20),
     'STABLE_POSITION_DURATION': Range(0.5, 1.0),
     'MAX_LASER_RANGE_PLUS_MINUS': Range(1, INFINITE),
-    'DOWNSCALE_FACTOR': Range(0.05, 0.5)
+    'DOWNSCALE_FACTOR': Range(0.05, 0.5),
+    'ROTATION_ANGLE': OptionList([0, 90, 180, 270]),
+    'FLIP_SIDE': OptionList([FLIP_SIDE_NONE, FLIP_SIDE_HORIZONTAL, FLIP_SIDE_VERTICAL])
 }
 
 
@@ -103,7 +114,7 @@ class Settings:
                 raise KeyError(f'Параметр {key} не найден в списке доступных параметров. Он будет проигнорирован.')
             limitation = LIMITATIONS[key]
             if not limitation.satisfies_type(value):
-                raise TypeError(f'Значение параметра {key} должно иметь тип {limitation.print_type()}')
+                raise TypeError(f'Значение параметра {key} должно быть {limitation.print_type()}')
             if not limitation.satisfies_limitation(value):
                 raise ValueError(
                     f'Значение параметра  {key} должно удовлетворять условиям {limitation.print_value(value)}')
@@ -148,7 +159,22 @@ class Settings:
             config.write(file)
 
 
+class PrivateSettings(Settings):
+    def __init__(self):
+        self.FLIP_SIDE = FLIP_SIDE_NONE
+        self.ROTATION_ANGLE = 0
+
+    def load(self, folder: str = FOLDER, file: str = None):
+        file = file or PRIVATE_FILE
+        super().load(file=file)
+
+    def save(self, folder: str = FOLDER, file: str = None):
+        file = file or PRIVATE_FILE
+        super().save(file=file)
+
+
 settings = Settings()
+private_settings = PrivateSettings()
 
 
 class SelectedArea:
@@ -169,3 +195,10 @@ class SelectedArea:
         Path.mkdir(path, exist_ok=True)
         with open(path / file, 'wb') as file:
             pickle.dump(tuple(points), file)
+
+    @staticmethod
+    def remove(folder: str = FOLDER, file: str = AREA_FILE):
+        base_path = Settings.get_repo_path()
+        path = base_path / folder / file
+        if exists(path):
+            remove(path)

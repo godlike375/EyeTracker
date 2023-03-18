@@ -10,8 +10,8 @@ from common.logger import logger
 from common.settings import settings
 
 
-SAME_FRAMES_THRESHOLD = 0.387
-SPLIT_PARTS = 12
+SAME_FRAMES_THRESHOLD = 0.5
+SPLIT_PARTS = 8 # 12 не работает с 90 градусов поворотом
 
 
 class Drawable(ABC):
@@ -77,6 +77,8 @@ class Processor:
     @classmethod
     def frames_are_same(cls, one, another):
         if one is None or another is None:
+            return False
+        if one.shape != another.shape:
             return False
         one = cls.resize_frame(one, settings.DOWNSCALE_FACTOR)
         another = cls.resize_frame(another, settings.DOWNSCALE_FACTOR)

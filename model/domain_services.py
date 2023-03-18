@@ -2,7 +2,7 @@ from typing import List
 
 from common.coordinates import Point
 from common.logger import logger
-from common.settings import settings, OBJECT, AREA, TRACKER
+from common.settings import settings, OBJECT, AREA, TRACKER, private_settings
 from common.thread_helpers import ThreadLoopable, MutableValue
 from model.area_controller import AreaController
 from model.camera_extractor import FrameExtractor
@@ -115,9 +115,14 @@ class Orchestrator(ThreadLoopable):
         self.threshold_calibrator = NoiseThresholdCalibrator()
         self.previous_area = None
 
+        self._frame_interval = MutableValue(1 / settings.FPS_VIEWED)
+
+        self.rotate_image(private_settings.ROTATION_ANGLE)
+        self.flip_image(private_settings.FLIP_SIDE)
+
         if area is not None:
             self.selecting_service.load_selected_area(area)
-        self._frame_interval = MutableValue(1 / settings.FPS_VIEWED)
+
         super().__init__(self._processing_loop, self._frame_interval, run_immediately)
 
     def _processing_loop(self):
@@ -279,10 +284,10 @@ class Orchestrator(ThreadLoopable):
         self._frame_interval.value = 1 / settings.FPS_VIEWED
 
     def rotate_image(self, degree):
-        # TODO: сделать запоминание угла поворота и режима отражения между запусками программы
         if self.tracker.in_progress:
             view_output.show_warning('Запрещено поворачивать изображение во время слежения за объектом')
             return
+        private_settings.ROTATION_ANGLE = degree
         self.cancel_active_process()
         self.selecting_service.stop_drawing(AREA)
         self._extractor.set_frame_rotate(degree)
@@ -295,6 +300,7 @@ class Orchestrator(ThreadLoopable):
         if self.tracker.in_progress:
             view_output.show_warning('Запрещено отражать зеркально изображение во время слежения за объектом')
             return
+        private_settings.FLIP_SIDE = side
         self.cancel_active_process()
         self.selecting_service.stop_drawing(AREA)
         self._extractor.set_frame_flip(side)

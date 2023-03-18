@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-from common.settings import settings
+from common.settings import settings, private_settings, FLIP_SIDE_NONE
 from view import view_output
 
 
@@ -9,17 +9,13 @@ DEGREE_TO_CV2_MAP = {90: cv2.ROTATE_90_CLOCKWISE,
                      180: cv2.ROTATE_180,
                      270: cv2.ROTATE_90_COUNTERCLOCKWISE}
 
-FLIP_SIDE_NONE = -1
-FLIP_SIDE_VERTICAL = 0
-FLIP_SIDE_HORIZONTAL = 1
-
 DEFAULT_CAMERA_ID = 0
 
 
 class FrameExtractor():
     def __init__(self, source: int = settings.CAMERA_ID):
         self._frame_rotate_degree = 0
-        self._frame_flip_side = FLIP_SIDE_NONE
+        self._frame_flip_side = private_settings.FLIP_SIDE
         self.set_source(source)
 
     def try_set_camera(self, camera_id):

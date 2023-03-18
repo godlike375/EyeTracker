@@ -4,7 +4,7 @@ from tkinter import Tk
 
 import common.settings
 from common.logger import logger
-from common.settings import settings, SelectedArea, AREA
+from common.settings import settings, SelectedArea, AREA, private_settings
 from model.domain_services import Orchestrator
 from view.view_model import ViewModel
 from view.window_form import View
@@ -18,6 +18,7 @@ def main(args):
     root = Tk()
     try:
         settings.load()
+        private_settings.load()
     except Exception as e:
         view_output.show_message(title='Ошибка загрузки конфигурации',
                             message=f'{e} \nРабота программы будет продолжена, но возможны сбои в работе.'
@@ -46,10 +47,13 @@ def main(args):
         model_core.laser_service.center_laser()
         model_core.stop_thread()
         settings.save()
+        private_settings.save()
         area_is_selected = model_core.selecting_service.selector_is_selected(AREA)
         if area_is_selected:
             area_selector = model_core.selecting_service.get_selector(AREA)
             SelectedArea.save(area_selector.points)
+        else:
+            SelectedArea.remove()
         logger.debug('settings saved')
 
 

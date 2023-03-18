@@ -8,14 +8,14 @@ from functools import partial
 
 from PIL import ImageTk
 
-from common.settings import settings, AREA, OBJECT
+from common.settings import settings, AREA, OBJECT, FLIP_SIDE_NONE, FLIP_SIDE_VERTICAL, FLIP_SIDE_HORIZONTAL
 from common.logger import logger
-from model.camera_extractor import FLIP_SIDE_NONE, FLIP_SIDE_VERTICAL, FLIP_SIDE_HORIZONTAL
 
 SECOND_LENGTH = 1000
 RESOLUTIONS = {1280: 720, 800: 600, 640: 480}
 INDICATORS_OFFSET = 10
 MENU_OFFSET = 50
+ZERO_LINE_AND_COLUMN = 0.0
 
 
 class View:
@@ -169,7 +169,7 @@ class View:
                 self._params[param] = edit
                 edit.pack()
                 text_param = str(getattr(settings, param))
-                edit.insert(0.0, text_param)
+                edit.insert(ZERO_LINE_AND_COLUMN, text_param)
         save_settings = partial(self._view_model.save_settings, self._params)
         save_button = Button(self.settings, command=save_settings, text='Сохранить')
         save_button.pack()
