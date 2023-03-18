@@ -9,9 +9,7 @@ from common.coordinates import Point
 from common.logger import logger
 from common.settings import settings
 
-
-SAME_FRAMES_THRESHOLD = 0.5
-SPLIT_PARTS = 8 # 12 не работает с 90 градусов поворотом
+SPLIT_PARTS = 8  # 12 не работает с 90 градусов поворотом
 
 
 class Drawable(ABC):
@@ -82,4 +80,4 @@ class Processor:
             return False
         one = cls.resize_frame(one, settings.DOWNSCALE_FACTOR)
         another = cls.resize_frame(another, settings.DOWNSCALE_FACTOR)
-        return all(i.mean() > SAME_FRAMES_THRESHOLD for i in np.split((one == another), SPLIT_PARTS))
+        return all(i.mean() > settings.SAME_FRAMES_THRESHOLD for i in np.split((one == another), SPLIT_PARTS))

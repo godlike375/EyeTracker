@@ -1,10 +1,10 @@
 import pickle
 from abc import ABC, abstractmethod
 from configparser import ConfigParser
+from os import remove
+from os.path import exists
 from pathlib import Path
 from sys import maxsize
-from os.path import exists
-from os import remove
 
 from common.logger import logger
 from view import view_output
@@ -87,7 +87,8 @@ LIMITATIONS = {
     'MAX_LASER_RANGE_PLUS_MINUS': Range(1, INFINITE),
     'DOWNSCALE_FACTOR': Range(0.05, 0.5),
     'ROTATION_ANGLE': OptionList([0, 90, 180, 270]),
-    'FLIP_SIDE': OptionList([FLIP_SIDE_NONE, FLIP_SIDE_HORIZONTAL, FLIP_SIDE_VERTICAL])
+    'FLIP_SIDE': OptionList([FLIP_SIDE_NONE, FLIP_SIDE_HORIZONTAL, FLIP_SIDE_VERTICAL]),
+    'SAME_FRAMES_THRESHOLD': Range(0.01, 0.99)
 }
 
 
@@ -107,6 +108,7 @@ class Settings:
         self.STABLE_POSITION_DURATION = 0.67
         self.MAX_LASER_RANGE_PLUS_MINUS = 6000  # меняется в согласовании с аппаратной частью
         self.DOWNSCALE_FACTOR = 0.2
+        self.SAME_FRAMES_THRESHOLD = 0.425
 
     def __setattr__(self, key, value):
         try:
