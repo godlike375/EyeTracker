@@ -107,8 +107,8 @@ class Settings:
         self.OBJECT_NOT_MOVING_DURATION = 8  # в секундах
         self.STABLE_POSITION_DURATION = 0.67
         self.MAX_LASER_RANGE_PLUS_MINUS = 6000  # меняется в согласовании с аппаратной частью
-        self.DOWNSCALE_FACTOR = 0.2
-        self.SAME_FRAMES_THRESHOLD = 0.425
+        self.DOWNSCALE_FACTOR = 0.25  # чем ниже значение, тем выше производительность, но ниже точность трекинга
+        self.SAME_FRAMES_THRESHOLD = 0.58  # в полной темноте начиная с такого значения обновляется картинка
 
     def __setattr__(self, key, value):
         try:
