@@ -1,4 +1,5 @@
 from typing import List
+from time import time
 
 from common.coordinates import Point
 from common.logger import logger
@@ -15,6 +16,9 @@ from view.view_model import ViewModel
 
 MIN_THROTTLE_DIFFERENCE = 1.5
 
+# Пробовал увеличивать количество потоков в программе до 4-х (+ экстрактор + трекер в своих потоках)
+# Итог: это только ухудшило производительность, так что больше 2-х потоков смысла иметь нет
+# И запускать из цикла отрисовки вьюхи тоже смысла нет, т.к. это асинхронный цикл и будет всё тормозить
 
 class SelectingService:
     def __init__(self, area_selected_callback, object_selected_callback):
@@ -114,7 +118,7 @@ class Orchestrator(ThreadLoopable):
         self._current_frame = None
         self.threshold_calibrator = NoiseThresholdCalibrator()
         self.previous_area = None
-
+        self._throttle_to_fps_viewed = time()
         self._frame_interval = MutableValue(1 / settings.FPS_VIEWED)
 
         self.rotate_image(private_settings.ROTATION_ANGLE)
@@ -130,7 +134,13 @@ class Orchestrator(ThreadLoopable):
             frame = self._extractor.extract_frame()
             if self.selecting_service.object_is_selecting or \
                     not Processor.frames_are_same(frame, self._current_frame):
-                processed_image = self._tracking_and_drawing(frame)
+                if self.tracker.in_progress:
+                    self._tracking(frame)
+                    if time() - self._throttle_to_fps_viewed < 1 / settings.FPS_VIEWED:
+                        return
+                    else:
+                        self._throttle_to_fps_viewed = time()
+                processed_image = self.draw_and_convert(frame)
                 self._view_model.on_image_ready(processed_image)
             self._current_frame = frame
 
@@ -144,9 +154,7 @@ class Orchestrator(ThreadLoopable):
             view_output.show_fatal(e)
             logger.exception('Unexpected exception:')
 
-    def _tracking_and_drawing(self, frame):
-        if self.tracker.in_progress:
-            self._tracking(frame)
+    def draw_and_convert(self, frame):
         processed = Processor.draw_active_objects(frame, self.selecting_service.get_active_objects())
         return Processor.frame_to_image(processed)
 

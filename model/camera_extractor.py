@@ -59,8 +59,8 @@ class FrameExtractor():
     def extract_frame(self):
         _, frame = self._camera.read()
         rotated = self.rotate_frame(frame)
-        fliped = self.flip_frame(rotated)
-        return fliped
+        flipped = self.flip_frame(rotated)
+        return flipped
 
 
 class CameraStub:
