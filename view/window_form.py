@@ -1,7 +1,7 @@
 from tkinter import (
     Label, Tk, Frame, Menu,
     TOP, BOTTOM, X, Toplevel,
-    Text, Button
+    Text, Button, LEFT
                      )
 from tkinter.ttk import Progressbar
 from functools import partial
@@ -27,6 +27,7 @@ class View:
         self._current_image = None
         self._prev_image = None
         self._image_alive_ref = None
+        self._interval_ms = int(1 / settings.FPS_VIEWED * SECOND_LENGTH)
 
         self._video_frame = Frame(self._root)
         self._video_label = Label(self._video_frame)
@@ -123,11 +124,11 @@ class View:
         logger.debug(f'window size = {window_size}')
 
     def set_current_image(self, img):
+        self._prev_image = self._current_image
         self._current_image = img
 
     def show_image(self):
-        interval_ms = int(1 / settings.FPS_VIEWED * SECOND_LENGTH)
-        self._root.after(interval_ms, self.show_image)
+        self._root.after(self._interval_ms, self.show_image)
         if self._current_image is None or self._prev_image is self._current_image:
             return
         image = self._current_image
@@ -162,13 +163,15 @@ class View:
         self._params = {}
         for param in dir(settings):
             if param.isupper():
-                label = Label(self.settings, text=param)
-                label.pack()
+                frame = Frame(self.settings)
+                frame.pack(fill=X)
+                label = Label(frame, text=f'{param} =')
+                label.pack(side=LEFT, pady=3, padx=1)
 
-                edit = Text(self.settings, width=12, height=1)
-                self._params[param] = edit
-                edit.pack()
                 text_param = str(getattr(settings, param))
+                edit = Text(frame, width=len(text_param)+1, height=1)
+                self._params[param] = edit
+                edit.pack(side=LEFT, pady=4, padx=1)
                 edit.insert(ZERO_LINE_AND_COLUMN, text_param)
         save_settings = partial(self._view_model.save_settings, self._params)
         save_button = Button(self.settings, command=save_settings, text='Сохранить')
