@@ -16,6 +16,7 @@ RESOLUTIONS = {1280: 720, 800: 600, 640: 480}
 INDICATORS_OFFSET = 10
 MENU_OFFSET = 50
 ZERO_LINE_AND_COLUMN = 0.0
+MARGIN_FIELDS = 3
 
 
 class View:
@@ -166,13 +167,13 @@ class View:
                 frame = Frame(self.settings)
                 frame.pack(fill=X)
                 label = Label(frame, text=f'{param} =')
-                label.pack(side=LEFT, pady=3, padx=1)
+                label.pack(side=LEFT, pady=MARGIN_FIELDS, padx=MARGIN_FIELDS)
 
                 text_param = str(getattr(settings, param))
                 edit = Text(frame, width=len(text_param)+1, height=1)
                 self._params[param] = edit
-                edit.pack(side=LEFT, pady=4, padx=1)
+                edit.pack(side=LEFT, pady=MARGIN_FIELDS, padx=MARGIN_FIELDS)
                 edit.insert(ZERO_LINE_AND_COLUMN, text_param)
         save_settings = partial(self._view_model.save_settings, self._params)
         save_button = Button(self.settings, command=save_settings, text='Сохранить')
-        save_button.pack()
+        save_button.pack(pady=MARGIN_FIELDS)
