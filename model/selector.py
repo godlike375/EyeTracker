@@ -1,8 +1,9 @@
 from abc import ABC
 
-from common.coordinates import Point, RectBased
+from common.coordinates import Point
+from common.abstractions import RectBased, Drawable
 from common.logger import logger
-from view.drawing import Drawable, Processor
+from view.drawing import Processor
 
 LEFT_CLICK = 'left_click'
 LEFT_DOWN = 'left_down'

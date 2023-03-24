@@ -1,5 +1,6 @@
 from typing import List
 from time import time
+from collections import OrderedDict
 
 from common.coordinates import Point
 from common.logger import logger
@@ -11,10 +12,12 @@ from model.frame_processing import Tracker, NoiseThresholdCalibrator
 from model.move_controller import MoveController
 from model.selector import ObjectSelector, AreaSelector
 from view import view_output
-from view.drawing import Processor, Drawable
+from view.drawing import Processor
+from common.abstractions import Drawable
 from view.view_model import ViewModel
 
 MIN_THROTTLE_DIFFERENCE = 1.5
+
 
 # Пробовал увеличивать количество потоков в программе до 4-х (+ экстрактор + трекер в своих потоках)
 # Итог: это только ухудшило производительность, так что больше 2-х потоков смысла иметь нет
@@ -88,6 +91,7 @@ class SelectingService:
 class LaserService():
     def __init__(self):
         self._laser_controller = MoveController(serial_off=False)
+        self.initialized = self._laser_controller.initialized
 
     def calibrate_laser(self):
         logger.debug('laser calibrated')
@@ -105,6 +109,32 @@ class LaserService():
         self._laser_controller.set_new_position(position)
 
 
+class StateTipSupervisor:
+    EVENT_STATE_PRIORITY = OrderedDict( \
+        {
+            'program started': 'Подключите все необходимые устройства (лазер и камеру)',
+            'devices connected': 'Откалибруйте лазер',
+            'laser calibrated': 'Настройте поворот и отражение изображения, затем откалибруйте шумоподавление',
+            'noise threshold calibrated': 'Выделите область отслеживания',
+            'area selected': 'Выделите объект отслеживания',
+            'object selected': 'Активен сеанс отслеживания объекта'
+        })
+
+    def __init__(self, model):
+        self._model = model
+        self._state = 'program started'
+
+    def next_state(self, event: str):
+        event_keys = list(StateTipSupervisor.EVENT_STATE_PRIORITY.keys())
+        state_index = event_keys.index(self._state)
+        event_index = event_keys.index(event)
+        if abs(state_index - event_index) == 1:
+            self._state = event
+
+    def current_state_to_tip(self):
+        return StateTipSupervisor.EVENT_STATE_PRIORITY[self._state]
+
+
 class Orchestrator(ThreadLoopable):
 
     def __init__(self, view_model: ViewModel, run_immediately: bool = True, area: tuple = None):
@@ -115,15 +145,17 @@ class Orchestrator(ThreadLoopable):
                                                max_xy=settings.MAX_LASER_RANGE_PLUS_MINUS)
         self.tracker = Tracker(settings.TRACKING_FRAMES_MEAN_NUMBER)
         self.laser_service = LaserService()
+        self.state_tip = StateTipSupervisor(self)
+
         self._current_frame = None
         self.threshold_calibrator = NoiseThresholdCalibrator()
         self.previous_area = None
         self._throttle_to_fps_viewed = time()
         self._frame_interval = MutableValue(1 / settings.FPS_VIEWED)
-
         self.rotate_image(private_settings.ROTATION_ANGLE)
         self.flip_image(private_settings.FLIP_SIDE)
-
+        #if self._extractor.initialized and self.laser_service.initialized:
+        self.state_tip.next_state('devices connected')
         if area is not None:
             self.selecting_service.load_selected_area(area)
 
@@ -140,6 +172,7 @@ class Orchestrator(ThreadLoopable):
                         return
                     else:
                         self._throttle_to_fps_viewed = time()
+                self._view_model.set_tip(self.state_tip.current_state_to_tip())
                 processed_image = self.draw_and_convert(frame)
                 self._view_model.on_image_ready(processed_image)
             self._current_frame = frame
@@ -164,13 +197,17 @@ class Orchestrator(ThreadLoopable):
             self._move_to_relative_cords(center)
             return
         if self.threshold_calibrator.is_calibration_successful(center):
-            self.restore_previous_area()
-            settings.NOISE_THRESHOLD_PERCENT = round(settings.NOISE_THRESHOLD_PERCENT, 5)
-            view_output.show_message('Калибровка шумоподавления успешно завершена.')
+            self.noise_threshold_calibrated()
         else:
             progress_value = self.threshold_calibrator.calibration_progress()
             if abs(self._view_model.progress_bar_get_value() - progress_value) > MIN_THROTTLE_DIFFERENCE:
                 self._view_model.progress_bar_set_value(progress_value)
+
+    def noise_threshold_calibrated(self):
+        self.restore_previous_area()
+        settings.NOISE_THRESHOLD_PERCENT = round(settings.NOISE_THRESHOLD_PERCENT, 5)
+        self.state_tip.next_state('noise threshold calibrated')
+        view_output.show_message('Калибровка шумоподавления успешно завершена.')
 
     def restore_previous_area(self):
         self.tracker.stop()
@@ -200,6 +237,7 @@ class Orchestrator(ThreadLoopable):
             return
         self.previous_area = area
         self._area_controller.set_area(area)
+        self.state_tip.next_state('area selected')
 
     def on_object_selected(self):
         selected, object = self.check_selected(OBJECT)
@@ -220,6 +258,7 @@ class Orchestrator(ThreadLoopable):
         self.selecting_service.start_drawing(self.tracker, OBJECT)
         self.selecting_service.object_is_selecting = False
         self._frame_interval.value = 1 / settings.FPS_PROCESSED
+        self.state_tip.next_state('object selected')
 
     def new_selection(self, name, retry=False):
         if self.threshold_calibrator.in_progress and not retry:
@@ -269,8 +308,8 @@ class Orchestrator(ThreadLoopable):
         if self.tracker.in_progress:
             view_output.show_warning('Запрещена калибровка лазера во время слежения за объектом.')
             return
-        if not self.tracker.in_progress:
-            self.laser_service.calibrate_laser()
+        self.laser_service.calibrate_laser()
+        self.state_tip.next_state('laser calibrated')
 
     def center_laser(self):
         if self.tracker.in_progress:
@@ -290,10 +329,13 @@ class Orchestrator(ThreadLoopable):
         self.restore_previous_area()
         settings.NOISE_THRESHOLD_PERCENT = 0.0
         self._frame_interval.value = 1 / settings.FPS_VIEWED
+        self.state_tip.next_state('area selected')
 
     def rotate_image(self, degree):
         if self.tracker.in_progress:
             view_output.show_warning('Запрещено поворачивать изображение во время слежения за объектом')
+            return
+        if private_settings.ROTATION_ANGLE == degree:
             return
         private_settings.ROTATION_ANGLE = degree
         self.cancel_active_process()
@@ -303,12 +345,16 @@ class Orchestrator(ThreadLoopable):
             self._view_model.setup_window_geometry(reverse=True)
         else:
             self._view_model.setup_window_geometry(reverse=False)
+        self.previous_area = None
 
     def flip_image(self, side):
         if self.tracker.in_progress:
             view_output.show_warning('Запрещено отражать зеркально изображение во время слежения за объектом')
             return
+        if private_settings.FLIP_SIDE == side:
+            return
         private_settings.FLIP_SIDE = side
         self.cancel_active_process()
         self.selecting_service.stop_drawing(AREA)
         self._extractor.set_frame_flip(side)
+        self.previous_area = None

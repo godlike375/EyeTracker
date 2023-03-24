@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 
 from common.settings import settings, private_settings, FLIP_SIDE_NONE
+from common.abstractions import Initializable
 from view import view_output
 
 
@@ -12,8 +13,9 @@ DEGREE_TO_CV2_MAP = {90: cv2.ROTATE_90_CLOCKWISE,
 DEFAULT_CAMERA_ID = 0
 
 
-class FrameExtractor():
+class FrameExtractor(Initializable):
     def __init__(self, source: int = settings.CAMERA_ID):
+        super().__init__(initialized=True)
         self._frame_rotate_degree = 0
         self._frame_flip_side = private_settings.FLIP_SIDE
         self.set_source(source)
@@ -29,6 +31,7 @@ class FrameExtractor():
     def set_source(self, source):
         if not self.try_set_camera(source):
             if not self.try_set_camera(DEFAULT_CAMERA_ID):
+                self.init_error()
                 view_output.show_warning(
                     f'Не удалось открыть заданную настройкой CAMERA_ID камеру '
                     f'{source}, а так же не удалось определить подходящую камеру автоматически. '

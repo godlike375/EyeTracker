@@ -1,7 +1,7 @@
 from tkinter import (
     Label, Tk, Frame, Menu,
     TOP, BOTTOM, X, Toplevel,
-    Text, Button, LEFT
+    Text, Button, LEFT, W
                      )
 from tkinter.ttk import Progressbar
 from functools import partial
@@ -13,7 +13,7 @@ from common.logger import logger
 
 SECOND_LENGTH = 1000
 RESOLUTIONS = {1280: 720, 800: 600, 640: 480}
-INDICATORS_OFFSET = 10
+INDICATORS_OFFSET = 20
 MENU_OFFSET = 50
 ZERO_LINE_AND_COLUMN = 0.0
 MARGIN_FIELDS = 3
@@ -34,6 +34,7 @@ class View:
         self._video_label = Label(self._video_frame)
 
         self._indicators_frame = Frame(self._video_frame)
+        self._tip = Label(self._indicators_frame, text='Подсказка: ')
         self._progress_bar = Progressbar(self._indicators_frame)
 
         self.setup_menus()
@@ -106,6 +107,7 @@ class View:
         self._video_frame.pack(side=TOP)
         self._video_label.pack(side=TOP)
         self._indicators_frame.pack(side=BOTTOM, fill=X)
+        self._tip.pack(side=TOP, anchor=W)
         self.progress_bar_set_visibility(False)
         self.show_image()
 
@@ -157,6 +159,9 @@ class View:
 
     def progress_bar_get_value(self):
         return self._progress_bar['value']
+
+    def set_tip(self, text):
+        self._tip.config(text=text)
 
     def open_settings(self):
         self.settings = Toplevel(self._root)

@@ -4,11 +4,12 @@ from time import time
 
 import dlib
 
-from common.coordinates import Point, RectBased, ProcessBased
+from common.coordinates import Point
+from common.abstractions import ProcessBased, RectBased, Drawable
 from common.logger import logger
 from common.settings import settings, TRACKER
 from model.area_controller import AreaController
-from view.drawing import Drawable, Processor
+from view.drawing import Processor
 
 
 PERCENT_FROM_DECIMAL = 100

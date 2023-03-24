@@ -82,6 +82,9 @@ class ViewModel:
     def progress_bar_get_value(self):
         return self._view.progress_bar_get_value()
 
+    def set_tip(self, tip):
+        self._view.set_tip(f'Подсказка: {tip}')
+
     def save_settings(self, params):
         for name, text_edit in params.items():
             text_param = text_edit.get(0.0, END)[:-1]

@@ -1,20 +1,15 @@
-from abc import ABC
 from typing import List
 
 import cv2
 import numpy as np
 from PIL import Image
 
+from common.abstractions import Drawable
 from common.coordinates import Point
 from common.logger import logger
 from common.settings import settings
 
 SPLIT_PARTS = 8  # 12 не работает с 90 градусов поворотом
-
-
-class Drawable(ABC):
-    def draw_on_frame(self, frame):
-        pass
 
 
 class Processor:

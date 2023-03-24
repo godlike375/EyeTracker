@@ -6,14 +6,17 @@ from serial.tools import list_ports
 from common.coordinates import Point
 from common.logger import logger
 from common.settings import settings
+from common.abstractions import Initializable
 from view import view_output
 
 READY = 'ready'
+LASER_DEVICE_NAME = 'usb-serial ch340'
 
 
-class MoveController:
+class MoveController(Initializable):
 
     def __init__(self, manual_port=None, baud_rate=None, serial_off=False):
+        super().__init__(initialized=True)
         # TODO: к настройкам должно обращаться что-то внещнее в идеале и передавать эти параметры сюда
         manual_port = manual_port or f'COM{settings.SERIAL_PORT}'
         baud_rate = baud_rate or settings.SERIAL_BAUD_RATE
@@ -34,12 +37,13 @@ class MoveController:
         auto_detected = manual_port
         com_ports = list_ports.comports()
         for p in com_ports:
-            if 'usb-serial ch340' in p.description.lower():
+            if LASER_DEVICE_NAME in p.description.lower():
                 auto_detected = p.device
 
         try:
             self._serial = Serial(auto_detected, baud_rate, timeout=settings.SERIAL_TIMEOUT)
         except SerialException as e:
+            self.init_error()
             logger.exception(str(e))
             view_output.show_warning(f'Не удалось открыть заданный настройкой SERIAL_PORT последовательный порт '
                                      f'{manual_port}, а так же не удалось определить подходящий порт автоматически. '

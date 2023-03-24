@@ -1,4 +1,3 @@
-from abc import ABC
 from copy import copy
 from dataclasses import dataclass
 from math import sqrt
@@ -86,26 +85,3 @@ class Point:
 
     def calc_distance(self, other):
         return sqrt((other.x - self.x)**2 + (other.y - self.y)**2)
-
-
-class RectBased(ABC):
-
-    @property
-    def left_top(self):
-        pass
-
-    @property
-    def right_bottom(self):
-        pass
-
-
-class ProcessBased(ABC):
-
-    def __init__(self):
-        self.in_progress = False
-
-    def start(self):
-        self.in_progress = True
-
-    def stop(self):
-        self.in_progress = False
