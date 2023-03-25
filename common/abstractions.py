@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+
 class ProcessBased(ABC):
 
     def __init__(self):

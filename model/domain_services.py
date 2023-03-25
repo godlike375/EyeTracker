@@ -1,7 +1,8 @@
-from typing import List
-from time import time
 from collections import OrderedDict
+from time import time
+from typing import List
 
+from common.abstractions import Drawable
 from common.coordinates import Point
 from common.logger import logger
 from common.settings import settings, OBJECT, AREA, TRACKER, private_settings
@@ -13,7 +14,6 @@ from model.move_controller import MoveController
 from model.selector import ObjectSelector, AreaSelector
 from view import view_output
 from view.drawing import Processor
-from common.abstractions import Drawable
 from view.view_model import ViewModel
 
 MIN_THROTTLE_DIFFERENCE = 1.5
@@ -110,7 +110,7 @@ class LaserService():
 
 
 class StateTipSupervisor:
-    EVENT_STATE_PRIORITY = OrderedDict( \
+    EVENT_STATE_PRIORITY = OrderedDict(
         {
             'program started': 'Подключите все необходимые устройства (лазер и камеру)',
             'devices connected': 'Откалибруйте лазер',
@@ -154,7 +154,7 @@ class Orchestrator(ThreadLoopable):
         self._frame_interval = MutableValue(1 / settings.FPS_VIEWED)
         self.rotate_image(private_settings.ROTATION_ANGLE)
         self.flip_image(private_settings.FLIP_SIDE)
-        #if self._extractor.initialized and self.laser_service.initialized:
+        # if self._extractor.initialized and self.laser_service.initialized:
         self.state_tip.next_state('devices connected')
         if area is not None:
             self.selecting_service.load_selected_area(area)

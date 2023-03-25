@@ -52,7 +52,6 @@ class Selector(ABC):
         return len(set(self._points)) != len(self._points) or less_than_min_dist
 
     def _sort_points_for_viewing(self):
-        # FIXME: если трапецию сбоку рисовать с широким основанием, то багует или же ромб
         half_points = len(self._points) // 2
         sorted_by_y = sorted(self._points, key=lambda p: p.y, reverse=False)
         top_points = sorted_by_y[:half_points]

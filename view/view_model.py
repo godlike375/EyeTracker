@@ -92,7 +92,7 @@ class ViewModel:
                 number_param = float(text_param) if '.' in text_param else int(text_param)
             except ValueError:
                 view_output.show_warning(f'Некорректное значение параметра {name}:'
-                                         f' ожидалось число, введено "{text_param}"')
+                                         f' ожидалось число, введено "{text_param}". Параметр не применён.')
             else:
                 setattr(settings, name, number_param)
         view_output.show_warning('Большинство параметров будут применены после перезапуска программы.')

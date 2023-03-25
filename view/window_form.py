@@ -1,7 +1,8 @@
 from tkinter import (
     Label, Tk, Frame, Menu,
     TOP, BOTTOM, X, Toplevel,
-    Text, Button, LEFT, W
+    Text, Button, LEFT, W,
+    messagebox, END, RIGHT,
                      )
 from tkinter.ttk import Progressbar
 from functools import partial
@@ -17,6 +18,7 @@ INDICATORS_OFFSET = 20
 MENU_OFFSET = 50
 ZERO_LINE_AND_COLUMN = 0.0
 MARGIN_FIELDS = 3
+BUTTON_MARGIN = MARGIN_FIELDS * 10
 
 
 class View:
@@ -166,7 +168,7 @@ class View:
     def open_settings(self):
         self.settings = Toplevel(self._root)
         self.settings.title('Настройки')
-        self._params = {}
+        params = {}
         for param in dir(settings):
             if param.isupper():
                 frame = Frame(self.settings)
@@ -176,9 +178,37 @@ class View:
 
                 text_param = str(getattr(settings, param))
                 edit = Text(frame, width=len(text_param)+1, height=1)
-                self._params[param] = edit
+                params[param] = edit
                 edit.pack(side=LEFT, pady=MARGIN_FIELDS, padx=MARGIN_FIELDS)
                 edit.insert(ZERO_LINE_AND_COLUMN, text_param)
-        save_settings = partial(self._view_model.save_settings, self._params)
-        save_button = Button(self.settings, command=save_settings, text='Сохранить')
-        save_button.pack(pady=MARGIN_FIELDS)
+        buttons_frame = Frame(self.settings)
+        buttons_frame.pack(pady=MARGIN_FIELDS)
+        save_settings = partial(self._view_model.save_settings, params)
+        exit_settings = partial(self.exit_settings, params)
+        exit_settings_button = Button(buttons_frame, command=exit_settings, text='Закрыть')
+        save_button = Button(buttons_frame, command=save_settings, text='Сохранить')
+        save_button.pack(padx=BUTTON_MARGIN, side=RIGHT)
+        exit_settings_button.pack(padx=BUTTON_MARGIN, side=LEFT)
+
+    def exit_settings(self, params):
+        global_settings = [getattr(settings, name) for name in dir(settings) if name.isupper()]
+        current_settings = []
+        for name, text_edit in params.items():
+            text_param = text_edit.get(0.0, END)[:-1]
+            try:
+                number_param = float(text_param) if '.' in text_param else int(text_param)
+            except ValueError:
+                self.settings.destroy()
+                return
+            else:
+                current_settings.append(number_param)
+        if current_settings == global_settings:
+            self.settings.destroy()
+            return
+        else:
+            exit_confirm = messagebox.askyesno(title='Предупреждение',
+                                               message='Имеются несохранённые параметры. '
+                                                       'Хотите закрыть окно без сохранения?')
+            self.settings.focus_force()
+            if exit_confirm:
+                self.settings.destroy()
