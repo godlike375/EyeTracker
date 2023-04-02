@@ -7,14 +7,15 @@ from PIL import Image
 from common.abstractions import Drawable
 from common.coordinates import Point
 from common.logger import logger
-from common.settings import settings
+from common.settings import settings, private_settings
 
-SPLIT_PARTS = 8  # 12 не работает с 90 градусов поворотом
+SPLIT_PARTS = 4
+# другие значения не работают с 90 градусов поворотом при разрешениях кроме 640
 
 
 class Processor:
     # white
-    COLOR_GREEN = (0, 255, 0)
+    COLOR_GREEN = (private_settings.PAINT_COLOR_R, private_settings.PAINT_COLOR_G, private_settings.PAINT_COLOR_B)
     COLOR_RED = (0, 0, 255)
     THICKNESS = 2
     CURRENT_COLOR = COLOR_GREEN
@@ -62,10 +63,13 @@ class Processor:
         return frame
 
     @staticmethod
-    def resize_frame(frame, percent):
+    def resize_frame_relative(frame, percent):
         width = int(frame.shape[1] * percent)
         height = int(frame.shape[0] * percent)
         return cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
+
+    def resize_frame_absolute(frame, new_height, new_width):
+        return cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_AREA)
 
     @classmethod
     def frames_are_same(cls, one, another):
@@ -73,6 +77,14 @@ class Processor:
             return False
         if one.shape != another.shape:
             return False
-        one = cls.resize_frame(one, settings.DOWNSCALE_FACTOR)
-        another = cls.resize_frame(another, settings.DOWNSCALE_FACTOR)
+        one = cls.resize_frame_relative(one, settings.DOWNSCALE_FACTOR)
+        another = cls.resize_frame_relative(another, settings.DOWNSCALE_FACTOR)
         return all(i.mean() > settings.SAME_FRAMES_THRESHOLD for i in np.split((one == another), SPLIT_PARTS))
+
+    @classmethod
+    def load_color(cls):
+        # TODO: возможно еще добавить выбор цвета предупреждения
+        ps = private_settings
+        color = (ps.PAINT_COLOR_B, ps.PAINT_COLOR_G, ps.PAINT_COLOR_R)
+        cls.COLOR_GREEN = color
+        cls.CURRENT_COLOR = color

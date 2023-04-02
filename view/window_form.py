@@ -9,13 +9,15 @@ from functools import partial
 
 from PIL import ImageTk
 
-from common.settings import settings, AREA, OBJECT, FLIP_SIDE_NONE, FLIP_SIDE_VERTICAL, FLIP_SIDE_HORIZONTAL
+from common.settings import (
+    settings, AREA, OBJECT,FLIP_SIDE_NONE, FLIP_SIDE_VERTICAL,
+    FLIP_SIDE_HORIZONTAL, RESOLUTIONS, DOWNSCALED_HEIGHT, get_repo_path
+                             )
 from common.logger import logger
 
 SECOND_LENGTH = 1000
-RESOLUTIONS = {1280: 720, 800: 600, 640: 480}
-INDICATORS_OFFSET = 20
-MENU_OFFSET = 50
+INDICATORS_WIDTH_ADDITION = 20
+REVERSED_MENU_HEIGHT_ADDITION = 135
 ZERO_LINE_AND_COLUMN = 0.0
 MARGIN_FIELDS = 3
 BUTTON_MARGIN = MARGIN_FIELDS * 10
@@ -38,6 +40,7 @@ class View:
         self._indicators_frame = Frame(self._video_frame)
         self._tip = Label(self._indicators_frame, text='Подсказка: ')
         self._progress_bar = Progressbar(self._indicators_frame)
+        self._settings = None
 
         self.setup_menus()
         self.setup_layout()
@@ -53,15 +56,13 @@ class View:
         selection_menu.add_command(label='Объект', command=object_callback)
         main_menu.add_cascade(label='Выделить', menu=selection_menu)
 
-        main_menu.add_command(label='Прервать процесс', command=self._view_model.cancel_active_process)
+        main_menu.add_command(label='Прервать', command=self._view_model.cancel_active_process)
 
         calibration_menu = Menu(tearoff=False)
         calibration_menu.add_command(label='Лазер', command=self._view_model.calibrate_laser)
         calibration_menu.add_command(label='Шумоподавление',
                                      command=self._view_model.calibrate_noise_threshold)
         main_menu.add_cascade(label='Откалибровать', menu=calibration_menu)
-        # TODO: MUST HAVE сделать сценарии использования (мастер настройки), чтобы пользователю не нужно было думать
-        #  о последовательности действий для настройки
 
         position_menu = Menu(tearoff=False)
         MAX_LASER_RANGE_PLUS_MINUS = settings.MAX_LASER_RANGE_PLUS_MINUS
@@ -75,7 +76,7 @@ class View:
         position_menu.add_command(label='Лево низ', command=move_left_bottom)
         position_menu.add_command(label='Право низ', command=move_right_bottom)
         position_menu.add_command(label='Центр', command=move_center)
-        main_menu.add_cascade(label='Лазер', menu=position_menu)
+        main_menu.add_cascade(label='Позиционировать лазер', menu=position_menu)
 
         rotation_menu = Menu(tearoff=False)
         rotate_0 = partial(self._view_model.rotate_image, 0)
@@ -86,21 +87,25 @@ class View:
         rotation_menu.add_command(label='90°', command=rotate_90)
         rotation_menu.add_command(label='180°', command=rotate_180)
         rotation_menu.add_command(label='270°', command=rotate_270)
-        main_menu.add_cascade(label='Поворот', menu=rotation_menu)
+        main_menu.add_cascade(label='Повернуть', menu=rotation_menu)
 
         flip_menu = Menu(tearoff=False)
         flip_none = partial(self._view_model.flip_image, side=FLIP_SIDE_NONE)
         flip_vertical = partial(self._view_model.flip_image, side=FLIP_SIDE_VERTICAL)
         flip_horizontal = partial(self._view_model.flip_image, side=FLIP_SIDE_HORIZONTAL)
+        flip_menu.add_command(label='Не отражать', command=flip_none)
         flip_menu.add_command(label='По вертикали', command=flip_vertical)
         flip_menu.add_command(label='По горизонтали', command=flip_horizontal)
-        flip_menu.add_command(label='Сбросить', command=flip_none)
         main_menu.add_cascade(label='Отразить', menu=flip_menu)
 
         main_menu.add_command(label='Настройки', command=self.open_settings)
 
     def setup_layout(self):
         self._root.title('Eye tracker')
+        try:
+            self._root.iconbitmap(str(get_repo_path(bundled=True) / "tracking.ico"))
+        except:
+            logger.debug('tracking.ico not found')
 
         self.setup_window_geometry()
 
@@ -114,13 +119,13 @@ class View:
         self.show_image()
 
     def setup_window_geometry(self, reverse=False):
-        WINDOW_HEIGHT = settings.CAMERA_MAX_HEIGHT_RESOLUTION
-        WINDOW_WIDTH = RESOLUTIONS[WINDOW_HEIGHT] + INDICATORS_OFFSET
+        window_height = DOWNSCALED_HEIGHT
+        window_width = RESOLUTIONS[window_height] + INDICATORS_WIDTH_ADDITION
 
-        self.window_height = WINDOW_HEIGHT if not reverse else WINDOW_WIDTH
-        self.window_width = WINDOW_WIDTH if not reverse else WINDOW_HEIGHT
-        window_size = f'{WINDOW_HEIGHT}x{WINDOW_WIDTH + INDICATORS_OFFSET}' if not reverse else \
-            f'{WINDOW_WIDTH + MENU_OFFSET}x{WINDOW_HEIGHT + INDICATORS_OFFSET}'
+        self.window_height = window_height if not reverse else window_width
+        self.window_width = window_width if not reverse else window_height
+        window_size = f'{window_height}x{window_width + INDICATORS_WIDTH_ADDITION}' if not reverse else \
+            f'{window_width + REVERSED_MENU_HEIGHT_ADDITION}x{window_height + INDICATORS_WIDTH_ADDITION}'
         self._root.geometry(window_size)
 
         if reverse:
@@ -166,12 +171,19 @@ class View:
         self._tip.config(text=text)
 
     def open_settings(self):
-        self.settings = Toplevel(self._root)
-        self.settings.title('Настройки')
+        if self._settings is not None:
+            self.focus_on_settings_window()
+            return
+        self._settings = Toplevel(self._root)
+        self._settings.title('Настройки')
+
+        reset_settings_button = Button(self._settings, command=self._view_model.reset_settings, text='Сбросить настройки')
+        reset_settings_button.pack(pady=MARGIN_FIELDS)
+
         params = {}
         for param in dir(settings):
             if param.isupper():
-                frame = Frame(self.settings)
+                frame = Frame(self._settings)
                 frame.pack(fill=X)
                 label = Label(frame, text=f'{param} =')
                 label.pack(side=LEFT, pady=MARGIN_FIELDS, padx=MARGIN_FIELDS)
@@ -181,10 +193,14 @@ class View:
                 params[param] = edit
                 edit.pack(side=LEFT, pady=MARGIN_FIELDS, padx=MARGIN_FIELDS)
                 edit.insert(ZERO_LINE_AND_COLUMN, text_param)
-        buttons_frame = Frame(self.settings)
+        pick_color_button = Button(self._settings, command=self._view_model.pick_color, text='Выбрать цвет отрисовки')
+        pick_color_button.pack(pady=MARGIN_FIELDS)
+
+        buttons_frame = Frame(self._settings)
         buttons_frame.pack(pady=MARGIN_FIELDS)
         save_settings = partial(self._view_model.save_settings, params)
         exit_settings = partial(self.exit_settings, params)
+        self._settings.protocol("WM_DELETE_WINDOW", exit_settings)
         exit_settings_button = Button(buttons_frame, command=exit_settings, text='Закрыть')
         save_button = Button(buttons_frame, command=save_settings, text='Сохранить')
         save_button.pack(padx=BUTTON_MARGIN, side=RIGHT)
@@ -198,17 +214,25 @@ class View:
             try:
                 number_param = float(text_param) if '.' in text_param else int(text_param)
             except ValueError:
-                self.settings.destroy()
+                self.destroy_settings_window()
                 return
             else:
                 current_settings.append(number_param)
         if current_settings == global_settings:
-            self.settings.destroy()
+            self.destroy_settings_window()
             return
         else:
             exit_confirm = messagebox.askyesno(title='Предупреждение',
                                                message='Имеются несохранённые параметры. '
                                                        'Хотите закрыть окно без сохранения?')
-            self.settings.focus_force()
+            self.focus_on_settings_window()
             if exit_confirm:
-                self.settings.destroy()
+                self.destroy_settings_window()
+
+    def destroy_settings_window(self):
+        self._settings.destroy()
+        self._settings = None
+
+    def focus_on_settings_window(self):
+        if self._settings:
+            self._settings.focus_force()

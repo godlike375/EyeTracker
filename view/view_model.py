@@ -1,12 +1,20 @@
+import sys
 from functools import partial
-from tkinter import Tk, END
+from tkinter import Tk, END, colorchooser
 
 from common.coordinates import Point
 from model.selector import LEFT_CLICK, LEFT_DOWN, LEFT_UP
-from common.settings import settings
+from common.settings import settings, private_settings, AREA, SelectedArea
 from view import view_output
+from view.drawing import Processor
 
 MOUSE_EVENTS = ('<Button-1>', '<B1-Motion>', '<ButtonRelease-1>')
+COLOR_RGB_INDEX = 0
+G_INDEX = 1
+R_INDEX = 0
+B_INDEX = 2
+PARAMETERS_APPLIED_AFTER_RESTART = 'Большинство параметров будут применены после перезапуска программы. ' \
+                                   'Желаете закрыть программу сейчас?'
 
 
 class ViewModel:
@@ -86,16 +94,29 @@ class ViewModel:
         self._view.set_tip(f'Подсказка: {tip}')
 
     def save_settings(self, params):
+        errored = False
         for name, text_edit in params.items():
             text_param = text_edit.get(0.0, END)[:-1]
             try:
                 number_param = float(text_param) if '.' in text_param else int(text_param)
             except ValueError:
+                errored = True
                 view_output.show_warning(f'Некорректное значение параметра {name}:'
                                          f' ожидалось число, введено "{text_param}". Параметр не применён.')
             else:
-                setattr(settings, name, number_param)
-        view_output.show_warning('Большинство параметров будут применены после перезапуска программы.')
+                errored = not settings.__setattr__(name, number_param) or errored
+        if errored:
+            self._view.focus_on_settings_window()
+            return
+        settings.save()
+        confirm = view_output.ask_confirmation(PARAMETERS_APPLIED_AFTER_RESTART)
+        if confirm:
+            self._model.stop_thread()
+            private_settings.save()
+            self.save_area()
+            sys.exit()
+        else:
+            self._view.destroy_settings_window()
 
     def rotate_image(self, degree):
         self._model.rotate_image(degree)
@@ -105,3 +126,38 @@ class ViewModel:
 
     def setup_window_geometry(self, reverse):
         self._view.setup_window_geometry(reverse)
+
+    def pick_color(self):
+        color = colorchooser.askcolor()[COLOR_RGB_INDEX]
+        if color is not None:
+            private_settings.PAINT_COLOR_R = color[R_INDEX]
+            private_settings.PAINT_COLOR_G = color[G_INDEX]
+            private_settings.PAINT_COLOR_B = color[B_INDEX]
+            Processor.load_color()
+
+    def reset_settings(self):
+        confirm = view_output.ask_confirmation('Вы точно желаете сбросить все настройки до значений по-умолчанию?')
+        if not confirm:
+            self._view.focus_on_settings_window()
+            return
+        settings.reset()
+        private_settings.reset()
+        confirm = view_output.ask_confirmation(PARAMETERS_APPLIED_AFTER_RESTART)
+        if confirm:
+            self._model.stop_thread()
+            settings.save()
+            private_settings.save()
+            self.save_area()
+            sys.exit()
+        else:
+            self._view.destroy_settings_window()
+
+    def save_area(self):
+        # TODO: останавливать работу программы нужно где-то в другом месте
+        area_is_selected = self._model.selecting_service.selector_is_selected(AREA)
+        if area_is_selected:
+            if self._model.threshold_calibrator.in_progress and self._model.previous_area:
+                self._model.save(self._model.previous_area.points)
+            else:
+                area_selector = self._model.selecting_service.get_selector(AREA)
+                SelectedArea.save(area_selector.points)

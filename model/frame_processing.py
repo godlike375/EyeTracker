@@ -42,7 +42,7 @@ class Tracker(RectBased, Drawable, ProcessBased):
 
     def start_tracking(self, frame, left_top, right_bottom):
         logger.debug('tracking started')
-        frame = Processor.resize_frame(frame, settings.DOWNSCALE_FACTOR)
+        frame = Processor.resize_frame_relative(frame, settings.DOWNSCALE_FACTOR)
         self._length_xy = Point(abs(left_top.x - right_bottom.x),
                                 abs(left_top.y - right_bottom.y))
 
@@ -56,7 +56,7 @@ class Tracker(RectBased, Drawable, ProcessBased):
         self.start()
 
     def get_tracked_position(self, frame) -> Point:
-        frame = Processor.resize_frame(frame, settings.DOWNSCALE_FACTOR)
+        frame = Processor.resize_frame_relative(frame, settings.DOWNSCALE_FACTOR)
         self.tracker.update(frame)
         rect = self.tracker.get_position()
         for i, coord in enumerate(map(int, (rect.left() / settings.DOWNSCALE_FACTOR,

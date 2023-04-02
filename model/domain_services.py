@@ -5,7 +5,8 @@ from typing import List
 from common.abstractions import Drawable
 from common.coordinates import Point
 from common.logger import logger
-from common.settings import settings, OBJECT, AREA, TRACKER, private_settings
+from common.settings import settings, OBJECT, AREA, TRACKER, private_settings, \
+    RESOLUTIONS, DOWNSCALED_HEIGHT
 from common.thread_helpers import ThreadLoopable, MutableValue
 from model.area_controller import AreaController
 from model.camera_extractor import FrameExtractor
@@ -152,10 +153,10 @@ class Orchestrator(ThreadLoopable):
         self.previous_area = None
         self._throttle_to_fps_viewed = time()
         self._frame_interval = MutableValue(1 / settings.FPS_VIEWED)
-        self.rotate_image(private_settings.ROTATION_ANGLE)
-        self.flip_image(private_settings.FLIP_SIDE)
-        # if self._extractor.initialized and self.laser_service.initialized:
-        self.state_tip.next_state('devices connected')
+        self.rotate_image(private_settings.ROTATION_ANGLE, user_action=False)
+        self.flip_image(private_settings.FLIP_SIDE, user_action=False)
+        if self._extractor.initialized and self.laser_service.initialized:
+            self.state_tip.next_state('devices connected')
         if area is not None:
             self.selecting_service.load_selected_area(area)
 
@@ -173,7 +174,7 @@ class Orchestrator(ThreadLoopable):
                     else:
                         self._throttle_to_fps_viewed = time()
                 self._view_model.set_tip(self.state_tip.current_state_to_tip())
-                processed_image = self.draw_and_convert(frame)
+                processed_image = self.draw_and_convert(self.resize_to_minimum(frame))
                 self._view_model.on_image_ready(processed_image)
             self._current_frame = frame
 
@@ -186,6 +187,17 @@ class Orchestrator(ThreadLoopable):
         except Exception as e:
             view_output.show_fatal(e)
             logger.exception('Unexpected exception:')
+
+    def resize_to_minimum(self, frame):
+        frame_width = frame.shape[0]
+        frame_height = frame.shape[1]
+        if frame_height == DOWNSCALED_HEIGHT or frame_width == DOWNSCALED_HEIGHT:
+            return frame
+        reversed =  frame_height < frame_width
+        down_width = RESOLUTIONS[DOWNSCALED_HEIGHT]
+        if reversed:
+            return Processor.resize_frame_absolute(frame, DOWNSCALED_HEIGHT, down_width)
+        return Processor.resize_frame_absolute(frame, down_width, DOWNSCALED_HEIGHT)
 
     def draw_and_convert(self, frame):
         processed = Processor.draw_active_objects(frame, self.selecting_service.get_active_objects())
@@ -323,22 +335,34 @@ class Orchestrator(ThreadLoopable):
             return
         self.laser_service.move_laser(x, y)
 
-    def cancel_active_process(self):
+    def cancel_active_process(self, confirm=True):
+        if confirm:
+            confirm = view_output.ask_confirmation('Прервать активный процесс?')
+            if not confirm:
+                return
         self.selecting_service.cancel_selecting()
         self.threshold_calibrator.stop()
         self.restore_previous_area()
         settings.NOISE_THRESHOLD_PERCENT = 0.0
         self._frame_interval.value = 1 / settings.FPS_VIEWED
         self.state_tip.next_state('area selected')
+        Processor.load_color()
 
-    def rotate_image(self, degree):
+    def rotate_image(self, degree, user_action=True):
         if self.tracker.in_progress:
             view_output.show_warning('Запрещено поворачивать изображение во время слежения за объектом')
             return
-        if private_settings.ROTATION_ANGLE == degree:
+
+        if private_settings.ROTATION_ANGLE == degree and user_action:
             return
+
+        if self.selecting_service.selector_is_selected(AREA):
+            confirm = view_output.ask_confirmation('Выделенная область будет стёрта. Продолжить?')
+            if not confirm:
+                return
+
         private_settings.ROTATION_ANGLE = degree
-        self.cancel_active_process()
+        self.cancel_active_process(confirm=False)
         self.selecting_service.stop_drawing(AREA)
         self._extractor.set_frame_rotate(degree)
         if degree in (90, 270):
@@ -347,14 +371,21 @@ class Orchestrator(ThreadLoopable):
             self._view_model.setup_window_geometry(reverse=False)
         self.previous_area = None
 
-    def flip_image(self, side):
+    def flip_image(self, side, user_action=True):
         if self.tracker.in_progress:
             view_output.show_warning('Запрещено отражать зеркально изображение во время слежения за объектом')
             return
-        if private_settings.FLIP_SIDE == side:
+
+        if private_settings.FLIP_SIDE == side and user_action:
             return
+
+        if self.selecting_service.selector_is_selected(AREA):
+            confirm = view_output.ask_confirmation('Выделенная область будет стёрта. Продолжить?')
+            if not confirm:
+                return
+
         private_settings.FLIP_SIDE = side
-        self.cancel_active_process()
+        self.cancel_active_process(confirm=False)
         self.selecting_service.stop_drawing(AREA)
         self._extractor.set_frame_flip(side)
         self.previous_area = None

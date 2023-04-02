@@ -9,8 +9,9 @@ from common.logger import logger
 from model.selector import AreaSelector
 from view import view_output
 from view.drawing import Processor
+from common.settings import get_repo_path
 
-SOUND_NAME = r'alert.wav'
+SOUND_NAME = 'alert.wav'
 
 
 class AreaController:
@@ -81,7 +82,8 @@ class AreaController:
 
     def beep(self, out_of_area):
         if out_of_area and not self._beeped:
-            Thread(target=PlaySound, args=(SOUND_NAME, SND_FILENAME | SND_PURGE)).start()
+            sound_path = str(get_repo_path(bundled=True) / SOUND_NAME)
+            Thread(target=PlaySound, args=(sound_path, SND_FILENAME | SND_PURGE)).start()
             self._beeped = True
             Processor.CURRENT_COLOR = Processor.COLOR_RED
         if not out_of_area:

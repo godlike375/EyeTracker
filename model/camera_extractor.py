@@ -16,7 +16,7 @@ DEFAULT_CAMERA_ID = 0
 class FrameExtractor(Initializable):
     def __init__(self, source: int = settings.CAMERA_ID):
         super().__init__(initialized=True)
-        self._frame_rotate_degree = 0
+        self._frame_rotate_degree = private_settings.ROTATION_ANGLE
         self._frame_flip_side = private_settings.FLIP_SIDE
         self.set_source(source)
 
