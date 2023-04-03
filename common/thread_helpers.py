@@ -3,8 +3,7 @@ from threading import (
     Thread, Event, current_thread
 )
 from time import sleep
-
-LOGGER_NAME = 'default'
+from dataclasses import dataclass
 
 
 # https://stackoverflow.com/questions/323972/is-there-any-way-to-kill-a-thread
@@ -32,17 +31,25 @@ def threaded(fn):
     return wrapper
 
 
+@dataclass
+class MutableValue:
+    __slots__ = ["value"]
+    value: object
+
+
 @threaded
-def thread_loop_runner(func, interval: float = 0.05):
+def thread_loop_runner(func, interval: MutableValue = None):
+    if interval is None:
+        interval = MutableValue(0.05)
     while True:
-        sleep(interval)
+        sleep(interval.value)
         if current_thread().is_stopped():
             exit(0)
         func()
 
 
 class ThreadLoopable:
-    def __init__(self, loop_func, interval: float, run_immediately: bool = True):
+    def __init__(self, loop_func, interval: MutableValue, run_immediately: bool = True):
         if run_immediately:
             self.start_thread(loop_func, interval)
 

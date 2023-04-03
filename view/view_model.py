@@ -1,10 +1,20 @@
+import sys
 from functools import partial
-from tkinter import Tk, messagebox
+from tkinter import Tk, END, colorchooser
 
 from common.coordinates import Point
-from common.settings import OBJECT
+from model.selector import LEFT_CLICK, LEFT_DOWN, LEFT_UP
+from common.settings import settings, private_settings, AREA, SelectedArea
+from view import view_output
+from view.drawing import Processor
 
-MOUSE_EVENTS = ('<B1-Motion>', '<Button-1>', '<ButtonRelease-1>')
+MOUSE_EVENTS = ('<Button-1>', '<B1-Motion>', '<ButtonRelease-1>')
+COLOR_RGB_INDEX = 0
+G_INDEX = 1
+R_INDEX = 0
+B_INDEX = 2
+PARAMETERS_APPLIED_AFTER_RESTART = 'Большинство параметров будут применены после перезапуска программы. ' \
+                                   'Желаете закрыть программу сейчас?'
 
 
 class ViewModel:
@@ -28,34 +38,126 @@ class ViewModel:
     def center_laser(self):
         self._model.center_laser()
 
-    def selection_start(self, selector, event):
-        self._model.start_drawing_selected(selector)
-        selector.start(Point(event.x, event.y))
+    def move_laser(self, x, y):
+        self._model.move_laser(x, y)
 
-    def selection_progress(self, selector, event):
-        selector.progress(Point(event.x, event.y))
+    def left_button_click(self, selector, event):
+        selector.left_button_click(Point(event.x, event.y))
 
-    def selection_end(self, selector, event):
-        selector.end(Point(event.x, event.y))
-        for event in MOUSE_EVENTS:
-            self._root.unbind(event)
+    def left_button_down_moved(self, selector, event):
+        selector.left_button_down_moved(Point(event.x, event.y))
 
-    def new_selection(self, name):
-        self._model.stop_drawing_selected(OBJECT)
-        self._model.stop_drawing_selected(name)
-        self._model._tracker.in_progress = False
-        selector = self._model.get_or_create_selector(name)
-        binded_progress = partial(self.selection_progress, selector)
-        binded_start = partial(self.selection_start, selector)
-        binded_end = partial(self.selection_end, selector)
-        event_callbacks = (binded_progress, binded_start, binded_end)
-        for event, callback in zip(MOUSE_EVENTS, event_callbacks):
-            self._root.bind(event, callback)
+    def left_button_up(self, selector, event):
+        selector.left_button_up(Point(event.x, event.y))
+
+    def new_selection(self, name, retry=False):
+        selector = self._model.new_selection(name, retry)
+
+        if selector is None:
+            return
+
+        binded_left_click = (LEFT_CLICK, partial(self.left_button_click, selector))
+        binded_left_down_moved = (LEFT_DOWN, partial(self.left_button_down_moved, selector))
+        binded_left_up = (LEFT_UP, partial(self.left_button_up, selector))
+        event_callbacks = dict([binded_left_click, binded_left_down_moved, binded_left_up])
+        bindings = {}
+        for event, callback, abstract_name in zip(MOUSE_EVENTS, event_callbacks.values(), event_callbacks.keys()):
+            bindings[abstract_name] = partial(self._root.bind, event, callback)
+
+        unbind_left_click = (LEFT_CLICK, partial(self._root.unbind, MOUSE_EVENTS[0]))
+        unbind_left_down_moved = (LEFT_DOWN, partial(self._root.unbind, MOUSE_EVENTS[1]))
+        unbind_left_up = (LEFT_UP, partial(self._root.unbind, MOUSE_EVENTS[2]))
+        unbindings = (unbind_left_click, unbind_left_down_moved, unbind_left_up)
+
+        selector.bind_events(bindings, unbindings)
+        self._model.selecting_service.start_drawing(selector, name)
+
+    def calibrate_noise_threshold(self):
+        self._model.calibrate_noise_threshold(self._view.window_width, self._view.window_height)
 
     def selector_is_selected(self, name):
-        selector = self._model.get_or_create_selector(name)
-        return selector.is_selected()
+        return self._model.selecting_service.selector_is_selected(name)
 
-    @staticmethod
-    def show_message(message: str, title: str = ''):
-        messagebox.showerror(title, message)
+    def cancel_active_process(self):
+        self._model.cancel_active_process()
+
+    def progress_bar_set_visibility(self, visible):
+        self._view.progress_bar_set_visibility(visible)
+
+    def progress_bar_set_value(self, val):
+        self._view.progress_bar_set_value(val)
+
+    def progress_bar_get_value(self):
+        return self._view.progress_bar_get_value()
+
+    def set_tip(self, tip):
+        self._view.set_tip(f'Подсказка: {tip}')
+
+    def save_settings(self, params):
+        errored = False
+        for name, text_edit in params.items():
+            text_param = text_edit.get(0.0, END)[:-1]
+            try:
+                number_param = float(text_param) if '.' in text_param else int(text_param)
+            except ValueError:
+                errored = True
+                view_output.show_warning(f'Некорректное значение параметра {name}:'
+                                         f' ожидалось число, введено "{text_param}". Параметр не применён.')
+            else:
+                errored = not settings.__setattr__(name, number_param) or errored
+        if errored:
+            self._view.focus_on_settings_window()
+            return
+        settings.save()
+        confirm = view_output.ask_confirmation(PARAMETERS_APPLIED_AFTER_RESTART)
+        if confirm:
+            self._model.stop_thread()
+            private_settings.save()
+            self.save_area()
+            sys.exit()
+        else:
+            self._view.destroy_settings_window()
+
+    def rotate_image(self, degree):
+        self._model.rotate_image(degree)
+
+    def flip_image(self, side):
+        self._model.flip_image(side)
+
+    def setup_window_geometry(self, reverse):
+        self._view.setup_window_geometry(reverse)
+
+    def pick_color(self):
+        color = colorchooser.askcolor()[COLOR_RGB_INDEX]
+        if color is not None:
+            private_settings.PAINT_COLOR_R = color[R_INDEX]
+            private_settings.PAINT_COLOR_G = color[G_INDEX]
+            private_settings.PAINT_COLOR_B = color[B_INDEX]
+            Processor.load_color()
+
+    def reset_settings(self):
+        confirm = view_output.ask_confirmation('Вы точно желаете сбросить все настройки до значений по-умолчанию?')
+        if not confirm:
+            self._view.focus_on_settings_window()
+            return
+        settings.reset()
+        private_settings.reset()
+        confirm = view_output.ask_confirmation(PARAMETERS_APPLIED_AFTER_RESTART)
+        if confirm:
+            self._model.stop_thread()
+            settings.save()
+            private_settings.save()
+            self.save_area()
+            sys.exit()
+        else:
+            self._view.destroy_settings_window()
+
+    def save_area(self):
+        # TODO: останавливать работу программы нужно где-то в другом месте
+        area_is_selected = self._model.selecting_service.selector_is_selected(AREA)
+        if area_is_selected:
+            if self._model.threshold_calibrator.in_progress and self._model.previous_area:
+                self._model.save(self._model.previous_area.points)
+            else:
+                area_selector = self._model.selecting_service.get_selector(AREA)
+                SelectedArea.save(area_selector.points)

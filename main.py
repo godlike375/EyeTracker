@@ -1,57 +1,64 @@
 import argparse
-import logging
 from pathlib import Path
-from tkinter import Tk, messagebox
+from tkinter import Tk
 
+from common.logger import logger
 import common.settings
-from common.settings import Settings, SelectedArea
-from common.thread_helpers import LOGGER_NAME
-from model.logical_core import Model
+from common.settings import settings, SelectedArea, AREA, private_settings
+from model.domain_services import Orchestrator
 from view.view_model import ViewModel
 from view.window_form import View
-
-logger = logging.getLogger(LOGGER_NAME)
-
-
-def setup_logger(level):
-    logger.setLevel(level)
-    _log_format = f"[%(levelname)s] %(filename)s %(funcName)s(%(lineno)d): %(message)s"
-    handler = logging.FileHandler('log.txt', mode='w')
-    handler.setFormatter(logging.Formatter(_log_format))
-    logger.addHandler(handler)
+from view import view_output
+from view.drawing import Processor
 
 
 def main(args):
-    setup_logger(logging.DEBUG)
     common.settings.ROOT_DIR = Path(__file__).absolute().parent
     if args.root_dir:
         common.settings.ROOT_DIR = args.root_dir
+    root = Tk()
     try:
-        Settings.load()
-        area = SelectedArea.load()
-        logger.debug('settings loaded')
+        settings.load()
+        private_settings.load()
+        Processor.load_color()
     except Exception as e:
-        messagebox.showerror(title='Ошибка загрузки конфигурации', message=f'{e}')
+        view_output.show_message(title='Ошибка загрузки конфигурации',
+                            message=f'{e} \nРабота программы будет продолжена, но возможны сбои в работе.'
+                                    f' Рекоммендуется перезагрузка')
+        logger.exception(e)
+    area = None
     try:
-        root = Tk()
+        area = SelectedArea.load()
+    except Exception as e:
+        view_output.show_warning(message=f'Ошибка загрузки ранее выделенной области \n{e} \nРабота программы будет продолжена')
+        logger.exception(e)
+    logger.debug('settings loaded')
+    try:
         view_model = ViewModel(root)
-        form = View(root, view_model).setup()
+        form = View(root, view_model)
         view_model.set_view(form)
-        model_core = Model(view_model, area=area)
+        model_core = Orchestrator(view_model, area=area)
         view_model.set_model(model_core)
         logger.debug('mainloop started')
         root.mainloop()
         logger.debug('mainloop finished')
     except Exception as e:
-        ViewModel.show_message(title='Фатальная ошибка', message=f'{e}')
+        view_output.show_message(title='Фатальная ошибка', message=f'{e}')
         logger.exception(e)
     else:
-        model_core.center_laser()
+        model_core.laser_service.center_laser()
         model_core.stop_thread()
-        Settings.save()
-        area_selector = model_core.get_or_create_selector('area')
-        if area_selector.is_selected():
-            SelectedArea.save(area_selector.left_top, area_selector.right_bottom)
+        settings.save()
+        private_settings.save()
+        area_is_selected = model_core.selecting_service.selector_is_selected(AREA)
+        if area_is_selected:
+            if model_core.threshold_calibrator.in_progress and model_core.previous_area:
+                SelectedArea.save(model_core.previous_area.points)
+            else:
+                area_selector = model_core.selecting_service.get_selector(AREA)
+                SelectedArea.save(area_selector.points)
+        else:
+            SelectedArea.remove()
         logger.debug('settings saved')
 
 

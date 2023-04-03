@@ -1,42 +1,57 @@
-import logging
 from time import time
 
 from serial import Serial, SerialException
+from serial.tools import list_ports
 
 from common.coordinates import Point
-from common.settings import Settings
-from common.thread_helpers import LOGGER_NAME
-from view.view_model import ViewModel
+from common.logger import logger
+from common.settings import settings
+from common.abstractions import Initializable
+from view import view_output
 
 READY = 'ready'
+LASER_DEVICE_NAME = 'usb-serial ch340'
 
-logger = logging.getLogger(LOGGER_NAME)
 
+class MoveController(Initializable):
 
-class MoveController:
-
-    def __init__(self, port=None, baund_rate=None, serial_off=False):
+    def __init__(self, manual_port=None, baud_rate=None, serial_off=False):
+        super().__init__(initialized=True)
         # TODO: к настройкам должно обращаться что-то внещнее в идеале и передавать эти параметры сюда
-        port = port or f'com{Settings.SERIAL_PORT}'
-        baund_rate = baund_rate or Settings.SERIAL_BAUND_RATE
+        manual_port = manual_port or f'COM{settings.SERIAL_PORT}'
+        baud_rate = baud_rate or settings.SERIAL_BAUD_RATE
         self._timer = time()
         self._current_position = Point(0, 0)
         self._ready = True
         self._timer = time()
-        if not serial_off:
-            try:
-                self._serial = Serial(port, baund_rate, timeout=Settings.SERIAL_TIMEOUT)
-            except SerialException as e:
-                logger.exception(str(e))
-                ViewModel.show_message(f'Не удалось открыть последовательный порт под номером {port}. '
-                                       f'Программа продолжит работать без контроллера лазера.', 'Предупреждение')
-                self._serial = MockSerial()
-        else:
-            self._serial = MockSerial()
+        self._serial = SerialStub()
+        if serial_off:
+            view_output.show_message('Последовательный порт используется в режиме отладки', 'Предупреждение')
+            return
+
+        try:
+            self._serial = Serial(manual_port, baud_rate, timeout=settings.SERIAL_TIMEOUT)
+        except SerialException:
+            logger.exception('Manual com port was not found. Attempting to use auto-detection')
+
+        auto_detected = manual_port
+        com_ports = list_ports.comports()
+        for p in com_ports:
+            if LASER_DEVICE_NAME in p.description.lower():
+                auto_detected = p.device
+
+        try:
+            self._serial = Serial(auto_detected, baud_rate, timeout=settings.SERIAL_TIMEOUT)
+        except SerialException as e:
+            self.init_error()
+            logger.exception(str(e))
+            view_output.show_warning(f'Не удалось открыть заданный настройкой SERIAL_PORT последовательный порт '
+                                     f'{manual_port}, а так же не удалось определить подходящий порт автоматически. '
+                                     f'Программа продолжит работать без контроллера лазера.')
 
     @property
     def _can_send(self):
-        if time() - self._timer > Settings.STABLE_POSITION_DURATION:
+        if time() - self._timer > settings.STABLE_POSITION_DURATION:
             return True
         return False
 
@@ -64,7 +79,7 @@ class MoveController:
         self._move_laser(position)
 
 
-class MockSerial(Serial):
+class SerialStub(Serial):
     READY_INTERVAL = 0.005  # sec
 
     def __init__(self):
@@ -72,7 +87,7 @@ class MockSerial(Serial):
 
     @property
     def _is_ready(self):
-        ready = time() - self._ready_timer >= MockSerial.READY_INTERVAL
+        ready = time() - self._ready_timer >= SerialStub.READY_INTERVAL
         if ready:
             self._ready_timer = time()
         return ready

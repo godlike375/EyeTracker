@@ -1,9 +1,17 @@
-import logging
+from threading import Thread
+from winsound import PlaySound, SND_PURGE, SND_FILENAME
+
+import cv2
+import numpy as np
 
 from common.coordinates import Point
-from common.thread_helpers import LOGGER_NAME
+from common.logger import logger
+from model.selector import AreaSelector
+from view import view_output
+from view.drawing import Processor
+from common.settings import get_repo_path
 
-logger = logging.getLogger(LOGGER_NAME)
+SOUND_NAME = 'alert.wav'
 
 
 class AreaController:
@@ -11,28 +19,76 @@ class AreaController:
     def __init__(self, min_xy, max_xy):
         # max resolution in abstract distance units
         self._resolution_xy = abs(min_xy - max_xy)
-        self._left_top = None
-        self._right_bottom = None
-        self._length_xy = None
-        self._dpi_xy = None
+        self._max_xy = Point(0, 0)
+        self._dpi_xy = Point(0, 0)
+        self._translation_matrix = None
+        self._is_set = False
+        self._beeped = False
 
     @staticmethod
-    def calc_center(xy: Point, xy2: Point) -> Point:
-        return Point(int((xy.x + xy2.x) / 2), int((xy.y + xy2.y) / 2))
+    def calc_center(left_top: Point, right_bottom: Point) -> Point:
+        return Point(int((left_top.x + right_bottom.x) / 2), int((left_top.y + right_bottom.y) / 2))
 
-    def set_area(self, left_top: Point, right_bottom: Point):
-        self._left_top = left_top
-        self._right_bottom = right_bottom
-        self._length_xy = Point(abs(left_top.x - right_bottom.x), abs(left_top.y - right_bottom.y))
-        self._dpi_xy = Point(self._resolution_xy / self._length_xy.x, self._resolution_xy / self._length_xy.y)
-        self.center = AreaController.calc_center(left_top, right_bottom)
-        logger.debug(f'set area {left_top} {right_bottom}')
+    def set_area(self, area: AreaSelector):
+        points = area.points
+        tl, tr, br, bl = points
+        # https://theailearner.com/tag/cv2-getperspectivetransform/
+        bottom_width = np.sqrt(((br.x - bl.x) ** 2) + ((br.y - bl.y) ** 2))
+        top_width = np.sqrt(((tr.x - tl.x) ** 2) + ((tr.y - tl.y) ** 2))
+        max_width = max(int(bottom_width), int(top_width))
 
-    def rect_intersected_borders(self, left_top: Point, right_bottom: Point) -> Point:
-        return left_top.x < self._left_top.x or \
-               right_bottom.x > self._right_bottom.x or \
-               left_top.y < self._left_top.y or \
-               right_bottom.y > self._right_bottom.y
+        right_height = np.sqrt(((tr.x - br.x) ** 2) + ((tr.y - br.y) ** 2))
+        left_height = np.sqrt(((tl.x - bl.x) ** 2) + ((tl.y - bl.y) ** 2))
+        max_height = max(int(right_height), int(left_height))
+        max_size = max(max_height, max_width)
+        transformed_points_array = np.array([[0, 0], [max_size, 0], [max_size, max_size], [0, max_size]],
+                                            dtype="float32")
+
+        points_array = np.array([(*pt,) for pt in points], dtype="float32")
+
+        self._translation_matrix = cv2.getPerspectiveTransform(points_array, transformed_points_array)
+
+        self._max_xy = Point(max_size, max_size)
+        try:
+            self._dpi_xy = Point(self._resolution_xy / self._max_xy.x, self._resolution_xy / self._max_xy.y)
+        except ZeroDivisionError:
+            # TODO: проверить, остался ли этот кейс
+            view_output.show_message('Область не может быть пустой', 'Ошибка')
+            return
+        self.center = Point(max_size / 2, max_size / 2)
+        self._is_set = True
+        logger.debug(f'set area {points}')
+
+    def translate_coordinates(self, point: Point):
+        m = self._translation_matrix
+        x = point.x
+        y = point.y
+        common_denominator = (m[2, 0] * x + m[2, 1] * y + m[2, 2])
+        X = (m[0, 0] * x + m[0, 1] * y + m[0, 2]) / common_denominator
+        Y = (m[1, 0] * x + m[1, 1] * y + m[1, 2]) / common_denominator
+        return Point(int(X), int(Y))
+
+    def point_is_out_of_area(self, point: Point, beep_sound_allowed=False) -> bool:
+        if not self._is_set:
+            self._beeped = False
+            return False
+        # https://docs.opencv.org/4.x/da/d54/group__imgproc__transform.html#gaf73673a7e8e18ec6963e3774e6a94b87
+        translated = self.translate_coordinates(point)
+        out_of_area = translated.x < 0 or translated.x > self._max_xy.x \
+            or translated.y < 0 or translated.y > self._max_xy.y
+        if beep_sound_allowed:
+            self.beep(out_of_area)
+        return out_of_area
+
+    def beep(self, out_of_area):
+        if out_of_area and not self._beeped:
+            sound_path = str(get_repo_path(bundled=True) / SOUND_NAME)
+            Thread(target=PlaySound, args=(sound_path, SND_FILENAME | SND_PURGE)).start()
+            self._beeped = True
+            Processor.CURRENT_COLOR = Processor.COLOR_RED
+        if not out_of_area:
+            Processor.CURRENT_COLOR = Processor.COLOR_GREEN
+            self._beeped = False
 
     def calc_relative_coords(self, object_center: Point) -> Point:
         relative = object_center - self.center
