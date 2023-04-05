@@ -10,6 +10,7 @@ from common.abstractions import Initializable
 from view import view_output
 
 READY = 'ready'
+ERRORED = 'error'
 LASER_DEVICE_NAME = 'usb-serial ch340'
 
 
@@ -23,6 +24,8 @@ class MoveController(Initializable):
         self._timer = time()
         self._current_position = Point(0, 0)
         self._ready = True
+        self._errored = False
+        self._current_line = ''
         self._timer = time()
         self._serial = SerialStub()
         if serial_off:
@@ -50,18 +53,27 @@ class MoveController(Initializable):
                                      f'Программа продолжит работать без контроллера лазера.')
 
     @property
-    def _can_send(self):
+    def can_send(self):
         if time() - self._timer > settings.STABLE_POSITION_DURATION:
             return True
         return False
 
     @property
-    def _is_ready(self):
+    def is_ready(self):
         if not self._ready:
-            line = self._serial.readline()
-            if READY in str(line):
+            if READY in str(self._current_line):
                 self._ready = True
         return self._ready
+
+    @property
+    def is_errored(self):
+        if not self._errored:
+            if ERRORED in str(self._current_line):
+                self._errored = True
+        return self._errored
+
+    def read_line(self):
+        self._current_line = self._serial.readline()
 
     def _move_laser(self, position: Point, command=1):
         message = (f'{position.x};{position.y};{command}\n').encode('ascii', 'ignore')
@@ -71,8 +83,6 @@ class MoveController(Initializable):
 
     def set_new_position(self, position: Point):
         if position == self._current_position:
-            return
-        if not self._can_send and not self._is_ready:
             return
         self._timer = time()
         self._current_position = position

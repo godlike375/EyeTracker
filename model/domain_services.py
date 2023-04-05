@@ -18,6 +18,7 @@ from view.drawing import Processor
 from view.view_model import ViewModel
 
 MIN_THROTTLE_DIFFERENCE = 1.5
+CALIBRATE = 2
 
 
 # Пробовал увеличивать количество потоков в программе до 4-х (+ экстрактор + трекер в своих потоках)
@@ -93,10 +94,13 @@ class LaserService():
     def __init__(self):
         self._laser_controller = MoveController(serial_off=False)
         self.initialized = self._laser_controller.initialized
+        self.errored = False
 
     def calibrate_laser(self):
         logger.debug('laser calibrated')
-        self._laser_controller._move_laser(Point(0, 0), command=2)
+        self._laser_controller._move_laser(Point(0, 0), command=CALIBRATE)
+        self.errored = False
+        self._laser_controller._errored = False
 
     def center_laser(self):
         logger.debug('laser centered')
@@ -107,7 +111,17 @@ class LaserService():
         self._laser_controller._move_laser(Point(x, y))
 
     def set_new_position(self, position: Point):
-        self._laser_controller.set_new_position(position)
+        self._laser_controller.read_line()
+        if self._laser_controller.is_errored:
+            self.errored = True
+            view_output.show_fatal('Контроллер лазера внезапно встал на концевик. Это непредвиденная ситуация. '
+                                   'Необходимо откалибровать контроллер лазера повторно. '
+                                   'До этого момента слежения за объектом невозможно')
+            return None
+        if  self._laser_controller.can_send and self._laser_controller.is_ready:
+            self._laser_controller.set_new_position(position)
+            return True
+        return False
 
 
 class StateTipSupervisor:
@@ -216,14 +230,14 @@ class Orchestrator(ThreadLoopable):
                 self._view_model.progress_bar_set_value(progress_value)
 
     def noise_threshold_calibrated(self):
+        self.tracker.stop()
+        self.selecting_service.stop_drawing(OBJECT)
         self.restore_previous_area()
         settings.NOISE_THRESHOLD_PERCENT = round(settings.NOISE_THRESHOLD_PERCENT, 5)
         self.state_tip.next_state('noise threshold calibrated')
         view_output.show_message('Калибровка шумоподавления успешно завершена.')
 
     def restore_previous_area(self):
-        self.tracker.stop()
-        self.selecting_service.stop_drawing(OBJECT)
         if self.previous_area is not None:
             self.selecting_service.start_drawing(self.previous_area, AREA)
             self._area_controller.set_area(self.previous_area)
@@ -231,9 +245,14 @@ class Orchestrator(ThreadLoopable):
 
     def _move_to_relative_cords(self, center):
         out_of_area = self._area_controller.point_is_out_of_area(center, beep_sound_allowed=True)
-        if not out_of_area:
-            relative_coords = self._area_controller.calc_relative_coords(center)
-            self.laser_service.set_new_position(relative_coords.to_int())
+        if out_of_area:
+            return
+
+        relative_coords = self._area_controller.calc_relative_coords(center)
+        result = self.laser_service.set_new_position(relative_coords.to_int())
+        if result is None:
+            self.cancel_active_process(confirm=False)
+
 
     def check_selected(self, name):
         selector = self.selecting_service.get_selector(name)
@@ -285,6 +304,13 @@ class Orchestrator(ThreadLoopable):
             if not self.selecting_service.selector_is_selected(AREA):
                 view_output.show_warning('Перед выделением объекта необходимо выделить область слежения.')
                 return
+
+            if self.laser_service.errored:
+                view_output.show_warning(
+                    'Необходимо откалибровать контроллер лазера повторно. '
+                    'До этого момента слежения за объектом невозможно')
+                return
+
             self.selecting_service.object_is_selecting = True
 
         if AREA in name:
@@ -337,11 +363,16 @@ class Orchestrator(ThreadLoopable):
 
     def cancel_active_process(self, confirm=True):
         if confirm:
-            confirm = view_output.ask_confirmation('Прервать активный процесс?')
-            if not confirm:
-                return
+            if self.selecting_service.object_is_selecting or \
+                self.threshold_calibrator.in_progress or \
+                self.tracker.in_progress:
+                confirm = view_output.ask_confirmation('Прервать активный процесс?')
+                if not confirm:
+                    return
         self.selecting_service.cancel_selecting()
         self.threshold_calibrator.stop()
+        self.tracker.stop()
+        self.selecting_service.stop_drawing(OBJECT)
         self.restore_previous_area()
         settings.NOISE_THRESHOLD_PERCENT = 0.0
         self._frame_interval.value = 1 / settings.FPS_VIEWED
