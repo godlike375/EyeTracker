@@ -77,6 +77,8 @@ class MoveController(Initializable):
 
     def _move_laser(self, position: Point, command=1):
         message = (f'{position.x};{position.y};{command}\n').encode('ascii', 'ignore')
+        # Конвертация в систему координат контроллера лазера
+        # {position.y};{-position.x}
         self._serial.write(message)
         self._timer = time()
         self._ready = False

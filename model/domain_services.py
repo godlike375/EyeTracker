@@ -135,8 +135,8 @@ class StateTipSupervisor:
             'object selected': 'Активен сеанс отслеживания объекта'
         })
 
-    def __init__(self, model):
-        self._model = model
+    def __init__(self, view_model):
+        self._view_model = view_model
         self._state = 'program started'
 
     def next_state(self, event: str):
@@ -145,6 +145,7 @@ class StateTipSupervisor:
         event_index = event_keys.index(event)
         if abs(state_index - event_index) == 1:
             self._state = event
+        self._view_model.set_tip(self.current_state_to_tip())
 
     def current_state_to_tip(self):
         return StateTipSupervisor.EVENT_STATE_PRIORITY[self._state]
@@ -160,7 +161,7 @@ class Orchestrator(ThreadLoopable):
                                                max_xy=settings.MAX_LASER_RANGE_PLUS_MINUS)
         self.tracker = Tracker(settings.TRACKING_FRAMES_MEAN_NUMBER)
         self.laser_service = LaserService()
-        self.state_tip = StateTipSupervisor(self)
+        self.state_tip = StateTipSupervisor(self._view_model)
 
         self._current_frame = None
         self.threshold_calibrator = NoiseThresholdCalibrator()
@@ -187,7 +188,6 @@ class Orchestrator(ThreadLoopable):
                         return
                     else:
                         self._throttle_to_fps_viewed = time()
-                self._view_model.set_tip(self.state_tip.current_state_to_tip())
                 processed_image = self.draw_and_convert(self.resize_to_minimum(frame))
                 self._view_model.on_image_ready(processed_image)
             self._current_frame = frame

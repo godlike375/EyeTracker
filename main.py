@@ -11,6 +11,19 @@ from view.window_form import View
 from view import view_output
 from view.drawing import Processor
 
+def save_data(model_core):
+    settings.save()
+    private_settings.save()
+    area_is_selected = model_core.selecting_service.selector_is_selected(AREA)
+    if area_is_selected:
+        if model_core.threshold_calibrator.in_progress and model_core.previous_area:
+            SelectedArea.save(model_core.previous_area.points)
+        else:
+            area_selector = model_core.selecting_service.get_selector(AREA)
+            SelectedArea.save(area_selector.points)
+    else:
+        SelectedArea.remove()
+    logger.debug('settings saved')
 
 def main(args):
     common.settings.ROOT_DIR = Path(__file__).absolute().parent
@@ -42,24 +55,17 @@ def main(args):
         logger.debug('mainloop started')
         root.mainloop()
         logger.debug('mainloop finished')
-    except Exception as e:
-        view_output.show_message(title='Фатальная ошибка', message=f'{e}')
-        logger.exception(e)
-    else:
-        model_core.laser_service.center_laser()
         model_core.stop_thread()
-        settings.save()
-        private_settings.save()
-        area_is_selected = model_core.selecting_service.selector_is_selected(AREA)
-        if area_is_selected:
-            if model_core.threshold_calibrator.in_progress and model_core.previous_area:
-                SelectedArea.save(model_core.previous_area.points)
-            else:
-                area_selector = model_core.selecting_service.get_selector(AREA)
-                SelectedArea.save(area_selector.points)
-        else:
-            SelectedArea.remove()
+        model_core.laser_service.center_laser()
+        save_data(model_core)
         logger.debug('settings saved')
+    except Exception as e:
+        view_output.show_message(title='Фатальная ошибка', message=f'Произошла фатальная ошибка.\n'
+                                                                   f'{e}\n'
+                                                                   f'Работа программы не может быть продолжена. '
+                                                                   f'Будет произведена попытка сохранения данных')
+        logger.exception(e)
+        save_data(model_core)
 
 
 if __name__ == '__main__':

@@ -42,6 +42,9 @@ class View:
         self._progress_bar = Progressbar(self._indicators_frame)
         self._settings = None
 
+        self._current_tip = ''
+        self._new_tip = ''
+
         self.setup_menus()
         self.setup_layout()
 
@@ -154,6 +157,10 @@ class View:
         else:
             self._image_alive_ref = ImageTk.PhotoImage(image=image)
             self._video_label.configure(image=self._image_alive_ref)
+        
+        if self._new_tip != self._current_tip:
+            self._current_tip = self._new_tip
+            self._tip.config(text=self._new_tip)
 
     def progress_bar_set_visibility(self, visible):
         if not visible:
@@ -168,7 +175,7 @@ class View:
         return self._progress_bar['value']
 
     def set_tip(self, text):
-        self._tip.config(text=text)
+        self._new_tip = text
 
     def open_settings(self):
         if self._settings is not None:
