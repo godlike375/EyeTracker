@@ -84,6 +84,9 @@ class MoveController(Initializable):
         self._ready = False
 
     def set_new_position(self, position: Point):
+        if abs(position.x) > settings.MAX_LASER_RANGE_PLUS_MINUS or \
+                abs(position.y) > settings.MAX_LASER_RANGE_PLUS_MINUS:
+            return
         if position == self._current_position:
             return
         self._timer = time()
