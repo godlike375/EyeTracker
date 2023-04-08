@@ -216,3 +216,7 @@ class SelectedArea:
         path = base_path / folder / file
         if exists(path):
             remove(path)
+
+
+MIN_THROTTLE_DIFFERENCE = 1.5
+CALIBRATE = 2
