@@ -16,5 +16,6 @@ def show_fatal(e):
                  message=f'Фатальная ошибка.\n{e} \nРабота программы будет продолжена, но может стать нестабильной')
     logger.fatal(e)
 
+
 def ask_confirmation(question):
     return messagebox.askyesno(title='Предупреждение', message=question)

@@ -1,19 +1,19 @@
+from functools import partial
 from tkinter import (
     Label, Tk, Frame, Menu,
     TOP, BOTTOM, X, Toplevel,
     Text, Button, LEFT, W,
     messagebox, END, RIGHT,
-                     )
+)
 from tkinter.ttk import Progressbar
-from functools import partial
 
 from PIL import ImageTk
 
-from common.settings import (
-    settings, AREA, OBJECT,FLIP_SIDE_NONE, FLIP_SIDE_VERTICAL,
-    FLIP_SIDE_HORIZONTAL, RESOLUTIONS, DOWNSCALED_HEIGHT, get_repo_path
-                             )
 from common.logger import logger
+from common.settings import (
+    settings, AREA, OBJECT, FLIP_SIDE_NONE, FLIP_SIDE_VERTICAL,
+    FLIP_SIDE_HORIZONTAL, RESOLUTIONS, DOWNSCALED_HEIGHT, get_repo_path
+)
 
 SECOND_LENGTH = 1000
 INDICATORS_WIDTH_ADDITION = 20
@@ -107,7 +107,7 @@ class View:
         self._root.title('Eye tracker')
         try:
             self._root.iconbitmap(str(get_repo_path(bundled=True) / "tracking.ico"))
-        except:
+        except Exception:
             logger.debug('tracking.ico not found')
 
         self.setup_window_geometry()
@@ -157,7 +157,7 @@ class View:
         else:
             self._image_alive_ref = ImageTk.PhotoImage(image=image)
             self._video_label.configure(image=self._image_alive_ref)
-        
+
         if self._new_tip != self._current_tip:
             self._current_tip = self._new_tip
             self._tip.config(text=self._new_tip)
@@ -184,7 +184,8 @@ class View:
         self._settings = Toplevel(self._root)
         self._settings.title('Настройки')
 
-        reset_settings_button = Button(self._settings, command=self._view_model.reset_settings, text='Сбросить настройки')
+        reset_settings_button = Button(self._settings, command=self._view_model.reset_settings,
+                                       text='Сбросить настройки')
         reset_settings_button.pack(pady=MARGIN_FIELDS)
 
         params = {}
@@ -196,7 +197,7 @@ class View:
                 label.pack(side=LEFT, pady=MARGIN_FIELDS, padx=MARGIN_FIELDS)
 
                 text_param = str(getattr(settings, param))
-                edit = Text(frame, width=len(text_param)+1, height=1)
+                edit = Text(frame, width=len(text_param) + 1, height=1)
                 params[param] = edit
                 edit.pack(side=LEFT, pady=MARGIN_FIELDS, padx=MARGIN_FIELDS)
                 edit.insert(ZERO_LINE_AND_COLUMN, text_param)

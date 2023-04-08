@@ -3,8 +3,8 @@ from functools import partial
 from tkinter import Tk, END, colorchooser
 
 from common.coordinates import Point
-from model.selector import LEFT_CLICK, LEFT_DOWN, LEFT_UP
 from common.settings import settings, private_settings, AREA, SelectedArea
+from model.selector import LEFT_CLICK, LEFT_DOWN, LEFT_UP
 from view import view_output
 from view.drawing import Processor
 

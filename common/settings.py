@@ -1,13 +1,12 @@
 import pickle
+import sys
 from abc import ABC, abstractmethod
 from configparser import ConfigParser
 from os import remove
 from os.path import exists
 from pathlib import Path
 from sys import maxsize
-import sys
 
-from common.logger import logger
 from view import view_output
 
 RESOLUTIONS = {1280: 720, 800: 600, 640: 480}
@@ -144,7 +143,6 @@ class Settings:
             return False
         else:
             return True
-
 
     def load(self, folder: str = FOLDER, file: str = FILE):
         base_path = get_repo_path()

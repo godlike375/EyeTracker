@@ -118,7 +118,7 @@ class LaserService():
                                    'Необходимо откалибровать контроллер лазера повторно. '
                                    'До этого момента слежения за объектом невозможно')
             return None
-        if  self._laser_controller.can_send and self._laser_controller.is_ready:
+        if self._laser_controller.can_send and self._laser_controller.is_ready:
             self._laser_controller.set_new_position(position)
             return True
         return False
@@ -156,7 +156,7 @@ class Orchestrator(ThreadLoopable):
     def __init__(self, view_model: ViewModel, run_immediately: bool = True, area: tuple = None):
         self._view_model = view_model
         self._extractor = FrameExtractor(settings.CAMERA_ID)
-        self.selecting_service = SelectingService(self.on_area_selected, self.on_object_selected)
+        self.selecting_service = SelectingService(self._on_area_selected, self._on_object_selected)
         self._area_controller = AreaController(min_xy=-settings.MAX_LASER_RANGE_PLUS_MINUS,
                                                max_xy=settings.MAX_LASER_RANGE_PLUS_MINUS)
         self.tracker = Tracker(settings.TRACKING_FRAMES_MEAN_NUMBER)
@@ -188,7 +188,7 @@ class Orchestrator(ThreadLoopable):
                         return
                     else:
                         self._throttle_to_fps_viewed = time()
-                processed_image = self.draw_and_convert(self.resize_to_minimum(frame))
+                processed_image = self._draw_and_convert(self._resize_to_minimum(frame))
                 self._view_model.on_image_ready(processed_image)
             self._current_frame = frame
 
@@ -202,18 +202,18 @@ class Orchestrator(ThreadLoopable):
             view_output.show_fatal(e)
             logger.exception('Unexpected exception:')
 
-    def resize_to_minimum(self, frame):
+    def _resize_to_minimum(self, frame):
         frame_width = frame.shape[0]
         frame_height = frame.shape[1]
         if frame_height == DOWNSCALED_HEIGHT or frame_width == DOWNSCALED_HEIGHT:
             return frame
-        reversed =  frame_height < frame_width
+        reversed = frame_height < frame_width
         down_width = RESOLUTIONS[DOWNSCALED_HEIGHT]
         if reversed:
             return Processor.resize_frame_absolute(frame, DOWNSCALED_HEIGHT, down_width)
         return Processor.resize_frame_absolute(frame, down_width, DOWNSCALED_HEIGHT)
 
-    def draw_and_convert(self, frame):
+    def _draw_and_convert(self, frame):
         processed = Processor.draw_active_objects(frame, self.selecting_service.get_active_objects())
         return Processor.frame_to_image(processed)
 
@@ -223,21 +223,21 @@ class Orchestrator(ThreadLoopable):
             self._move_to_relative_cords(center)
             return
         if self.threshold_calibrator.is_calibration_successful(center):
-            self.noise_threshold_calibrated()
+            self._noise_threshold_calibrated()
         else:
             progress_value = self.threshold_calibrator.calibration_progress()
             if abs(self._view_model.progress_bar_get_value() - progress_value) > MIN_THROTTLE_DIFFERENCE:
                 self._view_model.progress_bar_set_value(progress_value)
 
-    def noise_threshold_calibrated(self):
+    def _noise_threshold_calibrated(self):
         self.tracker.stop()
         self.selecting_service.stop_drawing(OBJECT)
-        self.restore_previous_area()
+        self._restore_previous_area()
         settings.NOISE_THRESHOLD_PERCENT = round(settings.NOISE_THRESHOLD_PERCENT, 5)
         self.state_tip.next_state('noise threshold calibrated')
         view_output.show_message('Калибровка шумоподавления успешно завершена.')
 
-    def restore_previous_area(self):
+    def _restore_previous_area(self):
         if self.previous_area is not None:
             self.selecting_service.start_drawing(self.previous_area, AREA)
             self._area_controller.set_area(self.previous_area)
@@ -248,21 +248,20 @@ class Orchestrator(ThreadLoopable):
         if out_of_area:
             return
 
-        relative_coords = self._area_controller.calc_relative_coords(center)
-        result = self.laser_service.set_new_position(relative_coords.to_int())
+        relative_coords = self._area_controller.calc_laser_coords(center)
+        result = self.laser_service.set_new_position(relative_coords)
         if result is None:
             self.cancel_active_process(confirm=False)
 
-
-    def check_selected(self, name):
+    def _check_selected(self, name):
         selector = self.selecting_service.get_selector(name)
         self.selecting_service.check_emptiness(selector, name)
         if not self.selecting_service.selector_is_selected(name):
             return False, None
         return True, selector
 
-    def on_area_selected(self):
-        selected, area = self.check_selected(AREA)
+    def _on_area_selected(self):
+        selected, area = self._check_selected(AREA)
         if not selected:
             self._view_model.new_selection(AREA, retry=True)
             return
@@ -270,8 +269,8 @@ class Orchestrator(ThreadLoopable):
         self._area_controller.set_area(area)
         self.state_tip.next_state('area selected')
 
-    def on_object_selected(self):
-        selected, object = self.check_selected(OBJECT)
+    def _on_object_selected(self):
+        selected, object = self._check_selected(OBJECT)
         out_of_area = False
         if selected:
             center = ((object.left_top + object.right_bottom) / 2).to_int()
@@ -364,8 +363,8 @@ class Orchestrator(ThreadLoopable):
     def cancel_active_process(self, confirm=True):
         if confirm:
             if self.selecting_service.object_is_selecting or \
-                self.threshold_calibrator.in_progress or \
-                self.tracker.in_progress:
+                    self.threshold_calibrator.in_progress or \
+                    self.tracker.in_progress:
                 confirm = view_output.ask_confirmation('Прервать активный процесс?')
                 if not confirm:
                     return
@@ -373,7 +372,7 @@ class Orchestrator(ThreadLoopable):
         self.threshold_calibrator.stop()
         self.tracker.stop()
         self.selecting_service.stop_drawing(OBJECT)
-        self.restore_previous_area()
+        self._restore_previous_area()
         settings.NOISE_THRESHOLD_PERCENT = 0.0
         self._frame_interval.value = 1 / settings.FPS_VIEWED
         self.state_tip.next_state('area selected')

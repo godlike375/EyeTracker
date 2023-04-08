@@ -6,10 +6,10 @@ import numpy as np
 
 from common.coordinates import Point
 from common.logger import logger
+from common.settings import get_repo_path
 from model.selector import AreaSelector
 from view import view_output
 from view.drawing import Processor
-from common.settings import get_repo_path
 
 SOUND_NAME = 'alert.wav'
 
@@ -90,7 +90,8 @@ class AreaController:
             Processor.CURRENT_COLOR = Processor.COLOR_GREEN
             self._beeped = False
 
-    def calc_relative_coords(self, object_center: Point) -> Point:
-        relative = object_center - self.center
+    def calc_laser_coords(self, object_center: Point) -> Point:
+        translated_center = self.translate_coordinates(object_center)
+        relative = translated_center - self.center
         relative *= self._dpi_xy
-        return relative
+        return relative.to_int()

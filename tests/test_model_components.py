@@ -160,7 +160,7 @@ def test_area_controller(relative_coords, intersected_coords):
     controller = AreaController(-100, 100)
     controller.set_area(Point(0, 0))
     for coord_set in relative_coords:
-        assert controller.calc_relative_coords(coord_set[0]) == coord_set[1]
+        assert controller.calc_laser_coords(coord_set[0]) == coord_set[1]
     for coord_set in intersected_coords:
         assert controller.point_is_out_of_area(coord_set[0], coord_set[1]) == coord_set[2]
 
