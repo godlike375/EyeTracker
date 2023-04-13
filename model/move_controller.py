@@ -33,24 +33,24 @@ class MoveController(Initializable):
             return
 
         try:
-            self._serial = Serial(manual_port, baud_rate, timeout=settings.SERIAL_TIMEOUT)
+            ports_names = {p.name: p.description.lower() for p in list_ports.comports()}
+            ports_descriptions = {p.description.lower(): p.name for p in list_ports.comports()}
+            if manual_port not in ports_names or ports_names[manual_port] != LASER_DEVICE_NAME:
+                predicate = [(LASER_DEVICE_NAME in description) for description in ports_descriptions]
+                if not any(predicate):
+                    view_output.show_warning(f'Не удалось открыть заданный настройкой SERIAL_PORT последовательный порт'
+                                         f' {manual_port}, а так же не удалось определить подходящий порт автоматически.'
+                                         f' Программа продолжит работать без контроллера лазера.')
+                    return
+                for description in ports_descriptions:
+                    if LASER_DEVICE_NAME in description:
+                        manual_port = ports_descriptions[description]
+            serial = Serial(manual_port, baud_rate, timeout=settings.SERIAL_TIMEOUT)
         except SerialException:
-            logger.exception('Manual com port was not found. Attempting to use auto-detection')
+            logger.exception('Cannot open the proper serial port')
+        else:
+            self._serial = serial
 
-        auto_detected = manual_port
-        com_ports = list_ports.comports()
-        for p in com_ports:
-            if LASER_DEVICE_NAME in p.description.lower():
-                auto_detected = p.device
-
-        try:
-            self._serial = Serial(auto_detected, baud_rate, timeout=settings.SERIAL_TIMEOUT)
-        except SerialException as e:
-            self.init_error()
-            logger.exception(str(e))
-            view_output.show_warning(f'Не удалось открыть заданный настройкой SERIAL_PORT последовательный порт '
-                                     f'{manual_port}, а так же не удалось определить подходящий порт автоматически. '
-                                     f'Программа продолжит работать без контроллера лазера.')
 
     @property
     def can_send(self):
@@ -74,6 +74,8 @@ class MoveController(Initializable):
 
     def read_line(self):
         self._current_line = self._serial.readline()
+        self.is_ready
+        self.is_errored
 
     def _move_laser(self, position: Point, command=1):
         message = (f'{position.x};{position.y};{command}\n').encode('ascii', 'ignore')
@@ -95,17 +97,14 @@ class MoveController(Initializable):
 
 
 class SerialStub(Serial):
-    READY_INTERVAL = 0.005  # sec
+    READY_INTERVAL = 4.5  # sec
 
     def __init__(self):
         self._ready_timer = time()
 
     @property
     def _is_ready(self):
-        ready = time() - self._ready_timer >= SerialStub.READY_INTERVAL
-        if ready:
-            self._ready_timer = time()
-        return ready
+        return time() - self._ready_timer >= SerialStub.READY_INTERVAL
 
     def readline(self, **kwargs):
         if self._is_ready:
@@ -113,4 +112,4 @@ class SerialStub(Serial):
         return ''
 
     def write(self, data):
-        pass
+        self._ready_timer = time()

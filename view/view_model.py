@@ -50,8 +50,11 @@ class ViewModel:
     def left_button_up(self, selector, event):
         selector.left_button_up(Point(event.x, event.y))
 
-    def new_selection(self, name, retry=False):
-        selector = self._model.new_selection(name, retry)
+    def new_selection(self, name, retry=False, additional_callback=None):
+        # TODO: переименовать параметр retry, потому что выглядит непонятно
+        # TODO: кроме name параметры нужны только чтобы передать их в new_selection модели
+        #  то есть, эта функция используется и моделью и представлением, что выглядит странно, если подумать...
+        selector = self._model.new_selection(name, retry, additional_callback)
 
         if selector is None:
             return
@@ -74,6 +77,9 @@ class ViewModel:
 
     def calibrate_noise_threshold(self):
         self._model.calibrate_noise_threshold(self._view.window_width, self._view.window_height)
+
+    def calibrate_coordinate_system(self):
+        self._model.calibrate_coordinate_system(self._view.window_width, self._view.window_height)
 
     def selector_is_selected(self, name):
         return self._model.selecting_service.selector_is_selected(name)

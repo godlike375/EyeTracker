@@ -8,7 +8,7 @@ from view.drawing import Processor
 LEFT_CLICK = 'left_click'
 LEFT_DOWN = 'left_down'
 LEFT_UP = 'left_up'
-MIN_DISTANCE_BETWEEN_POINTS = 28
+MIN_DISTANCE_BETWEEN_POINTS = 20
 MIN_POINTS_SELECTED = 2
 EVENT_NAME = 1
 POINTS_ORIENTATION = ['TL', 'TR', 'BR', 'BL']

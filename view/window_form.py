@@ -65,14 +65,16 @@ class View:
         calibration_menu.add_command(label='Лазер', command=self._view_model.calibrate_laser)
         calibration_menu.add_command(label='Шумоподавление',
                                      command=self._view_model.calibrate_noise_threshold)
+        calibration_menu.add_command(label='Координатную систему',
+                                     command=self._view_model.calibrate_coordinate_system)
         main_menu.add_cascade(label='Откалибровать', menu=calibration_menu)
 
         position_menu = Menu(tearoff=False)
-        MAX_LASER_RANGE_PLUS_MINUS = settings.MAX_LASER_RANGE_PLUS_MINUS
-        move_left_top = partial(self._view_model.move_laser, -MAX_LASER_RANGE_PLUS_MINUS, -MAX_LASER_RANGE_PLUS_MINUS)
-        move_right_top = partial(self._view_model.move_laser, MAX_LASER_RANGE_PLUS_MINUS, -MAX_LASER_RANGE_PLUS_MINUS)
-        move_left_bottom = partial(self._view_model.move_laser, -MAX_LASER_RANGE_PLUS_MINUS, MAX_LASER_RANGE_PLUS_MINUS)
-        move_right_bottom = partial(self._view_model.move_laser, MAX_LASER_RANGE_PLUS_MINUS, MAX_LASER_RANGE_PLUS_MINUS)
+        MAX_LASER_RANGE = settings.MAX_LASER_RANGE_PLUS_MINUS
+        move_left_top = partial(self._view_model.move_laser, -MAX_LASER_RANGE, -MAX_LASER_RANGE)
+        move_right_top = partial(self._view_model.move_laser, MAX_LASER_RANGE, -MAX_LASER_RANGE)
+        move_left_bottom = partial(self._view_model.move_laser, -MAX_LASER_RANGE, MAX_LASER_RANGE)
+        move_right_bottom = partial(self._view_model.move_laser, MAX_LASER_RANGE, MAX_LASER_RANGE)
         move_center = partial(self._view_model.move_laser, 0, 0)
         position_menu.add_command(label='Лево верх', command=move_left_top)
         position_menu.add_command(label='Право верх', command=move_right_top)

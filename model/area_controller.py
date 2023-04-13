@@ -24,39 +24,49 @@ class AreaController:
         self._translation_matrix = None
         self._is_set = False
         self._beeped = False
+        self._automate_selected = False
 
     @staticmethod
     def calc_center(left_top: Point, right_bottom: Point) -> Point:
         return Point(int((left_top.x + right_bottom.x) / 2), int((left_top.y + right_bottom.y) / 2))
 
-    def set_area(self, area: AreaSelector):
+    def set_area(self, area: AreaSelector, laser_points=None):
         points = area.points
         tl, tr, br, bl = points
+        if laser_points is not None:
+            transformed_points = [(*p,) for p in laser_points]
+            transformed_points_array = np.array(transformed_points,
+                                                dtype="float32")
+        else:
         # https://theailearner.com/tag/cv2-getperspectivetransform/
-        bottom_width = np.sqrt(((br.x - bl.x) ** 2) + ((br.y - bl.y) ** 2))
-        top_width = np.sqrt(((tr.x - tl.x) ** 2) + ((tr.y - tl.y) ** 2))
-        max_width = max(int(bottom_width), int(top_width))
+            bottom_width = np.sqrt(((br.x - bl.x) ** 2) + ((br.y - bl.y) ** 2))
+            top_width = np.sqrt(((tr.x - tl.x) ** 2) + ((tr.y - tl.y) ** 2))
+            max_width = max(int(bottom_width), int(top_width))
 
-        right_height = np.sqrt(((tr.x - br.x) ** 2) + ((tr.y - br.y) ** 2))
-        left_height = np.sqrt(((tl.x - bl.x) ** 2) + ((tl.y - bl.y) ** 2))
-        max_height = max(int(right_height), int(left_height))
-        max_size = max(max_height, max_width)
-        transformed_points_array = np.array([[0, 0], [max_size, 0], [max_size, max_size], [0, max_size]],
-                                            dtype="float32")
+            right_height = np.sqrt(((tr.x - br.x) ** 2) + ((tr.y - br.y) ** 2))
+            left_height = np.sqrt(((tl.x - bl.x) ** 2) + ((tl.y - bl.y) ** 2))
+            max_height = max(int(right_height), int(left_height))
+            max_size = max(max_height, max_width)
+            transformed_points_array = np.array([[0, 0], [max_size, 0], [max_size, max_size], [0, max_size]],
+                                                dtype="float32")
+            self._max_xy = Point(max_size, max_size)
+            self.center = Point(max_size / 2, max_size / 2)
+            try:
+                self._dpi_xy = Point(self._resolution_xy / self._max_xy.x, self._resolution_xy / self._max_xy.y)
+            except ZeroDivisionError:
+                # TODO: проверить, остался ли этот кейс
+                view_output.show_message('Область не может быть пустой', 'Ошибка')
+                return
 
         points_array = np.array([(*pt,) for pt in points], dtype="float32")
 
         self._translation_matrix = cv2.getPerspectiveTransform(points_array, transformed_points_array)
 
-        self._max_xy = Point(max_size, max_size)
-        try:
-            self._dpi_xy = Point(self._resolution_xy / self._max_xy.x, self._resolution_xy / self._max_xy.y)
-        except ZeroDivisionError:
-            # TODO: проверить, остался ли этот кейс
-            view_output.show_message('Область не может быть пустой', 'Ошибка')
-            return
-        self.center = Point(max_size / 2, max_size / 2)
+
+
         self._is_set = True
+        if laser_points is not None:
+            self._automate_selected = True
         logger.debug(f'set area {points}')
 
     def translate_coordinates(self, point: Point):
@@ -69,6 +79,9 @@ class AreaController:
         return Point(int(X), int(Y))
 
     def point_is_out_of_area(self, point: Point, beep_sound_allowed=False) -> bool:
+        if self._automate_selected:
+            # TODO: доделать логику или переделать
+            return False
         if not self._is_set:
             self._beeped = False
             return False
@@ -92,6 +105,8 @@ class AreaController:
 
     def calc_laser_coords(self, object_center: Point) -> Point:
         translated_center = self.translate_coordinates(object_center)
+        if self._automate_selected:
+            return translated_center
         relative = translated_center - self.center
         relative *= self._dpi_xy
         return relative.to_int()

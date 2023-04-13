@@ -41,9 +41,20 @@ class SelectingService:
     def get_active_objects(self) -> List[Drawable]:
         return self._active_drawn_objects.values()
 
-    def create_selector(self, name):
+    def create_selector(self, name, additional_callback=None):
         logger.debug(f'creating new selector {name}')
+
+        def run_after(func1, func2):
+            def wrapper(*args, **kwargs):
+                func1(*args, **kwargs)
+                func2(*args, **kwargs).start()
+            return wrapper
+
         on_selected = self._on_object_selected if OBJECT in name else self._on_area_selected
+
+        if additional_callback is not None:
+            on_selected = run_after(on_selected, additional_callback)
+
         selector = ObjectSelector(name, on_selected) if OBJECT in name else AreaSelector(name, on_selected)
         self._active_drawn_objects[name] = selector
         return selector
@@ -74,6 +85,13 @@ class SelectingService:
             return
         object.cancel_selecting()
 
+    def check_selected(self, name):
+        selector = self.get_selector(name)
+        self.check_emptiness(selector, name)
+        if not self.selector_is_selected(name):
+            return False, None
+        return True, selector
+
 
 class LaserService():
     def __init__(self):
@@ -95,15 +113,21 @@ class LaserService():
         logger.debug(f'laser moved to {x, y}')
         self._laser_controller._move_laser(Point(x, y))
 
-    def set_new_position(self, position: Point):
+    def controller_is_ready(self):
+        return self._laser_controller.can_send and self._laser_controller.is_ready
+
+    def refresh_data(self):
         self._laser_controller.read_line()
+
+    def set_new_position(self, position: Point):
+        self.refresh_data()
         if self._laser_controller.is_errored:
             self.errored = True
             view_output.show_fatal('Контроллер лазера внезапно встал на концевик. Это непредвиденная ситуация. '
                                    'Необходимо откалибровать контроллер лазера повторно. '
                                    'До этого момента слежения за объектом невозможно')
             return None
-        if self._laser_controller.can_send and self._laser_controller.is_ready:
+        if self.controller_is_ready():
             self._laser_controller.set_new_position(position)
             return True
         return False

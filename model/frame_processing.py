@@ -1,15 +1,16 @@
 from collections import deque
 from itertools import chain, repeat
-from time import time
+from time import time, sleep
 
 import dlib
 
 from common.coordinates import Point
 from common.abstractions import ProcessBased, RectBased, Drawable
 from common.logger import logger
-from common.settings import settings, TRACKER
+from common.settings import settings, TRACKER, OBJECT, AREA
 from model.area_controller import AreaController
 from view.drawing import Processor
+from common.thread_helpers import threaded
 
 
 PERCENT_FROM_DECIMAL = 100
@@ -76,11 +77,9 @@ class Tracker(RectBased, Drawable, ProcessBased):
 class NoiseThresholdCalibrator(ProcessBased):
     CALIBRATION_THRESHOLD_STEP = 0.0025
 
-    # В течение 5 секунд цель трекинга не должна двигаться
+    # В течение settings.OBJECT_NOT_MOVING_DURATION секунд цель трекинга не должна двигаться
     def __init__(self):
-        # TODO: возможно здесь понадобятся геттер и сеттер для лучшей защиты от смены состояния.
-        #  Или нет, если вынести код калибровки в одно логическое место
-        self.in_progress = False
+        super().__init__()
         self._last_position = None
         self._last_timestamp = time()
 
@@ -101,6 +100,57 @@ class NoiseThresholdCalibrator(ProcessBased):
     def calibration_progress(self):
         return int(((time() - self._last_timestamp) / settings.OBJECT_NOT_MOVING_DURATION) * PERCENT_FROM_DECIMAL)
 
+class CoordinateSystemCalibrator(ProcessBased):
+    def __init__(self, laser_service, selecting_service, area_controller):
+        super().__init__()
+        self._get_selector = selecting_service.get_selector
+        self._set_area = area_controller.set_area
+
+        MAX_LASER_RANGE = settings.MAX_LASER_RANGE_PLUS_MINUS
+        self._max_laser_range = MAX_LASER_RANGE
+
+        left_top = Point(-MAX_LASER_RANGE, -MAX_LASER_RANGE)
+        right_top = Point(MAX_LASER_RANGE, -MAX_LASER_RANGE)
+        right_bottom = Point(MAX_LASER_RANGE, MAX_LASER_RANGE)
+        left_bottom = Point(-MAX_LASER_RANGE, MAX_LASER_RANGE)
+
+        points = [left_top, right_top, right_bottom, left_bottom]
+        self._laser_points = [point for point in points]
+
+        self._controller_is_ready = laser_service.controller_is_ready
+        self._refresh_data = laser_service.refresh_data
+        self._move_to_point = laser_service.set_new_position
+
+    @threaded
+    def calibrate(self):
+        object = self._get_selector(OBJECT)
+        screen_points = []
+
+        for point in self._laser_points:
+            while not self._controller_is_ready():
+
+                if not self.in_progress:
+                    exit()
+                self._refresh_data()
+                sleep(0.25)
+
+            self._move_to_point(point)
+            while not self._controller_is_ready():
+
+                if not self.in_progress:
+                    exit()
+                self._refresh_data()
+                sleep(0.25)
+            screen_position = ((object.left_top + object.right_bottom) / 2).to_int()
+            screen_points.append(screen_position)
+
+            print(screen_position)
+        area = self._get_selector(AREA)
+        area._points = screen_points
+        self._set_area(area, self._laser_points)
+        # TODO: сравнить координаты, по которым посылали лазер и реальные координаты
+        self.stop()
+        # TODO: чтобы не мешаться в главном потоке логикой вызова move laser и ожидания, можно создать отдельный поток
 
 class Denoiser:
     def __init__(self, init_value: float, mean_count: int):

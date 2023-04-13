@@ -7,7 +7,7 @@ from common.settings import settings, OBJECT, AREA, private_settings, \
 from common.thread_helpers import ThreadLoopable, MutableValue
 from model.area_controller import AreaController
 from model.camera_extractor import FrameExtractor
-from model.frame_processing import Tracker, NoiseThresholdCalibrator
+from model.frame_processing import Tracker, NoiseThresholdCalibrator, CoordinateSystemCalibrator
 from model.other_services import SelectingService, LaserService, StateTipSupervisor
 from view import view_output
 from view.drawing import Processor
@@ -33,6 +33,9 @@ class Orchestrator(ThreadLoopable):
 
         self._current_frame = None
         self.threshold_calibrator = NoiseThresholdCalibrator()
+        self.coordinate_system_calibrator = CoordinateSystemCalibrator(self.laser_service, self.selecting_service,
+                                                                       self._area_controller)
+
         self.previous_area = None
         self._throttle_to_fps_viewed = time()
         self._frame_interval = MutableValue(1 / settings.FPS_VIEWED)
@@ -85,17 +88,22 @@ class Orchestrator(ThreadLoopable):
         processed = Processor.draw_active_objects(frame, self.selecting_service.get_active_objects())
         return Processor.frame_to_image(processed)
 
-    def _tracking(self, frame):
-        center = self.tracker.get_tracked_position(frame)
-        if not self.threshold_calibrator.in_progress:
-            self._move_to_relative_cords(center)
-            return
+    def _threshold_calibrating(self, center):
         if self.threshold_calibrator.is_calibration_successful(center):
             self._noise_threshold_calibrated()
         else:
             progress_value = self.threshold_calibrator.calibration_progress()
             if abs(self._view_model.progress_bar_get_value() - progress_value) > MIN_THROTTLE_DIFFERENCE:
                 self._view_model.progress_bar_set_value(progress_value)
+
+    def _tracking(self, frame):
+        center = self.tracker.get_tracked_position(frame)
+        if self.threshold_calibrator.in_progress:
+            self._threshold_calibrating(center)
+            return
+        if self.coordinate_system_calibrator.in_progress:
+            return
+        self._move_to_relative_cords(center)
 
     def _noise_threshold_calibrated(self):
         self.tracker.stop()
@@ -117,19 +125,13 @@ class Orchestrator(ThreadLoopable):
             return
 
         relative_coords = self._area_controller.calc_laser_coords(center)
+        print(relative_coords)
         result = self.laser_service.set_new_position(relative_coords)
         if result is None:
             self.cancel_active_process(confirm=False)
 
-    def _check_selected(self, name):
-        selector = self.selecting_service.get_selector(name)
-        self.selecting_service.check_emptiness(selector, name)
-        if not self.selecting_service.selector_is_selected(name):
-            return False, None
-        return True, selector
-
     def _on_area_selected(self):
-        selected, area = self._check_selected(AREA)
+        selected, area = self.selecting_service.check_selected(AREA)
         if not selected:
             self._view_model.new_selection(AREA, retry=True)
             return
@@ -138,14 +140,14 @@ class Orchestrator(ThreadLoopable):
         self.state_tip.next_state('area selected')
 
     def _on_object_selected(self):
-        selected, object = self._check_selected(OBJECT)
+        selected, object = self.selecting_service.check_selected(OBJECT)
         out_of_area = False
         if selected:
             center = ((object.left_top + object.right_bottom) / 2).to_int()
             out_of_area = self._area_controller.point_is_out_of_area(center)
             if out_of_area:
                 logger.warning('selected object is out of tracking borders')
-                view_output.show_warning('Запрещено выделять объект за областью слежения.')
+                view_output.show_warning('Невозможно выделить объект за границами области слежения.')
                 self.selecting_service.stop_drawing(OBJECT)
 
         if not selected or out_of_area:
@@ -158,7 +160,7 @@ class Orchestrator(ThreadLoopable):
         self._frame_interval.value = 1 / settings.FPS_PROCESSED
         self.state_tip.next_state('object selected')
 
-    def new_selection(self, name, retry=False):
+    def new_selection(self, name, retry=False, additional_callback=None):
         if self.threshold_calibrator.in_progress and not retry:
             view_output.show_warning('Выполняется калибровка шумоподавления, необходимо дождаться её окончания.')
             return
@@ -186,25 +188,59 @@ class Orchestrator(ThreadLoopable):
         self.selecting_service.stop_drawing(name)
 
         self.tracker.in_progress = False
-        return self.selecting_service.create_selector(name)
+        return self.selecting_service.create_selector(name, additional_callback)
+
+    def _auto_select_area_full_screen(self, width, height):
+        # TODO: перенести кроме последней строчки в SelectingService
+        area = self.selecting_service.create_selector(AREA)
+        area._points = [Point(0, 0), Point(height, 0), Point(height, width), Point(0, width)]
+        area._sort_points_for_viewing()
+        area.is_selected = True
+        self._area_controller.set_area(area)
+
+    def _auto_select_area(self, points):
+        area = self.selecting_service.create_selector(AREA)
+        area._points = points
+        area._sort_points_for_viewing()
+        area.is_selected = True
+        self._area_controller.set_area(area)
 
     def calibrate_noise_threshold(self, width, height):
         if self.tracker.in_progress:
-            view_output.show_warning('Запрещено калибровка шумоподавления во время слежения за объектом.')
+            view_output.show_warning('Запрещена калибровка шумоподавления во время слежения за объектом.')
             return
 
         if self.selecting_service.selector_is_selected(AREA):
             self.previous_area = self.selecting_service.get_selector(AREA)
             self.selecting_service.stop_drawing(AREA)
 
-        area = self.selecting_service.create_selector(AREA)
-        area._points = [Point(0, 0), Point(height, 0), Point(height, width), Point(0, width)]
-        area._sort_points_for_viewing()
-        area.is_selected = True
-        self._area_controller.set_area(area)
+        self._auto_select_area_full_screen(width, height)
         self._view_model.new_selection(OBJECT)
+
         self.threshold_calibrator.start()
         settings.NOISE_THRESHOLD_PERCENT = 0.0
+
+        self._view_model.progress_bar_set_visibility(True)
+        self._view_model.progress_bar_set_value(0)
+
+    def calibrate_coordinate_system(self, width, height):
+        if self.tracker.in_progress:
+            view_output.show_warning('Запрещена калибровка координатной системы во время слежения за объектом.')
+            return
+        '''
+        if self.selecting_service.selector_is_selected(AREA):
+            if self.selecting_service.selector_is_selected(AREA):
+                confirm = view_output.ask_confirmation('Выделенная область будет стёрта. Продолжить?')
+                if not confirm:
+                    return
+            self.previous_area = self.selecting_service.get_selector(AREA)
+            self.selecting_service.stop_drawing(AREA)
+        '''
+
+        self._auto_select_area_full_screen(width, height)
+        self._view_model.new_selection(OBJECT, retry=False,
+                                       additional_callback=self.coordinate_system_calibrator.calibrate)
+        self.coordinate_system_calibrator.start()
         self._view_model.progress_bar_set_visibility(True)
         self._view_model.progress_bar_set_value(0)
 
@@ -239,6 +275,7 @@ class Orchestrator(ThreadLoopable):
         self.selecting_service.cancel_selecting()
         self.threshold_calibrator.stop()
         self.tracker.stop()
+        self.coordinate_system_calibrator.stop()
         self.selecting_service.stop_drawing(OBJECT)
         self._restore_previous_area()
         settings.NOISE_THRESHOLD_PERCENT = 0.0
@@ -287,3 +324,7 @@ class Orchestrator(ThreadLoopable):
         self.selecting_service.stop_drawing(AREA)
         self._extractor.set_frame_flip(side)
         self.previous_area = None
+
+    def stop_thread(self):
+        self.coordinate_system_calibrator.stop()
+        super(Orchestrator, self).stop_thread()

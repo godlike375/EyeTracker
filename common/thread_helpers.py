@@ -17,6 +17,7 @@ class StoppableThread(Thread):
     def stop(self):
         self._stop_event.set()
 
+    @property
     def is_stopped(self):
         return self._stop_event.is_set()
 
@@ -43,8 +44,8 @@ def thread_loop_runner(func, interval: MutableValue = None):
         interval = MutableValue(0.05)
     while True:
         sleep(interval.value)
-        if current_thread().is_stopped():
-            exit(0)
+        if current_thread().is_stopped:
+            exit()
         func()
 
 
