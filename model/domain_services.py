@@ -179,10 +179,22 @@ class Orchestrator(ThreadLoopable):
                     'Необходимо откалибровать контроллер лазера повторно. '
                     'До этого момента слежения за объектом невозможно')
                 return
+            if self.selecting_service.selector_is_selected(OBJECT):
+                confirm = view_output.ask_confirmation('Выделенный объект перестанет отслеживаться. Продолжить?')
+                if not confirm:
+                    return
 
             self.selecting_service.object_is_selecting = True
 
         if AREA in name:
+            tracking_stop_question = ''
+            if self.selecting_service.selector_is_selected(OBJECT):
+                tracking_stop_question = 'Слежение за целью будет остановлено. '
+            if self.selecting_service.selector_is_selected(AREA):
+                confirm = view_output.ask_confirmation(f'{tracking_stop_question}'
+                                                       f'Выделенная область будет стёрта. Продолжить?')
+                if not confirm:
+                    return
             self.selecting_service.stop_drawing(OBJECT)
 
         self.selecting_service.stop_drawing(name)

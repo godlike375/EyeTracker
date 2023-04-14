@@ -25,6 +25,7 @@ class Tracker(RectBased, Drawable, ProcessBased):
         self._center = None
         self.in_progress = False
         self.name = TRACKER
+        self.is_selected = True # Для перевыделения объекта
 
     @property
     def left_top(self):
@@ -104,6 +105,7 @@ class CoordinateSystemCalibrator(ProcessBased):
     def __init__(self, laser_service, selecting_service, area_controller):
         super().__init__()
         self._get_selector = selecting_service.get_selector
+        self._stop_drawing = selecting_service.stop_drawing
         self._set_area = area_controller.set_area
 
         MAX_LASER_RANGE = settings.MAX_LASER_RANGE_PLUS_MINUS
@@ -147,7 +149,9 @@ class CoordinateSystemCalibrator(ProcessBased):
             print(screen_position)
         area = self._get_selector(AREA)
         area._points = screen_points
+        area._selected = True
         self._set_area(area, self._laser_points)
+        self._stop_drawing(OBJECT)
         # TODO: сравнить координаты, по которым посылали лазер и реальные координаты
         self.stop()
         # TODO: чтобы не мешаться в главном потоке логикой вызова move laser и ожидания, можно создать отдельный поток

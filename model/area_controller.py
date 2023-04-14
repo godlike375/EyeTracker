@@ -67,6 +67,7 @@ class AreaController:
         self._is_set = True
         if laser_points is not None:
             self._automate_selected = True
+        Processor.load_color()
         logger.debug(f'set area {points}')
 
     def translate_coordinates(self, point: Point):

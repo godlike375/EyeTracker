@@ -97,7 +97,7 @@ class MoveController(Initializable):
 
 
 class SerialStub(Serial):
-    READY_INTERVAL = 4.5  # sec
+    READY_INTERVAL = 3  # sec
 
     def __init__(self):
         self._ready_timer = time()

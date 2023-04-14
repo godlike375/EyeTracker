@@ -65,7 +65,6 @@ class Selector(ABC):
 
     def finish_selecting(self):
         self._selected = True
-        self._sort_points_for_viewing()
         for unbind in self._unbindings:
             unbind[EVENT_NAME]()
         if self._after_selection is not None:
@@ -123,6 +122,7 @@ class ObjectSelector(RectBased, Drawable, Selector):
         # Условие относится к багу, описанному выше. Такие невалидные состояния отметаем
         if points_count < ObjectSelector.MAX_POINTS:
             return
+        self._sort_points_for_viewing()
         self._left_top, self._right_bottom = self._points
         self.finish_selecting()
 
@@ -149,6 +149,7 @@ class AreaSelector(Drawable, Selector):
     def __init__(self, name: str, callback, points=None):
         super().__init__(name, callback, points)
         self._current_point_number = 0
+        Processor.load_color()
 
     def left_button_click(self, event):
         logger.debug(f'selecting {self._current_point_number} point at {event.x, event.y}')
@@ -157,6 +158,7 @@ class AreaSelector(Drawable, Selector):
             super().left_button_click(event)
         self._current_point_number += 1
         if self._current_point_number == AreaSelector.MAX_POINTS:
+            self._sort_points_for_viewing()
             self.finish_selecting()
 
     def draw_on_frame(self, frame):
