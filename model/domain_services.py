@@ -33,7 +33,7 @@ class Orchestrator(ThreadLoopable):
 
         self._current_frame = None
         self.threshold_calibrator = NoiseThresholdCalibrator()
-        self.coordinate_system_calibrator = CoordinateSystemCalibrator(self)
+        self.coordinate_calibrator = CoordinateSystemCalibrator(self)
 
         self.previous_area = None
         self._throttle_to_fps_viewed = time()
@@ -100,7 +100,7 @@ class Orchestrator(ThreadLoopable):
         if self.threshold_calibrator.in_progress:
             self._threshold_calibrating(center)
             return
-        if self.coordinate_system_calibrator.in_progress:
+        if self.coordinate_calibrator.in_progress:
             return
         self._move_to_relative_cords(center)
 
@@ -243,8 +243,8 @@ class Orchestrator(ThreadLoopable):
 
         self._auto_select_area_full_screen(width, height)
         self._view_model.new_selection(OBJECT, retry=False,
-                                       additional_callback=self.coordinate_system_calibrator.calibrate)
-        self.coordinate_system_calibrator.start()
+                                       additional_callback=self.coordinate_calibrator.calibrate)
+        self.coordinate_calibrator.start()
         self._view_model.progress_bar_set_visibility(True)
         self._view_model.progress_bar_set_value(0)
 
@@ -279,7 +279,7 @@ class Orchestrator(ThreadLoopable):
         self.selecting_service.cancel_selecting()
         self.threshold_calibrator.stop()
         self.tracker.stop()
-        self.coordinate_system_calibrator.stop()
+        self.coordinate_calibrator.stop()
         self.selecting_service.stop_drawing(OBJECT)
         self._restore_previous_area()
         settings.NOISE_THRESHOLD_PERCENT = 0.0
@@ -330,5 +330,5 @@ class Orchestrator(ThreadLoopable):
         self.previous_area = None
 
     def stop_thread(self):
-        self.coordinate_system_calibrator.stop()
+        self.coordinate_calibrator.stop()
         super(Orchestrator, self).stop_thread()
