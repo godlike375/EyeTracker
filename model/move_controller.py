@@ -3,10 +3,10 @@ from time import time
 from serial import Serial, SerialException
 from serial.tools import list_ports
 
+from common.abstractions import Initializable
 from common.coordinates import Point
 from common.logger import logger
 from common.settings import settings
-from common.abstractions import Initializable
 from view import view_output
 
 READY = 'ready'
@@ -38,9 +38,10 @@ class MoveController(Initializable):
             if manual_port not in ports_names or ports_names[manual_port] != LASER_DEVICE_NAME:
                 predicate = [(LASER_DEVICE_NAME in description) for description in ports_descriptions]
                 if not any(predicate):
-                    view_output.show_warning(f'Не удалось открыть заданный настройкой SERIAL_PORT последовательный порт'
-                                         f' {manual_port}, а так же не удалось определить подходящий порт автоматически.'
-                                         f' Программа продолжит работать без контроллера лазера.')
+                    view_output.show_warning(
+                        f'Не удалось открыть заданный настройкой SERIAL_PORT последовательный порт'
+                        f' {manual_port}, а так же не удалось определить подходящий порт автоматически.'
+                        f' Программа продолжит работать без контроллера лазера.')
                     return
                 for description in ports_descriptions:
                     if LASER_DEVICE_NAME in description:
@@ -50,7 +51,6 @@ class MoveController(Initializable):
             logger.exception('Cannot open the proper serial port')
         else:
             self._serial = serial
-
 
     @property
     def can_send(self):

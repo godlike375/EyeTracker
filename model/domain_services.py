@@ -34,7 +34,7 @@ class Orchestrator(ThreadLoopable):
         self._current_frame = None
         self.threshold_calibrator = NoiseThresholdCalibrator()
         self.coordinate_system_calibrator = CoordinateSystemCalibrator(self.laser_service, self.selecting_service,
-                                                                       self._area_controller)
+                                                                       self._area_controller, self.tracker)
 
         self.previous_area = None
         self._throttle_to_fps_viewed = time()
@@ -125,7 +125,6 @@ class Orchestrator(ThreadLoopable):
             return
 
         relative_coords = self._area_controller.calc_laser_coords(center)
-        print(relative_coords)
         result = self.laser_service.set_new_position(relative_coords)
         if result is None:
             self.cancel_active_process(confirm=False)
@@ -160,42 +159,50 @@ class Orchestrator(ThreadLoopable):
         self._frame_interval.value = 1 / settings.FPS_PROCESSED
         self.state_tip.next_state('object selected')
 
+    def _new_object(self):
+        if not self.selecting_service.selector_is_selected(AREA):
+            view_output.show_warning('Перед выделением объекта необходимо выделить область слежения.')
+            return False
+
+        if self.laser_service.errored:
+            view_output.show_warning(
+                'Необходимо откалибровать контроллер лазера повторно. '
+                'До этого момента слежения за объектом невозможно')
+            return False
+        if self.selecting_service.selector_is_selected(OBJECT):
+            confirm = view_output.ask_confirmation('Выделенный объект перестанет отслеживаться. Продолжить?')
+            if not confirm:
+                return False
+
+        self.selecting_service.object_is_selecting = True
+
+    def _new_area(self):
+        if self.selecting_service.object_is_selecting:
+            view_output.show_warning('Необходимо завершить выделение объекта.')
+            return False
+
+        tracking_stop_question = ''
+        if self.selecting_service.selector_is_selected(OBJECT):
+            tracking_stop_question = 'Слежение за целью будет остановлено. '
+        if self.selecting_service.selector_is_selected(AREA):
+            confirm = view_output.ask_confirmation(f'{tracking_stop_question}'
+                                                   f'Выделенная область будет стёрта. Продолжить?')
+            if not confirm:
+                return False
+        self.selecting_service.stop_drawing(OBJECT)
+
     def new_selection(self, name, retry=False, additional_callback=None):
         if self.threshold_calibrator.in_progress and not retry:
             view_output.show_warning('Выполняется калибровка шумоподавления, необходимо дождаться её окончания.')
             return
 
-        if AREA in name and self.selecting_service.object_is_selecting:
-            view_output.show_warning('Необходимо завершить выделение объекта.')
-            return
-
         if OBJECT in name:
-            if not self.selecting_service.selector_is_selected(AREA):
-                view_output.show_warning('Перед выделением объекта необходимо выделить область слежения.')
+            if not self._new_object():
                 return
-
-            if self.laser_service.errored:
-                view_output.show_warning(
-                    'Необходимо откалибровать контроллер лазера повторно. '
-                    'До этого момента слежения за объектом невозможно')
-                return
-            if self.selecting_service.selector_is_selected(OBJECT):
-                confirm = view_output.ask_confirmation('Выделенный объект перестанет отслеживаться. Продолжить?')
-                if not confirm:
-                    return
-
-            self.selecting_service.object_is_selecting = True
 
         if AREA in name:
-            tracking_stop_question = ''
-            if self.selecting_service.selector_is_selected(OBJECT):
-                tracking_stop_question = 'Слежение за целью будет остановлено. '
-            if self.selecting_service.selector_is_selected(AREA):
-                confirm = view_output.ask_confirmation(f'{tracking_stop_question}'
-                                                       f'Выделенная область будет стёрта. Продолжить?')
-                if not confirm:
-                    return
-            self.selecting_service.stop_drawing(OBJECT)
+            if not self._new_area():
+                return
 
         self.selecting_service.stop_drawing(name)
 
@@ -239,15 +246,6 @@ class Orchestrator(ThreadLoopable):
         if self.tracker.in_progress:
             view_output.show_warning('Запрещена калибровка координатной системы во время слежения за объектом.')
             return
-        '''
-        if self.selecting_service.selector_is_selected(AREA):
-            if self.selecting_service.selector_is_selected(AREA):
-                confirm = view_output.ask_confirmation('Выделенная область будет стёрта. Продолжить?')
-                if not confirm:
-                    return
-            self.previous_area = self.selecting_service.get_selector(AREA)
-            self.selecting_service.stop_drawing(AREA)
-        '''
 
         self._auto_select_area_full_screen(width, height)
         self._view_model.new_selection(OBJECT, retry=False,

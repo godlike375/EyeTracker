@@ -4,14 +4,13 @@ from time import time, sleep
 
 import dlib
 
-from common.coordinates import Point
 from common.abstractions import ProcessBased, RectBased, Drawable
+from common.coordinates import Point
 from common.logger import logger
 from common.settings import settings, TRACKER, OBJECT, AREA
+from common.thread_helpers import threaded
 from model.area_controller import AreaController
 from view.drawing import Processor
-from common.thread_helpers import threaded
-
 
 PERCENT_FROM_DECIMAL = 100
 
@@ -25,7 +24,7 @@ class Tracker(RectBased, Drawable, ProcessBased):
         self._center = None
         self.in_progress = False
         self.name = TRACKER
-        self.is_selected = True # Для перевыделения объекта
+        self.is_selected = True  # Для перевыделения объекта
 
     @property
     def left_top(self):
@@ -42,19 +41,21 @@ class Tracker(RectBased, Drawable, ProcessBased):
         if abs(self._center - center) >= self._length_xy * settings.NOISE_THRESHOLD_PERCENT:
             self._center = center
 
-    def start_tracking(self, frame, left_top, right_bottom):
+    def start_tracking(self, frame, scaled_left_top, scaled_right_bottom):
         logger.debug('tracking started')
         frame = Processor.resize_frame_relative(frame, settings.DOWNSCALE_FACTOR)
-        self._length_xy = Point(abs(left_top.x - right_bottom.x),
-                                abs(left_top.y - right_bottom.y))
+        self._length_xy = Point(abs(scaled_left_top.x - scaled_right_bottom.x),
+                                abs(scaled_left_top.y - scaled_right_bottom.y))
 
-        left_top, right_bottom = \
-            (left_top * settings.DOWNSCALE_FACTOR).to_int(), \
-            (right_bottom * settings.DOWNSCALE_FACTOR).to_int()
-        for coord in chain(left_top, right_bottom):
+        for coord in chain(scaled_left_top, scaled_right_bottom):
             self._denoisers.append(Denoiser(coord, mean_count=self._mean_count))
-        self._center = AreaController.calc_center(left_top, right_bottom)
-        self.tracker.start_track(frame, dlib.rectangle(*left_top, *right_bottom))
+
+        scaled_left_top, scaled_right_bottom = \
+            (scaled_left_top * settings.DOWNSCALE_FACTOR).to_int(), \
+            (scaled_right_bottom * settings.DOWNSCALE_FACTOR).to_int()
+
+        self._center = AreaController.calc_center(scaled_left_top, scaled_right_bottom)
+        self.tracker.start_track(frame, dlib.rectangle(*scaled_left_top, *scaled_right_bottom))
         self.start()
 
     def get_tracked_position(self, frame) -> Point:
@@ -101,12 +102,14 @@ class NoiseThresholdCalibrator(ProcessBased):
     def calibration_progress(self):
         return int(((time() - self._last_timestamp) / settings.OBJECT_NOT_MOVING_DURATION) * PERCENT_FROM_DECIMAL)
 
+
 class CoordinateSystemCalibrator(ProcessBased):
-    def __init__(self, laser_service, selecting_service, area_controller):
+    def __init__(self, laser_service, selecting_service, area_controller, tracker):
         super().__init__()
         self._get_selector = selecting_service.get_selector
         self._stop_drawing = selecting_service.stop_drawing
         self._set_area = area_controller.set_area
+        self._tracker_stop = tracker.stop
 
         MAX_LASER_RANGE = settings.MAX_LASER_RANGE_PLUS_MINUS
         self._max_laser_range = MAX_LASER_RANGE
@@ -146,15 +149,16 @@ class CoordinateSystemCalibrator(ProcessBased):
             screen_position = ((object.left_top + object.right_bottom) / 2).to_int()
             screen_points.append(screen_position)
 
-            print(screen_position)
         area = self._get_selector(AREA)
         area._points = screen_points
         area._selected = True
         self._set_area(area, self._laser_points)
         self._stop_drawing(OBJECT)
+        self._tracker_stop()
         # TODO: сравнить координаты, по которым посылали лазер и реальные координаты
         self.stop()
         # TODO: чтобы не мешаться в главном потоке логикой вызова move laser и ожидания, можно создать отдельный поток
+
 
 class Denoiser:
     def __init__(self, init_value: float, mean_count: int):

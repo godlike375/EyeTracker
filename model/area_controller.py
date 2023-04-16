@@ -38,7 +38,7 @@ class AreaController:
             transformed_points_array = np.array(transformed_points,
                                                 dtype="float32")
         else:
-        # https://theailearner.com/tag/cv2-getperspectivetransform/
+            # https://theailearner.com/tag/cv2-getperspectivetransform/
             bottom_width = np.sqrt(((br.x - bl.x) ** 2) + ((br.y - bl.y) ** 2))
             top_width = np.sqrt(((tr.x - tl.x) ** 2) + ((tr.y - tl.y) ** 2))
             max_width = max(int(bottom_width), int(top_width))
@@ -61,8 +61,6 @@ class AreaController:
         points_array = np.array([(*pt,) for pt in points], dtype="float32")
 
         self._translation_matrix = cv2.getPerspectiveTransform(points_array, transformed_points_array)
-
-
 
         self._is_set = True
         if laser_points is not None:
