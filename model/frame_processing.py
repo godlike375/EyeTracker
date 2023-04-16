@@ -104,60 +104,44 @@ class NoiseThresholdCalibrator(ProcessBased):
 
 
 class CoordinateSystemCalibrator(ProcessBased):
-    def __init__(self, laser_service, selecting_service, area_controller, tracker):
+    def __init__(self, model):
         super().__init__()
-        self._get_selector = selecting_service.get_selector
-        self._stop_drawing = selecting_service.stop_drawing
-        self._set_area = area_controller.set_area
-        self._tracker_stop = tracker.stop
+        self._model = model
 
-        MAX_LASER_RANGE = settings.MAX_LASER_RANGE_PLUS_MINUS
-        self._max_laser_range = MAX_LASER_RANGE
-
-        left_top = Point(-MAX_LASER_RANGE, -MAX_LASER_RANGE)
-        right_top = Point(MAX_LASER_RANGE, -MAX_LASER_RANGE)
-        right_bottom = Point(MAX_LASER_RANGE, MAX_LASER_RANGE)
-        left_bottom = Point(-MAX_LASER_RANGE, MAX_LASER_RANGE)
-
-        points = [left_top, right_top, right_bottom, left_bottom]
-        self._laser_points = [point for point in points]
-
-        self._controller_is_ready = laser_service.controller_is_ready
-        self._refresh_data = laser_service.refresh_data
-        self._move_to_point = laser_service.set_new_position
+        self._laser_borders = model.laser_service.laser_borders
 
     @threaded
     def calibrate(self):
-        object = self._get_selector(OBJECT)
+        object = self._model.selecting_service.get_selector(OBJECT)
         screen_points = []
 
-        for point in self._laser_points:
-            while not self._controller_is_ready():
+        self._wait_for_controller_ready()
 
-                if not self.in_progress:
-                    exit()
-                self._refresh_data()
-                sleep(0.25)
+        for point in self._laser_borders:
+            self._model.laser_service.set_new_position(point)
 
-            self._move_to_point(point)
-            while not self._controller_is_ready():
+            self._wait_for_controller_ready()
 
-                if not self.in_progress:
-                    exit()
-                self._refresh_data()
-                sleep(0.25)
             screen_position = ((object.left_top + object.right_bottom) / 2).to_int()
             screen_points.append(screen_position)
+        self._finish_calibrating(screen_points)
 
-        area = self._get_selector(AREA)
+    def _wait_for_controller_ready(self):
+        while not self._model.laser_service.controller_is_ready():
+            if not self.in_progress:
+                exit()
+            self._model.laser_service.refresh_data()
+            sleep(0.25)
+
+    def _finish_calibrating(self, screen_points):
+        area = self._model.selecting_service.get_selector(AREA)
         area._points = screen_points
-        area._selected = True
-        self._set_area(area, self._laser_points)
-        self._stop_drawing(OBJECT)
-        self._tracker_stop()
-        # TODO: сравнить координаты, по которым посылали лазер и реальные координаты
+        area.finish_selecting()
+        self._model.area_controller.set_area(area, self._laser_borders)
+
+        self._model.selecting_service.stop_drawing(OBJECT)
+        self._model.tracker.stop()
         self.stop()
-        # TODO: чтобы не мешаться в главном потоке логикой вызова move laser и ожидания, можно создать отдельный поток
 
 
 class Denoiser:

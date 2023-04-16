@@ -4,10 +4,11 @@ from typing import List
 from common.abstractions import Drawable
 from common.coordinates import Point
 from common.logger import logger
-from common.settings import AREA, OBJECT, TRACKER, CALIBRATE
+from common.settings import AREA, OBJECT, TRACKER, CALIBRATE, settings
 from model.move_controller import MoveController
 from model.selector import AreaSelector, ObjectSelector
 from view import view_output
+from common.thread_helpers import run_thread_after_func
 
 
 class SelectingService:
@@ -44,16 +45,10 @@ class SelectingService:
     def create_selector(self, name, additional_callback=None):
         logger.debug(f'creating new selector {name}')
 
-        def run_after(func1, func2):
-            def wrapper(*args, **kwargs):
-                func1(*args, **kwargs)
-                func2(*args, **kwargs).start()
-            return wrapper
-
         on_selected = self._on_object_selected if OBJECT in name else self._on_area_selected
 
         if additional_callback is not None:
-            on_selected = run_after(on_selected, additional_callback)
+            on_selected = run_thread_after_func(on_selected, additional_callback)
 
         selector = ObjectSelector(name, on_selected) if OBJECT in name else AreaSelector(name, on_selected)
         self._active_drawn_objects[name] = selector
@@ -98,6 +93,13 @@ class LaserService():
         self._laser_controller = MoveController(serial_off=False)
         self.initialized = self._laser_controller.initialized
         self.errored = False
+
+        MAX_LASER_RANGE = settings.MAX_LASER_RANGE_PLUS_MINUS
+        left_top = Point(-MAX_LASER_RANGE, -MAX_LASER_RANGE)
+        right_top = Point(MAX_LASER_RANGE, -MAX_LASER_RANGE)
+        right_bottom = Point(MAX_LASER_RANGE, MAX_LASER_RANGE)
+        left_bottom = Point(-MAX_LASER_RANGE, MAX_LASER_RANGE)
+        self.laser_borders = [left_top, right_top, right_bottom, left_bottom]
 
     def calibrate_laser(self):
         logger.debug('laser calibrated')

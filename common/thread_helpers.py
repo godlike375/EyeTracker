@@ -60,3 +60,11 @@ class ThreadLoopable:
 
     def stop_thread(self):
         self._thread_loop.stop()
+
+
+def run_thread_after_func(func1, func2):
+    def wrapper(*args, **kwargs):
+        func1(*args, **kwargs)
+        func2(*args, **kwargs).start()
+
+    return wrapper

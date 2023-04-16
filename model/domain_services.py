@@ -25,16 +25,15 @@ class Orchestrator(ThreadLoopable):
         self._view_model = view_model
         self._extractor = FrameExtractor(settings.CAMERA_ID)
         self.selecting_service = SelectingService(self._on_area_selected, self._on_object_selected)
-        self._area_controller = AreaController(min_xy=-settings.MAX_LASER_RANGE_PLUS_MINUS,
-                                               max_xy=settings.MAX_LASER_RANGE_PLUS_MINUS)
+        self.area_controller = AreaController(min_xy=-settings.MAX_LASER_RANGE_PLUS_MINUS,
+                                              max_xy=settings.MAX_LASER_RANGE_PLUS_MINUS)
         self.tracker = Tracker(settings.TRACKING_FRAMES_MEAN_NUMBER)
         self.laser_service = LaserService()
         self.state_tip = StateTipSupervisor(self._view_model)
 
         self._current_frame = None
         self.threshold_calibrator = NoiseThresholdCalibrator()
-        self.coordinate_system_calibrator = CoordinateSystemCalibrator(self.laser_service, self.selecting_service,
-                                                                       self._area_controller, self.tracker)
+        self.coordinate_system_calibrator = CoordinateSystemCalibrator(self)
 
         self.previous_area = None
         self._throttle_to_fps_viewed = time()
@@ -116,15 +115,15 @@ class Orchestrator(ThreadLoopable):
     def _restore_previous_area(self):
         if self.previous_area is not None:
             self.selecting_service.start_drawing(self.previous_area, AREA)
-            self._area_controller.set_area(self.previous_area)
+            self.area_controller.set_area(self.previous_area, self.laser_service.laser_borders)
         self._view_model.progress_bar_set_visibility(False)
 
     def _move_to_relative_cords(self, center):
-        out_of_area = self._area_controller.point_is_out_of_area(center, beep_sound_allowed=True)
+        out_of_area = self.area_controller.point_is_out_of_area(center, beep_sound_allowed=True)
         if out_of_area:
             return
 
-        relative_coords = self._area_controller.calc_laser_coords(center)
+        relative_coords = self.area_controller.calc_laser_coords(center)
         result = self.laser_service.set_new_position(relative_coords)
         if result is None:
             self.cancel_active_process(confirm=False)
@@ -135,7 +134,7 @@ class Orchestrator(ThreadLoopable):
             self._view_model.new_selection(AREA, retry=True)
             return
         self.previous_area = area
-        self._area_controller.set_area(area)
+        self.area_controller.set_area(area, self.laser_service.laser_borders)
         self.state_tip.next_state('area selected')
 
     def _on_object_selected(self):
@@ -143,7 +142,7 @@ class Orchestrator(ThreadLoopable):
         out_of_area = False
         if selected:
             center = ((object.left_top + object.right_bottom) / 2).to_int()
-            out_of_area = self._area_controller.point_is_out_of_area(center)
+            out_of_area = self.area_controller.point_is_out_of_area(center)
             if out_of_area:
                 logger.warning('selected object is out of tracking borders')
                 view_output.show_warning('Невозможно выделить объект за границами области слежения.')
@@ -175,6 +174,7 @@ class Orchestrator(ThreadLoopable):
                 return False
 
         self.selecting_service.object_is_selecting = True
+        return True
 
     def _new_area(self):
         if self.selecting_service.object_is_selecting:
@@ -190,6 +190,7 @@ class Orchestrator(ThreadLoopable):
             if not confirm:
                 return False
         self.selecting_service.stop_drawing(OBJECT)
+        return True
 
     def new_selection(self, name, retry=False, additional_callback=None):
         if self.threshold_calibrator.in_progress and not retry:
@@ -215,14 +216,7 @@ class Orchestrator(ThreadLoopable):
         area._points = [Point(0, 0), Point(height, 0), Point(height, width), Point(0, width)]
         area._sort_points_for_viewing()
         area.is_selected = True
-        self._area_controller.set_area(area)
-
-    def _auto_select_area(self, points):
-        area = self.selecting_service.create_selector(AREA)
-        area._points = points
-        area._sort_points_for_viewing()
-        area.is_selected = True
-        self._area_controller.set_area(area)
+        self.area_controller.set_area(area, self.laser_service.laser_borders)
 
     def calibrate_noise_threshold(self, width, height):
         if self.tracker.in_progress:
