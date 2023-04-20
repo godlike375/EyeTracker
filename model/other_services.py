@@ -35,8 +35,8 @@ class SelectingService:
 
     def check_emptiness(self, selector, name):
         if selector is None or selector.is_empty:
-            logger.warning('selected area is zero in size')
-            view_output.show_message('Выделенная область слишком мала или некорректно выделена.', 'Ошибка')
+            logger.warning('selected area is too small in size')
+            view_output.show_error('Выделенная область слишком мала или некорректно выделена.', 'Ошибка')
             self.stop_drawing(name)
 
     def get_active_objects(self) -> List[Drawable]:

@@ -4,11 +4,16 @@ from common.logger import logger
 
 
 def show_message(message: str, title: str = ''):
+    logger.debug(message)
+    messagebox.showinfo(title, message)
+
+def show_warning(message: str, title: str = 'Предупреждение'):
+    logger.warning(message)
+    messagebox.showwarning(title, message)
+
+def show_error(message: str, title: str = 'Ошибка'):
+    logger.error(message)
     messagebox.showerror(title, message)
-
-
-def show_warning(message: str):
-    messagebox.showerror('Предупреждение', message)
 
 
 def show_fatal(e):

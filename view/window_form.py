@@ -110,7 +110,7 @@ class View:
         try:
             self._root.iconbitmap(str(get_repo_path(bundled=True) / "tracking.ico"))
         except Exception:
-            logger.debug('tracking.ico not found')
+            logger.warning('tracking.ico not found')
 
         self.setup_window_geometry()
 

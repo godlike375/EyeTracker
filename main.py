@@ -35,15 +35,15 @@ def main(args):
         private_settings.load()
         Processor.load_color()
     except Exception as e:
-        view_output.show_message(title='Ошибка загрузки конфигурации',
-                            message=f'{e} \nРабота программы будет продолжена, но возможны сбои в работе.'
+        view_output.show_error(title='Ошибка загрузки конфигурации',
+                               message=f'{e} \nРабота программы будет продолжена, но возможны сбои в работе.'
                                     f' Рекоммендуется перезагрузка')
         logger.exception(e)
     area = None
     try:
         area = SelectedArea.load()
     except Exception as e:
-        view_output.show_warning(message=f'Ошибка загрузки ранее выделенной области \n{e} \nРабота программы будет продолжена')
+        view_output.show_error(message=f'Ошибка загрузки ранее выделенной области \n{e} \nРабота программы будет продолжена')
         logger.exception(e)
     logger.debug('settings loaded')
     try:
@@ -60,10 +60,10 @@ def main(args):
         save_data(model_core)
         logger.debug('settings saved')
     except Exception as e:
-        view_output.show_message(title='Фатальная ошибка', message=f'Произошла фатальная ошибка.\n'
-                                                                   f'{e}\n'
-                                                                   f'Работа программы не может быть продолжена. '
-                                                                   f'Будет произведена попытка сохранения данных')
+        view_output.show_fatal(f'Произошла фатальная ошибка.\n'
+                               f'{e}\n'
+                               f'Работа программы не может быть продолжена. '
+                               f'Будет произведена попытка сохранения данных')
         logger.exception(e)
         save_data(model_core)
 

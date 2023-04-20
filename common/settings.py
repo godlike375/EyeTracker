@@ -139,7 +139,7 @@ class Settings:
 
             super().__setattr__(key, value)
         except Exception as e:
-            view_output.show_warning(e)
+            view_output.show_error(e)
             return False
         else:
             return True

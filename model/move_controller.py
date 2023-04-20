@@ -38,7 +38,7 @@ class MoveController(Initializable):
             if manual_port not in ports_names or ports_names[manual_port] != LASER_DEVICE_NAME:
                 predicate = [(LASER_DEVICE_NAME in description) for description in ports_descriptions]
                 if not any(predicate):
-                    view_output.show_warning(
+                    view_output.show_error(
                         f'Не удалось открыть заданный настройкой SERIAL_PORT последовательный порт'
                         f' {manual_port}, а так же не удалось определить подходящий порт автоматически.'
                         f' Программа продолжит работать без контроллера лазера.')

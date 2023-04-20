@@ -144,8 +144,7 @@ class Orchestrator(ThreadLoopable):
             center = ((object.left_top + object.right_bottom) / 2).to_int()
             out_of_area = self.area_controller.point_is_out_of_area(center)
             if out_of_area:
-                logger.warning('selected object is out of tracking borders')
-                view_output.show_warning('Невозможно выделить объект за границами области слежения.')
+                view_output.show_error('Невозможно выделить объект за границами области слежения.')
                 self.selecting_service.stop_drawing(OBJECT)
 
         if not selected or out_of_area:
@@ -160,13 +159,13 @@ class Orchestrator(ThreadLoopable):
 
     def _new_object(self):
         if not self.selecting_service.selector_is_selected(AREA):
-            view_output.show_warning('Перед выделением объекта необходимо выделить область слежения.')
+            view_output.show_error('Перед выделением объекта необходимо выделить область слежения.')
             return False
 
         if self.laser_service.errored:
-            view_output.show_warning(
+            view_output.show_error(
                 'Необходимо откалибровать контроллер лазера повторно. '
-                'До этого момента слежения за объектом невозможно')
+                'До этого момента слежения за объектом невозможно.')
             return False
         if self.selecting_service.selector_is_selected(OBJECT):
             confirm = view_output.ask_confirmation('Выделенный объект перестанет отслеживаться. Продолжить?')
@@ -220,7 +219,7 @@ class Orchestrator(ThreadLoopable):
 
     def calibrate_noise_threshold(self, width, height):
         if self.tracker.in_progress:
-            view_output.show_warning('Запрещена калибровка шумоподавления во время слежения за объектом.')
+            view_output.show_error('Калибровка шумоподавления во время слежения за объектом невозможна.')
             return
 
         if self.selecting_service.selector_is_selected(AREA):
@@ -238,7 +237,7 @@ class Orchestrator(ThreadLoopable):
 
     def calibrate_coordinate_system(self, width, height):
         if self.tracker.in_progress:
-            view_output.show_warning('Запрещена калибровка координатной системы во время слежения за объектом.')
+            view_output.show_error('Калибровка координатной системы во время слежения за объектом невозможна.')
             return
 
         self._auto_select_area_full_screen(width, height)
@@ -251,20 +250,20 @@ class Orchestrator(ThreadLoopable):
     def calibrate_laser(self):
         # TODO: по возможности отрефакторить дублирование условий
         if self.tracker.in_progress:
-            view_output.show_warning('Запрещена калибровка лазера во время слежения за объектом.')
+            view_output.show_error('Калибровка лазера во время слежения за объектом невозможна.')
             return
         self.laser_service.calibrate_laser()
         self.state_tip.next_state('laser calibrated')
 
     def center_laser(self):
         if self.tracker.in_progress:
-            view_output.show_warning('Запрещено позиционирования лазера во время слежения за объектом.')
+            view_output.show_error('Позиционирование лазера во время слежения за объектом невозможно.')
             return
         self.laser_service.center_laser()
 
     def move_laser(self, x, y):
         if self.tracker.in_progress:
-            view_output.show_warning('Запрещено позиционирования лазера во время слежения за объектом.')
+            view_output.show_error('Позиционирование лазера во время слежения за объектом невозможно.')
             return
         self.laser_service.move_laser(x, y)
 
@@ -289,7 +288,7 @@ class Orchestrator(ThreadLoopable):
 
     def rotate_image(self, degree, user_action=True):
         if self.tracker.in_progress:
-            view_output.show_warning('Запрещено поворачивать изображение во время слежения за объектом')
+            view_output.show_error('Поворот изображения во время слежения за объектом невозможен.')
             return
 
         if private_settings.ROTATION_ANGLE == degree and user_action:
@@ -312,7 +311,7 @@ class Orchestrator(ThreadLoopable):
 
     def flip_image(self, side, user_action=True):
         if self.tracker.in_progress:
-            view_output.show_warning('Запрещено отражать зеркально изображение во время слежения за объектом')
+            view_output.show_error('Отражение изображения во время слежения за объектом невозможно.')
             return
 
         if private_settings.FLIP_SIDE == side and user_action:

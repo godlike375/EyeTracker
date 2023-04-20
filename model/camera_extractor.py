@@ -32,7 +32,7 @@ class FrameExtractor(Initializable):
         if not self.try_set_camera(source):
             if not self.try_set_camera(DEFAULT_CAMERA_ID):
                 self.init_error()
-                view_output.show_warning(
+                view_output.show_error(
                     f'Не удалось открыть заданную настройкой CAMERA_ID камеру '
                     f'{source}, а так же не удалось определить подходящую камеру автоматически. '
                     f'Программа продолжит работать без контроллера камеры.'
