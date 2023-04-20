@@ -112,7 +112,7 @@ class Orchestrator(ThreadLoopable):
     def _on_area_selected(self):
         selected, area = self.selecting.check_selected(AREA)
         if not selected:
-            self._view_model.new_selection(AREA, retry=True)
+            self._view_model.new_selection(AREA, retry_select_object_in_calibrating=True)
             return
         self.previous_area = area
         self.area_controller.set_area(area, self.laser.laser_borders)
@@ -129,7 +129,7 @@ class Orchestrator(ThreadLoopable):
                 self.selecting.stop_drawing(OBJECT)
 
         if not selected or out_of_area:
-            self._view_model.new_selection(OBJECT, retry=True)
+            self._view_model.new_selection(OBJECT, retry_select_object_in_calibrating=True)
             return
 
         self.tracker.start_tracking(self._current_frame, object.left_top, object.right_bottom)
@@ -172,9 +172,10 @@ class Orchestrator(ThreadLoopable):
         self.selecting.stop_drawing(OBJECT)
         return True
 
-    def new_selection(self, name, retry=False, additional_callback=None):
-        if self.threshold_calibrator.in_progress and not retry:
-            view_output.show_warning('Выполняется калибровка шумоподавления, необходимо дождаться её окончания.')
+    def new_selection(self, name, retry_select_object_in_calibrating=False, additional_callback=None):
+        if (self.threshold_calibrator.in_progress or self.coordinate_calibrator.in_progress)\
+                and not retry_select_object_in_calibrating:
+            view_output.show_warning('Выполняется процесс калибровки, необходимо дождаться его окончания.')
             return
 
         if OBJECT in name:
@@ -192,6 +193,9 @@ class Orchestrator(ThreadLoopable):
 
     def _auto_select_area_full_screen(self, width, height):
         # TODO: перенести кроме последней строчки в SelectingService
+        # TODO: подумать, мб вообще не нужно выделять на весь экран область, ибо это выглядит как костыль
+        #  и заставляет потом restore делать. Когда можно вообще всего этого не делать, позволив следить за объектом
+        #  без выделения области
         area = self.selecting.create_selector(AREA)
         area._points = [Point(0, 0), Point(height, 0), Point(height, width), Point(0, width)]
         area._sort_points_for_viewing()
@@ -208,7 +212,7 @@ class Orchestrator(ThreadLoopable):
             self.selecting.stop_drawing(AREA)
 
         self._auto_select_area_full_screen(width, height)
-        self._view_model.new_selection(OBJECT, retry=False,
+        self._view_model.new_selection(OBJECT, retry_select_object_in_calibrating=False,
                                        additional_callback=self.threshold_calibrator.calibrate)
 
         self.threshold_calibrator.start()
@@ -223,7 +227,7 @@ class Orchestrator(ThreadLoopable):
             return
 
         self._auto_select_area_full_screen(width, height)
-        self._view_model.new_selection(OBJECT, retry=False,
+        self._view_model.new_selection(OBJECT, retry_select_object_in_calibrating=False,
                                        additional_callback=self.coordinate_calibrator.calibrate)
         self.coordinate_calibrator.start()
         self._view_model.progress_bar_set_visibility(True)

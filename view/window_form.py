@@ -169,11 +169,10 @@ class View:
         else:
             self._progress_bar.pack(fill=X)
 
-    def progress_bar_set_value(self, val):
-        # TODO: убрать прямое обращение сюда из модели
+    def set_progress(self, val):
         self._progress_bar.config(value=val)
 
-    def progress_bar_get_value(self):
+    def get_progress(self):
         return self._progress_bar['value']
 
     def set_tip(self, tip):

@@ -18,7 +18,6 @@ class MoveController(Initializable):
 
     def __init__(self, manual_port=None, baud_rate=None, serial_off=False):
         super().__init__(initialized=True)
-        # TODO: к настройкам должно обращаться что-то внещнее в идеале и передавать эти параметры сюда
         manual_port = manual_port or f'COM{settings.SERIAL_PORT}'
         baud_rate = baud_rate or settings.SERIAL_BAUD_RATE
         self._timer = time()

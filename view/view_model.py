@@ -1,4 +1,6 @@
 import sys
+import os
+from pathlib import Path
 from functools import partial
 from tkinter import Tk, END, colorchooser
 
@@ -14,7 +16,7 @@ G_INDEX = 1
 R_INDEX = 0
 B_INDEX = 2
 PARAMETERS_APPLIED_AFTER_RESTART = 'Большинство параметров будут применены после перезапуска программы. ' \
-                                   'Желаете закрыть программу сейчас?'
+                                   'Желаете перезапустить программу сейчас?'
 
 
 class ViewModel:
@@ -50,11 +52,10 @@ class ViewModel:
     def left_button_up(self, selector, event):
         selector.left_button_up(Point(event.x, event.y))
 
-    def new_selection(self, name, retry=False, additional_callback=None):
-        # TODO: переименовать параметр retry, потому что выглядит непонятно
+    def new_selection(self, name, retry_select_object_in_calibrating=False, additional_callback=None):
         # TODO: кроме name параметры нужны только чтобы передать их в new_selection модели
         #  то есть, эта функция используется и моделью и представлением, что выглядит странно, если подумать...
-        selector = self._model.new_selection(name, retry, additional_callback)
+        selector = self._model.new_selection(name, retry_select_object_in_calibrating, additional_callback)
 
         if selector is None:
             return
@@ -120,6 +121,8 @@ class ViewModel:
             self._model.stop_thread()
             private_settings.save()
             self.save_area()
+            # TODO: останавливать работу программы нужно где-то в другом месте
+            os.execv(str(Path.cwd() / sys.argv[0]), [sys.argv[0]])
             sys.exit()
         else:
             self._view.destroy_settings_window()
@@ -154,12 +157,13 @@ class ViewModel:
             settings.save()
             private_settings.save()
             self.save_area()
+            # TODO: останавливать работу программы нужно где-то в другом месте
+            os.execv(str(Path.cwd() / sys.argv[0]), [sys.argv[0]])
             sys.exit()
         else:
             self._view.destroy_settings_window()
 
     def save_area(self):
-        # TODO: останавливать работу программы нужно где-то в другом месте
         area_is_selected = self._model.selecting.selector_is_selected(AREA)
         if area_is_selected:
             if self._model.threshold_calibrator.in_progress and self._model.previous_area:
