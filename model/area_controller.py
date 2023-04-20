@@ -23,10 +23,6 @@ class AreaController:
         self._translation_matrix = None
         self._beeped = False
 
-    @staticmethod
-    def calc_center(left_top: Point, right_bottom: Point) -> Point:
-        return Point(int((left_top.x + right_bottom.x) / 2), int((left_top.y + right_bottom.y) / 2))
-
     def set_area(self, area: AreaSelector, laser_borders=None):
         points = area.points
         transformed_points = [(*p,) for p in laser_borders]
@@ -52,7 +48,6 @@ class AreaController:
     def point_is_out_of_area(self, point: Point, beep_sound_allowed=False) -> bool:
         # https://docs.opencv.org/4.x/da/d54/group__imgproc__transform.html#gaf73673a7e8e18ec6963e3774e6a94b87
         translated = self.translate_coordinates(point)
-        print(translated)
         out_of_area = translated.x < self._min_xy.x or translated.x > self._max_xy.x \
             or translated.y < self._min_xy.y or translated.y > self._max_xy.y
         if beep_sound_allowed:

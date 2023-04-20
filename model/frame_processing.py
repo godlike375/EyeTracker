@@ -5,12 +5,12 @@ from time import time, sleep
 import dlib
 
 from common.abstractions import ProcessBased, RectBased, Drawable
-from common.coordinates import Point
+from common.coordinates import Point, calc_center
 from common.logger import logger
-from common.settings import settings, TRACKER, OBJECT, AREA
+from common.settings import settings, TRACKER, OBJECT, AREA, MIN_THROTTLE_DIFFERENCE
 from common.thread_helpers import threaded
-from model.area_controller import AreaController
 from view.drawing import Processor
+from view import view_output
 
 PERCENT_FROM_DECIMAL = 100
 
@@ -37,7 +37,7 @@ class Tracker(RectBased, Drawable, ProcessBased):
     def update_center(self):
         left_cur_pos = Point(int(self._denoisers[0].get()), int(self._denoisers[1].get()))
         right_cur_pos = Point(int(self._denoisers[2].get()), int(self._denoisers[3].get()))
-        center = AreaController.calc_center(left_cur_pos, right_cur_pos)
+        center = calc_center(left_cur_pos, right_cur_pos)
         if abs(self._center - center) >= self._length_xy * settings.NOISE_THRESHOLD_PERCENT:
             self._center = center
 
@@ -54,7 +54,7 @@ class Tracker(RectBased, Drawable, ProcessBased):
             (scaled_left_top * settings.DOWNSCALE_FACTOR).to_int(), \
             (scaled_right_bottom * settings.DOWNSCALE_FACTOR).to_int()
 
-        self._center = AreaController.calc_center(scaled_left_top, scaled_right_bottom)
+        self._center = calc_center(scaled_left_top, scaled_right_bottom)
         self.tracker.start_track(frame, dlib.rectangle(*scaled_left_top, *scaled_right_bottom))
         self.start()
 
@@ -80,12 +80,15 @@ class NoiseThresholdCalibrator(ProcessBased):
     CALIBRATION_THRESHOLD_STEP = 0.0025
 
     # В течение settings.OBJECT_NOT_MOVING_DURATION секунд цель трекинга не должна двигаться
-    def __init__(self):
+    def __init__(self, model, view_model):
         super().__init__()
         self._last_position = None
         self._last_timestamp = time()
+        self._model = model
+        self._view_model = view_model
+        self._delay_sec = 1 / settings.FPS_PROCESSED
 
-    def is_calibration_successful(self, center):
+    def _is_calibration_successful(self, center):
         if self._last_position is None:
             self._last_position = center
             self._last_timestamp = time()
@@ -99,48 +102,77 @@ class NoiseThresholdCalibrator(ProcessBased):
             self.in_progress = False
             return True
 
-    def calibration_progress(self):
+    def _calibration_progress(self):
         return int(((time() - self._last_timestamp) / settings.OBJECT_NOT_MOVING_DURATION) * PERCENT_FROM_DECIMAL)
 
+    def _threshold_calibrating(self, center):
+        if self._is_calibration_successful(center):
+            self.stop()
 
-class CoordinateSystemCalibrator(ProcessBased):
-    def __init__(self, model):
-        super().__init__()
-        self._model = model
-
-        self._laser_borders = model.laser_service.laser_borders
+        progress_value = self._calibration_progress()
+        if abs(self._view_model.progress_bar_get_value() - progress_value) > MIN_THROTTLE_DIFFERENCE:
+            self._view_model.progress_bar_set_value(progress_value)
 
     @threaded
     def calibrate(self):
-        object = self._model.selecting_service.get_selector(OBJECT)
+        object = self._model.selecting.get_selector(OBJECT)
+        while self.in_progress:
+            sleep(self._delay_sec)
+            self._threshold_calibrating(object._center)
+        self._on_calibrated()
+
+    def _on_calibrated(self):
+        self._model.tracker.stop()
+        self._model.selecting.stop_drawing(OBJECT)
+        self._model.restore_previous_area()
+        settings.NOISE_THRESHOLD_PERCENT = round(settings.NOISE_THRESHOLD_PERCENT, 5)
+        self._model.state_tip.next_state('noise threshold calibrated')
+        view_output.show_message('Калибровка шумоподавления успешно завершена.')
+
+class CoordinateSystemCalibrator(ProcessBased):
+    def __init__(self, model, view_model):
+        super().__init__()
+        self._model = model
+        self._view_model = view_model
+        self._laser_borders = model.laser.laser_borders
+        self._delay_sec = 1 / settings.FPS_VIEWED
+
+    @threaded
+    def calibrate(self):
+        object = self._model.selecting.get_selector(OBJECT)
         screen_points = []
+        progress = 0
 
         self._wait_for_controller_ready()
 
         for point in self._laser_borders:
-            self._model.laser_service.set_new_position(point)
+            self._model.laser.set_new_position(point)
 
             self._wait_for_controller_ready()
 
             screen_position = ((object.left_top + object.right_bottom) / 2).to_int()
             screen_points.append(screen_position)
+            progress += 25
+            self._view_model.progress_bar_set_value(progress)
         self._finish_calibrating(screen_points)
 
     def _wait_for_controller_ready(self):
-        while not self._model.laser_service.controller_is_ready():
+        while not self._model.laser.controller_is_ready():
             if not self.in_progress:
                 exit()
-            self._model.laser_service.refresh_data()
-            sleep(0.25)
+            self._model.laser.refresh_data()
+            sleep(self._delay_sec)
 
     def _finish_calibrating(self, screen_points):
-        area = self._model.selecting_service.get_selector(AREA)
+        area = self._model.selecting.get_selector(AREA)
         area._points = screen_points
         area.finish_selecting()
         self._model.area_controller.set_area(area, self._laser_borders)
 
-        self._model.selecting_service.stop_drawing(OBJECT)
+        self._model.selecting.stop_drawing(OBJECT)
         self._model.tracker.stop()
+        self._view_model.progress_bar_set_value(0)
+        view_output.show_message('Калибровка координатной системы успешно завершена.')
         self.stop()
 
 

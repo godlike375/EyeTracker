@@ -4,7 +4,7 @@ from typing import List
 from common.abstractions import Drawable
 from common.coordinates import Point
 from common.logger import logger
-from common.settings import AREA, OBJECT, TRACKER, CALIBRATE, settings
+from common.settings import AREA, OBJECT, TRACKER, CALIBRATE_LASER_COMMAND_ID, settings
 from model.move_controller import MoveController
 from model.selector import AreaSelector, ObjectSelector
 from view import view_output
@@ -42,13 +42,13 @@ class SelectingService:
     def get_active_objects(self) -> List[Drawable]:
         return self._active_drawn_objects.values()
 
-    def create_selector(self, name, additional_callback=None):
+    def create_selector(self, name, call_func_after_selection=None):
         logger.debug(f'creating new selector {name}')
 
         on_selected = self._on_object_selected if OBJECT in name else self._on_area_selected
 
-        if additional_callback is not None:
-            on_selected = run_thread_after_func(on_selected, additional_callback)
+        if call_func_after_selection is not None:
+            on_selected = run_thread_after_func(on_selected, call_func_after_selection)
 
         selector = ObjectSelector(name, on_selected) if OBJECT in name else AreaSelector(name, on_selected)
         self._active_drawn_objects[name] = selector
@@ -103,7 +103,7 @@ class LaserService():
 
     def calibrate_laser(self):
         logger.debug('laser calibrated')
-        self._laser_controller._move_laser(Point(0, 0), command=CALIBRATE)
+        self._laser_controller._move_laser(Point(0, 0), command=CALIBRATE_LASER_COMMAND_ID)
         self.errored = False
         self._laser_controller._errored = False
 

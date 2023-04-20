@@ -3,13 +3,18 @@ from tkinter import messagebox
 from common.logger import logger
 
 
+# TODO: по-хорошему, у view нужно сделать message queue, куда будут приходить эти сообщения,
+#  а оно их будет отображать по мере возможности
+
 def show_message(message: str, title: str = ''):
     logger.debug(message)
     messagebox.showinfo(title, message)
 
+
 def show_warning(message: str, title: str = 'Предупреждение'):
     logger.warning(message)
     messagebox.showwarning(title, message)
+
 
 def show_error(message: str, title: str = 'Ошибка'):
     logger.error(message)

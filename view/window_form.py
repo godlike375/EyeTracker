@@ -171,6 +171,7 @@ class View:
             self._progress_bar.pack(fill=X)
 
     def progress_bar_set_value(self, val):
+        # TODO: убрать прямое обращение сюда из модели
         self._progress_bar.config(value=val)
 
     def progress_bar_get_value(self):

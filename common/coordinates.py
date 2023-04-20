@@ -85,3 +85,6 @@ class Point:
 
     def calc_distance(self, other):
         return sqrt((other.x - self.x)**2 + (other.y - self.y)**2)
+
+def calc_center(left_top: Point, right_bottom: Point) -> Point:
+    return Point(int((left_top.x + right_bottom.x) / 2), int((left_top.y + right_bottom.y) / 2))

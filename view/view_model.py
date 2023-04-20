@@ -73,7 +73,7 @@ class ViewModel:
         unbindings = (unbind_left_click, unbind_left_down_moved, unbind_left_up)
 
         selector.bind_events(bindings, unbindings)
-        self._model.selecting_service.start_drawing(selector, name)
+        self._model.selecting.start_drawing(selector, name)
 
     def calibrate_noise_threshold(self):
         self._model.calibrate_noise_threshold(self._view.window_width, self._view.window_height)
@@ -82,7 +82,7 @@ class ViewModel:
         self._model.calibrate_coordinate_system(self._view.window_width, self._view.window_height)
 
     def selector_is_selected(self, name):
-        return self._model.selecting_service.selector_is_selected(name)
+        return self._model.selecting.selector_is_selected(name)
 
     def cancel_active_process(self):
         self._model.cancel_active_process()
@@ -160,10 +160,10 @@ class ViewModel:
 
     def save_area(self):
         # TODO: останавливать работу программы нужно где-то в другом месте
-        area_is_selected = self._model.selecting_service.selector_is_selected(AREA)
+        area_is_selected = self._model.selecting.selector_is_selected(AREA)
         if area_is_selected:
             if self._model.threshold_calibrator.in_progress and self._model.previous_area:
                 self._model.save(self._model.previous_area.points)
             else:
-                area_selector = self._model.selecting_service.get_selector(AREA)
+                area_selector = self._model.selecting.get_selector(AREA)
                 SelectedArea.save(area_selector.points)

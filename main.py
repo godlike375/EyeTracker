@@ -14,12 +14,12 @@ from view.drawing import Processor
 def save_data(model_core):
     settings.save()
     private_settings.save()
-    area_is_selected = model_core.selecting_service.selector_is_selected(AREA)
+    area_is_selected = model_core.selecting.selector_is_selected(AREA)
     if area_is_selected:
         if model_core.threshold_calibrator.in_progress and model_core.previous_area:
             SelectedArea.save(model_core.previous_area.points)
         else:
-            area_selector = model_core.selecting_service.get_selector(AREA)
+            area_selector = model_core.selecting.get_selector(AREA)
             SelectedArea.save(area_selector.points)
     else:
         SelectedArea.remove()
@@ -56,7 +56,7 @@ def main(args):
         root.mainloop()
         logger.debug('mainloop finished')
         model_core.stop_thread()
-        model_core.laser_service.center_laser()
+        model_core.laser.center_laser()
         save_data(model_core)
         logger.debug('settings saved')
     except Exception as e:
