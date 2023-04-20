@@ -88,16 +88,16 @@ class ViewModel:
         self._model.cancel_active_process()
 
     def progress_bar_set_visibility(self, visible):
-        self._view.progress_bar_set_visibility(visible)
+        self._view._commands.queue_command(partial(self._view.progress_bar_set_visibility, visible))
 
-    def progress_bar_set_value(self, val):
-        self._view.progress_bar_set_value(val)
+    def set_progress(self, val):
+        self._view._commands.queue_command(partial(self._view.set_progress, val))
 
-    def progress_bar_get_value(self):
-        return self._view.progress_bar_get_value()
+    def get_progress(self):
+        return self._view.get_progress()
 
     def set_tip(self, tip):
-        self._view.set_tip(f'Подсказка: {tip}')
+        self._view._commands.queue_command(partial(self._view.set_tip, f'Подсказка: {tip}'))
 
     def save_settings(self, params):
         errored = False
@@ -131,7 +131,7 @@ class ViewModel:
         self._model.flip_image(side)
 
     def setup_window_geometry(self, reverse):
-        self._view.setup_window_geometry(reverse)
+        self._view._commands.queue_command(partial(self._view.setup_window_geometry, reverse))
 
     def pick_color(self):
         color = colorchooser.askcolor()[COLOR_RGB_INDEX]

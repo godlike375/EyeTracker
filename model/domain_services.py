@@ -215,7 +215,7 @@ class Orchestrator(ThreadLoopable):
         settings.NOISE_THRESHOLD_PERCENT = 0.0
 
         self._view_model.progress_bar_set_visibility(True)
-        self._view_model.progress_bar_set_value(0)
+        self._view_model.set_progress(0)
 
     def calibrate_coordinate_system(self, width, height):
         if self.tracker.in_progress:
@@ -227,7 +227,7 @@ class Orchestrator(ThreadLoopable):
                                        additional_callback=self.coordinate_calibrator.calibrate)
         self.coordinate_calibrator.start()
         self._view_model.progress_bar_set_visibility(True)
-        self._view_model.progress_bar_set_value(0)
+        self._view_model.set_progress(0)
 
     def calibrate_laser(self):
         # TODO: по возможности отрефакторить дублирование условий

@@ -10,6 +10,7 @@ from view.view_model import ViewModel
 from view.window_form import View
 from view import view_output
 from view.drawing import Processor
+import view.view_output
 
 def save_data(model_core):
     settings.save()
@@ -49,6 +50,7 @@ def main(args):
     try:
         view_model = ViewModel(root)
         form = View(root, view_model)
+        view_output._view = form
         view_model.set_view(form)
         model_core = Orchestrator(view_model, area=area)
         view_model.set_model(model_core)

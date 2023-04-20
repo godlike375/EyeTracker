@@ -110,8 +110,8 @@ class NoiseThresholdCalibrator(ProcessBased):
             self.stop()
 
         progress_value = self._calibration_progress()
-        if abs(self._view_model.progress_bar_get_value() - progress_value) > MIN_THROTTLE_DIFFERENCE:
-            self._view_model.progress_bar_set_value(progress_value)
+        if abs(self._view_model.get_progress() - progress_value) > MIN_THROTTLE_DIFFERENCE:
+            self._view_model.set_progress(progress_value)
 
     @threaded
     def calibrate(self):
@@ -153,7 +153,7 @@ class CoordinateSystemCalibrator(ProcessBased):
             screen_position = ((object.left_top + object.right_bottom) / 2).to_int()
             screen_points.append(screen_position)
             progress += 25
-            self._view_model.progress_bar_set_value(progress)
+            self._view_model.set_progress(progress)
         self._finish_calibrating(screen_points)
 
     def _wait_for_controller_ready(self):
@@ -171,7 +171,7 @@ class CoordinateSystemCalibrator(ProcessBased):
 
         self._model.selecting.stop_drawing(OBJECT)
         self._model.tracker.stop()
-        self._view_model.progress_bar_set_value(0)
+        self._view_model.set_progress(0)
         view_output.show_message('Калибровка координатной системы успешно завершена.')
         self.stop()
 

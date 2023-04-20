@@ -1,24 +1,28 @@
 from tkinter import messagebox
+from functools import partial
 
 from common.logger import logger
 
 
-# TODO: по-хорошему, у view нужно сделать message queue, куда будут приходить эти сообщения,
-#  а оно их будет отображать по мере возможности
+_view = None
+
 
 def show_message(message: str, title: str = ''):
     logger.debug(message)
-    messagebox.showinfo(title, message)
+    _view._commands.queue_command(partial(messagebox.showinfo, title, message))
+    #messagebox.showinfo(title, message)
 
 
 def show_warning(message: str, title: str = 'Предупреждение'):
     logger.warning(message)
-    messagebox.showwarning(title, message)
+    _view._commands.queue_command(partial(messagebox.showwarning, title, message))
+    #messagebox.showwarning(title, message)
 
 
 def show_error(message: str, title: str = 'Ошибка'):
     logger.error(message)
-    messagebox.showerror(title, message)
+    _view._commands.queue_command(partial(messagebox.showerror, title, message))
+    #messagebox.showerror(title, message)
 
 
 def show_fatal(e):

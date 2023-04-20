@@ -14,6 +14,7 @@ from common.settings import (
     settings, AREA, OBJECT, FLIP_SIDE_NONE, FLIP_SIDE_VERTICAL,
     FLIP_SIDE_HORIZONTAL, RESOLUTIONS, DOWNSCALED_HEIGHT, get_repo_path
 )
+from view.view_command_process import CommandExecutor
 
 SECOND_LENGTH = 1000
 INDICATORS_WIDTH_ADDITION = 20
@@ -42,8 +43,7 @@ class View:
         self._progress_bar = Progressbar(self._indicators_frame)
         self._settings = None
 
-        self._current_tip = ''
-        self._new_tip = ''
+        self._commands = CommandExecutor(self)
 
         self.setup_menus()
         self.setup_layout()
@@ -144,6 +144,9 @@ class View:
 
     def show_image(self):
         self._root.after(self._interval_ms, self.show_image)
+
+        self._commands.exec_queued_commands()
+
         if self._current_image is None or self._prev_image is self._current_image:
             return
         image = self._current_image
@@ -160,10 +163,6 @@ class View:
             self._image_alive_ref = ImageTk.PhotoImage(image=image)
             self._video_label.configure(image=self._image_alive_ref)
 
-        if self._new_tip != self._current_tip:
-            self._current_tip = self._new_tip
-            self._tip.config(text=self._new_tip)
-
     def progress_bar_set_visibility(self, visible):
         if not visible:
             self._progress_bar.pack_forget()
@@ -177,8 +176,8 @@ class View:
     def progress_bar_get_value(self):
         return self._progress_bar['value']
 
-    def set_tip(self, text):
-        self._new_tip = text
+    def set_tip(self, tip):
+        self._tip.config(text=tip)
 
     def open_settings(self):
         if self._settings is not None:
