@@ -1,5 +1,6 @@
 from collections import deque
 
+
 class CommandQueue:
     def __init__(self):
         self._queue = deque()
@@ -20,6 +21,7 @@ class CommandQueue:
 
     def __iter__(self):
         return self
+
 
 class CommandExecutor:
     def __init__(self, view):

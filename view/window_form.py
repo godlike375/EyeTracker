@@ -126,9 +126,6 @@ class View:
     def setup_window_geometry(self, reverse=False):
         window_height = DOWNSCALED_HEIGHT
         window_width = RESOLUTIONS[window_height] + INDICATORS_WIDTH_ADDITION
-
-        self.window_height = window_height if not reverse else window_width
-        self.window_width = window_width if not reverse else window_height
         window_size = f'{window_height}x{window_width + INDICATORS_WIDTH_ADDITION}' if not reverse else \
             f'{window_width + REVERSED_MENU_HEIGHT_ADDITION}x{window_height + INDICATORS_WIDTH_ADDITION}'
         self._root.geometry(window_size)

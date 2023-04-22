@@ -77,10 +77,10 @@ class ViewModel:
         self._model.selecting.start_drawing(selector, name)
 
     def calibrate_noise_threshold(self):
-        self._model.calibrate_noise_threshold(self._view.window_width, self._view.window_height)
+        self._model.calibrate_noise_threshold()
 
     def calibrate_coordinate_system(self):
-        self._model.calibrate_coordinate_system(self._view.window_width, self._view.window_height)
+        self._model.calibrate_coordinate_system()
 
     def selector_is_selected(self, name):
         return self._model.selecting.selector_is_selected(name)
@@ -109,7 +109,7 @@ class ViewModel:
             except ValueError:
                 errored = True
                 view_output.show_error(f'Некорректное значение параметра {name}:'
-                                         f' ожидалось число, введено "{text_param}". Параметр не применён.')
+                                       f' ожидалось число, введено "{text_param}". Параметр не применён.')
             else:
                 errored = not settings.__setattr__(name, number_param) or errored
         if errored:

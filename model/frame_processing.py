@@ -9,8 +9,8 @@ from common.coordinates import Point, calc_center
 from common.logger import logger
 from common.settings import settings, TRACKER, OBJECT, AREA, MIN_THROTTLE_DIFFERENCE
 from common.thread_helpers import threaded
-from view.drawing import Processor
 from view import view_output
+from view.drawing import Processor
 
 PERCENT_FROM_DECIMAL = 100
 
@@ -129,6 +129,7 @@ class NoiseThresholdCalibrator(ProcessBased):
         self._model.state_tip.next_state('noise threshold calibrated')
         view_output.show_message('Калибровка шумоподавления успешно завершена.')
 
+
 class CoordinateSystemCalibrator(ProcessBased):
     def __init__(self, model, view_model):
         super().__init__()
@@ -140,21 +141,21 @@ class CoordinateSystemCalibrator(ProcessBased):
     @threaded
     def calibrate(self):
         object = self._model.selecting.get_selector(OBJECT)
-        screen_points = []
+        area = self._model.selecting.create_selector(AREA)
         progress = 0
-
         self._wait_for_controller_ready()
 
         for point in self._laser_borders:
             self._model.laser.set_new_position(point)
-
             self._wait_for_controller_ready()
 
             screen_position = ((object.left_top + object.right_bottom) / 2).to_int()
-            screen_points.append(screen_position)
+            area.left_button_click(screen_position)
+
             progress += 25
             self._view_model.set_progress(progress)
-        self._finish_calibrating(screen_points)
+
+        self._finish_calibrating(area)
 
     def _wait_for_controller_ready(self):
         while not self._model.laser.controller_is_ready():
@@ -163,16 +164,17 @@ class CoordinateSystemCalibrator(ProcessBased):
             self._model.laser.refresh_data()
             sleep(self._delay_sec)
 
-    def _finish_calibrating(self, screen_points):
-        area = self._model.selecting.get_selector(AREA)
-        area._points = screen_points
-        area.finish_selecting()
-        self._model.area_controller.set_area(area, self._laser_borders)
-
-        self._model.selecting.stop_drawing(OBJECT)
+    def _finish_calibrating(self, area):
         self._model.tracker.stop()
+        self._model.selecting.stop_drawing(OBJECT)
+
+        area.finish_selecting()
         self._view_model.set_progress(0)
+        self._view_model.progress_bar_set_visibility(False)
+
+        self._model.area_controller.set_area(area, self._laser_borders)
         view_output.show_message('Калибровка координатной системы успешно завершена.')
+        self._model.state_tip.next_state('area selected')
         self.stop()
 
 

@@ -1,6 +1,5 @@
 from time import time
 
-from common.coordinates import Point
 from common.logger import logger
 from common.settings import settings, OBJECT, AREA, private_settings, \
     RESOLUTIONS, DOWNSCALED_HEIGHT
@@ -121,7 +120,7 @@ class Orchestrator(ThreadLoopable):
     def _on_object_selected(self):
         selected, object = self.selecting.check_selected(OBJECT)
         out_of_area = False
-        if selected:
+        if selected and not (self.threshold_calibrator.in_progress or self.coordinate_calibrator.in_progress):
             center = ((object.left_top + object.right_bottom) / 2).to_int()
             out_of_area = self.area_controller.point_is_out_of_area(center)
             if out_of_area:
@@ -138,7 +137,11 @@ class Orchestrator(ThreadLoopable):
         self._frame_interval.value = 1 / settings.FPS_PROCESSED
         self.state_tip.next_state('object selected')
 
-    def _new_object(self):
+    def _new_object(self, select_in_calibrating):
+        if select_in_calibrating:
+            self.selecting.object_is_selecting = True
+            return True
+
         if not self.selecting.selector_is_selected(AREA):
             view_output.show_error('Перед выделением объекта необходимо выделить область слежения.')
             return False
@@ -179,7 +182,7 @@ class Orchestrator(ThreadLoopable):
             return
 
         if OBJECT in name:
-            if not self._new_object():
+            if not self._new_object(retry_select_object_in_calibrating):
                 return
 
         if AREA in name:
@@ -191,18 +194,7 @@ class Orchestrator(ThreadLoopable):
         self.tracker.in_progress = False
         return self.selecting.create_selector(name, additional_callback)
 
-    def _auto_select_area_full_screen(self, width, height):
-        # TODO: перенести кроме последней строчки в SelectingService
-        # TODO: подумать, мб вообще не нужно выделять на весь экран область, ибо это выглядит как костыль
-        #  и заставляет потом restore делать. Когда можно вообще всего этого не делать, позволив следить за объектом
-        #  без выделения области
-        area = self.selecting.create_selector(AREA)
-        area._points = [Point(0, 0), Point(height, 0), Point(height, width), Point(0, width)]
-        area._sort_points_for_viewing()
-        area.is_selected = True
-        self.area_controller.set_area(area, self.laser.laser_borders)
-
-    def calibrate_noise_threshold(self, width, height):
+    def calibrate_noise_threshold(self):
         if self.tracker.in_progress:
             view_output.show_error('Калибровка шумоподавления во время слежения за объектом невозможна.')
             return
@@ -211,25 +203,27 @@ class Orchestrator(ThreadLoopable):
             self.previous_area = self.selecting.get_selector(AREA)
             self.selecting.stop_drawing(AREA)
 
-        self._auto_select_area_full_screen(width, height)
-        self._view_model.new_selection(OBJECT, retry_select_object_in_calibrating=False,
+        self.threshold_calibrator.start()
+        self._view_model.new_selection(OBJECT, retry_select_object_in_calibrating=True,
                                        additional_callback=self.threshold_calibrator.calibrate)
 
-        self.threshold_calibrator.start()
         settings.NOISE_THRESHOLD_PERCENT = 0.0
 
         self._view_model.progress_bar_set_visibility(True)
         self._view_model.set_progress(0)
 
-    def calibrate_coordinate_system(self, width, height):
+    def calibrate_coordinate_system(self):
         if self.tracker.in_progress:
             view_output.show_error('Калибровка координатной системы во время слежения за объектом невозможна.')
             return
 
-        self._auto_select_area_full_screen(width, height)
-        self._view_model.new_selection(OBJECT, retry_select_object_in_calibrating=False,
-                                       additional_callback=self.coordinate_calibrator.calibrate)
+        if self.selecting.selector_is_selected(AREA):
+            self.previous_area = self.selecting.get_selector(AREA)
+            self.selecting.stop_drawing(AREA)
+
         self.coordinate_calibrator.start()
+        self._view_model.new_selection(OBJECT, retry_select_object_in_calibrating=True,
+                                       additional_callback=self.coordinate_calibrator.calibrate)
         self._view_model.progress_bar_set_visibility(True)
         self._view_model.set_progress(0)
 
