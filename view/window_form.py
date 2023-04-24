@@ -11,7 +11,7 @@ from PIL import ImageTk
 
 from common.logger import logger
 from common.settings import (
-    settings, AREA, OBJECT, FLIP_SIDE_NONE, FLIP_SIDE_VERTICAL,
+    settings, OBJECT, FLIP_SIDE_NONE, FLIP_SIDE_VERTICAL,
     FLIP_SIDE_HORIZONTAL, RESOLUTIONS, DOWNSCALED_HEIGHT, get_repo_path
 )
 from view.view_command_process import CommandExecutor
@@ -52,10 +52,8 @@ class View:
         main_menu = Menu(self._root)
         self._root.config(menu=main_menu)
 
-        area_callback = partial(self._view_model.new_selection, AREA)
         object_callback = partial(self._view_model.new_selection, OBJECT)
         selection_menu = Menu(tearoff=False)
-        selection_menu.add_command(label='Область', command=area_callback)
         selection_menu.add_command(label='Объект', command=object_callback)
         main_menu.add_cascade(label='Выделить', menu=selection_menu)
 
