@@ -18,7 +18,7 @@ from view.view_command_process import CommandExecutor
 
 SECOND_LENGTH = 1000
 INDICATORS_WIDTH_ADDITION = 20
-REVERSED_MENU_HEIGHT_ADDITION = 135
+REVERSED_MENU_HEIGHT_ADDITION = 145
 ZERO_LINE_AND_COLUMN = 0.0
 MARGIN_FIELDS = 3
 BUTTON_MARGIN = MARGIN_FIELDS * 10
@@ -53,18 +53,16 @@ class View:
         self._root.config(menu=main_menu)
 
         object_callback = partial(self._view_model.new_selection, OBJECT)
-        selection_menu = Menu(tearoff=False)
-        selection_menu.add_command(label='Объект', command=object_callback)
-        main_menu.add_cascade(label='Выделить', menu=selection_menu)
+        main_menu.add_command(label='Выделить объект', command=object_callback)
 
         main_menu.add_command(label='Прервать', command=self._view_model.cancel_active_process)
 
         calibration_menu = Menu(tearoff=False)
-        calibration_menu.add_command(label='Лазер', command=self._view_model.calibrate_laser)
+        calibration_menu.add_command(label='Лазер', command=self._view_model.calibrate_laser, activebackground='black')
         calibration_menu.add_command(label='Шумоподавление',
-                                     command=self._view_model.calibrate_noise_threshold)
+                                     command=self._view_model.calibrate_noise_threshold, activebackground='black')
         calibration_menu.add_command(label='Координатную систему',
-                                     command=self._view_model.calibrate_coordinate_system)
+                                     command=self._view_model.calibrate_coordinate_system, activebackground='black')
         main_menu.add_cascade(label='Откалибровать', menu=calibration_menu)
 
         position_menu = Menu(tearoff=False)
@@ -74,11 +72,11 @@ class View:
         move_left_bottom = partial(self._view_model.move_laser, -MAX_LASER_RANGE, MAX_LASER_RANGE)
         move_right_bottom = partial(self._view_model.move_laser, MAX_LASER_RANGE, MAX_LASER_RANGE)
         move_center = partial(self._view_model.move_laser, 0, 0)
-        position_menu.add_command(label='Лево верх', command=move_left_top)
-        position_menu.add_command(label='Право верх', command=move_right_top)
-        position_menu.add_command(label='Лево низ', command=move_left_bottom)
-        position_menu.add_command(label='Право низ', command=move_right_bottom)
-        position_menu.add_command(label='Центр', command=move_center)
+        position_menu.add_radiobutton(label='Лево верх', command=move_left_top, activebackground='black')
+        position_menu.add_radiobutton(label='Право верх', command=move_right_top, activebackground='black')
+        position_menu.add_radiobutton(label='Лево низ', command=move_left_bottom, activebackground='black')
+        position_menu.add_radiobutton(label='Право низ', command=move_right_bottom, activebackground='black')
+        position_menu.add_radiobutton(label='Центр', command=move_center, activebackground='black')
         main_menu.add_cascade(label='Позиционировать лазер', menu=position_menu)
 
         rotation_menu = Menu(tearoff=False)
@@ -86,19 +84,19 @@ class View:
         rotate_90 = partial(self._view_model.rotate_image, 90)
         rotate_180 = partial(self._view_model.rotate_image, 180)
         rotate_270 = partial(self._view_model.rotate_image, 270)
-        rotation_menu.add_command(label='0°', command=rotate_0)
-        rotation_menu.add_command(label='90°', command=rotate_90)
-        rotation_menu.add_command(label='180°', command=rotate_180)
-        rotation_menu.add_command(label='270°', command=rotate_270)
+        rotation_menu.add_radiobutton(label='0°', command=rotate_0, activebackground='black')
+        rotation_menu.add_radiobutton(label='90°', command=rotate_90, activebackground='black')
+        rotation_menu.add_radiobutton(label='180°', command=rotate_180, activebackground='black')
+        rotation_menu.add_radiobutton(label='270°', command=rotate_270, activebackground='black')
         main_menu.add_cascade(label='Повернуть', menu=rotation_menu)
 
         flip_menu = Menu(tearoff=False)
         flip_none = partial(self._view_model.flip_image, side=FLIP_SIDE_NONE)
         flip_vertical = partial(self._view_model.flip_image, side=FLIP_SIDE_VERTICAL)
         flip_horizontal = partial(self._view_model.flip_image, side=FLIP_SIDE_HORIZONTAL)
-        flip_menu.add_command(label='Не отражать', command=flip_none)
-        flip_menu.add_command(label='По вертикали', command=flip_vertical)
-        flip_menu.add_command(label='По горизонтали', command=flip_horizontal)
+        flip_menu.add_radiobutton(label='Не отражать', command=flip_none, activebackground='black')
+        flip_menu.add_radiobutton(label='По вертикали', command=flip_vertical, activebackground='black')
+        flip_menu.add_radiobutton(label='По горизонтали', command=flip_horizontal, activebackground='black')
         main_menu.add_cascade(label='Отразить', menu=flip_menu)
 
         main_menu.add_command(label='Настройки', command=self.open_settings)
