@@ -1,11 +1,9 @@
-import sys
-import os
-from pathlib import Path
 from functools import partial
 from tkinter import Tk, END, colorchooser
 
+from common.program import exit_program
 from common.coordinates import Point
-from common.settings import settings, private_settings, AREA, SelectedArea
+from common.settings import settings, private_settings
 from model.selector import LEFT_CLICK, LEFT_DOWN, LEFT_UP
 from view import view_output
 from view.drawing import Processor
@@ -118,12 +116,7 @@ class ViewModel:
         settings.save()
         confirm = view_output.ask_confirmation(PARAMETERS_APPLIED_AFTER_RESTART)
         if confirm:
-            self._model.stop_thread()
-            private_settings.save()
-            self.save_area()
-            # TODO: останавливать работу программы нужно где-то в другом месте
-            os.execv(str(Path.cwd() / sys.argv[0]), [sys.argv[0]])
-            sys.exit()
+            exit_program(self._model, restart=True)
         else:
             self._view.destroy_settings_window()
 
@@ -138,11 +131,13 @@ class ViewModel:
 
     def pick_color(self):
         color = colorchooser.askcolor()[COLOR_RGB_INDEX]
-        if color is not None:
-            private_settings.PAINT_COLOR_R = color[R_INDEX]
-            private_settings.PAINT_COLOR_G = color[G_INDEX]
-            private_settings.PAINT_COLOR_B = color[B_INDEX]
-            Processor.load_color()
+        if color is None:
+            return
+
+        private_settings.PAINT_COLOR_R = color[R_INDEX]
+        private_settings.PAINT_COLOR_G = color[G_INDEX]
+        private_settings.PAINT_COLOR_B = color[B_INDEX]
+        Processor.load_color()
 
     def reset_settings(self):
         confirm = view_output.ask_confirmation('Вы точно желаете сбросить все настройки до значений по-умолчанию?')
@@ -153,21 +148,6 @@ class ViewModel:
         private_settings.reset()
         confirm = view_output.ask_confirmation(PARAMETERS_APPLIED_AFTER_RESTART)
         if confirm:
-            self._model.stop_thread()
-            settings.save()
-            private_settings.save()
-            self.save_area()
-            # TODO: останавливать работу программы нужно где-то в другом месте
-            os.execv(str(Path.cwd() / sys.argv[0]), [sys.argv[0]])
-            sys.exit()
+            exit_program(self._model, restart=True)
         else:
             self._view.destroy_settings_window()
-
-    def save_area(self):
-        area_is_selected = self._model.selecting.selector_is_selected(AREA)
-        if area_is_selected:
-            if self._model.threshold_calibrator.in_progress and self._model.previous_area:
-                self._model.save(self._model.previous_area.points)
-            else:
-                area_selector = self._model.selecting.get_selector(AREA)
-                SelectedArea.save(area_selector.points)

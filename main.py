@@ -2,29 +2,16 @@ import argparse
 from pathlib import Path
 from tkinter import Tk
 
-from common.logger import logger
 import common.settings
-from common.settings import settings, SelectedArea, AREA, private_settings
+from common.logger import logger
+from common.program import save_data
+from common.settings import settings, SelectedArea, private_settings
 from model.domain_services import Orchestrator
-from view.view_model import ViewModel
-from view.window_form import View
 from view import view_output
 from view.drawing import Processor
-import view.view_output
+from view.view_model import ViewModel
+from view.window_form import View
 
-def save_data(model_core):
-    settings.save()
-    private_settings.save()
-    area_is_selected = model_core.selecting.selector_is_selected(AREA)
-    if area_is_selected:
-        if model_core.threshold_calibrator.in_progress and model_core.previous_area:
-            SelectedArea.save(model_core.previous_area.points)
-        else:
-            area_selector = model_core.selecting.get_selector(AREA)
-            SelectedArea.save(area_selector.points)
-    else:
-        SelectedArea.remove()
-    logger.debug('settings saved')
 
 def main(args):
     common.settings.ROOT_DIR = Path(__file__).absolute().parent
@@ -38,13 +25,14 @@ def main(args):
     except Exception as e:
         view_output.show_error(title='Ошибка загрузки конфигурации',
                                message=f'{e} \nРабота программы будет продолжена, но возможны сбои в работе.'
-                                    f' Рекоммендуется перезагрузка')
+                                       f' Рекоммендуется перезагрузка')
         logger.exception(e)
     area = None
     try:
         area = SelectedArea.load()
     except Exception as e:
-        view_output.show_error(message=f'Ошибка загрузки ранее выделенной области \n{e} \nРабота программы будет продолжена')
+        view_output.show_error(
+            message=f'Ошибка загрузки ранее выделенной области \n{e} \nРабота программы будет продолжена')
         logger.exception(e)
     logger.debug('settings loaded')
     try:
