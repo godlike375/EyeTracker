@@ -28,7 +28,7 @@ def setup_logger(level, cleanup_old=True, console=False):
     handler = logging.StreamHandler()
     if not console:
         logname = f'logs/log_{datetime.now().strftime("%d,%m,%Y_%H;%M;%S")}.txt'
-        handler = logging.FileHandler(logname, mode='w')
+        handler = logging.FileHandler(logname, mode='w', encoding='utf-8')
         handler.setFormatter(logging.Formatter(_log_format))
     logger.addHandler(handler)
     return logger

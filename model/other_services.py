@@ -1,14 +1,14 @@
-from collections import OrderedDict
+from dataclasses import dataclass
 from typing import List
 
 from common.abstractions import Drawable
 from common.coordinates import Point
 from common.logger import logger
 from common.settings import AREA, OBJECT, TRACKER, CALIBRATE_LASER_COMMAND_ID, settings
+from common.thread_helpers import run_thread_after_func
 from model.move_controller import MoveController
 from model.selector import AreaSelector, ObjectSelector
 from view import view_output
-from common.thread_helpers import run_thread_after_func
 
 
 class SelectingService:
@@ -135,28 +135,38 @@ class LaserService():
         return False
 
 
-class StateTipSupervisor:
-    EVENT_STATE_PRIORITY = OrderedDict(
-        {
-            'program started': 'Подключите все необходимые устройства (лазер и камеру)',
-            'devices connected': 'Откалибруйте лазер',
-            'laser calibrated': 'Настройте поворот и отражение изображения, затем откалибруйте шумоподавление',
-            'noise threshold calibrated': 'Выделите область отслеживания',
-            'area selected': 'Выделите объект отслеживания',
-            'object selected': 'Активен сеанс отслеживания объекта'
-        })
+@dataclass
+class EventCheck:
+    __slots__ = ['name', 'happened', 'tip', 'priority']
+    name: str
+    happened: bool
+    tip: str
 
+
+class StateTipSupervisor:
     def __init__(self, view_model):
         self._view_model = view_model
-        self._state = 'program started'
+        # Расположены в порядке приоритета от наибольшего к наименьшему
+        self.all_events = (
+            EventCheck('devices connected', False, 'Подключите все необходимые устройства (лазер и камеру)'),
+            EventCheck('laser calibrated', False, 'Откалибруйте лазер'),
+            EventCheck('noise threshold calibrated', False, 'Откалибруйте шумоподавление'),
+            EventCheck('coordinate system calibrated', False, 'Откалибруйте координатную систему'),
+            EventCheck('area selected', False, 'Выделите область отслеживания'),
+            EventCheck('object selected', False, 'Выделите объект слежения')
+        )
 
-    def next_state(self, event: str):
-        event_keys = list(StateTipSupervisor.EVENT_STATE_PRIORITY.keys())
-        state_index = event_keys.index(self._state)
-        event_index = event_keys.index(event)
-        if abs(state_index - event_index) == 1:
-            self._state = event
-        self._view_model.set_tip(self.current_state_to_tip())
+    def change_tip(self, event_name: str, happened=True):
+        for event in self.all_events:
+            if event_name == event.name:
+                event.happened = happened
+        prioritized = self._most_prioritized_event()
+        if prioritized is None:
+            self._view_model.set_tip('')
+            return
+        self._view_model.set_tip(prioritized.tip)
 
-    def current_state_to_tip(self):
-        return StateTipSupervisor.EVENT_STATE_PRIORITY[self._state]
+    def _most_prioritized_event(self):
+        for event in self.all_events:
+            if not event.happened:
+                return event

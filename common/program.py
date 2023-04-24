@@ -7,6 +7,8 @@ from common.settings import settings, private_settings, AREA, SelectedArea
 
 
 def exit_program(model_core, restart=False):
+    # TODO: главный поток завершить, иначе через модель не выйти
+    #  или послать команду модели отложенную
     model_core.stop_thread()
     settings.save()
     private_settings.save()

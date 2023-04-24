@@ -151,3 +151,6 @@ class ViewModel:
             exit_program(self._model, restart=True)
         else:
             self._view.destroy_settings_window()
+
+    def execute_command(self, command):
+        self._view._commands.queue_command(command)

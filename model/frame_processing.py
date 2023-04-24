@@ -126,7 +126,8 @@ class NoiseThresholdCalibrator(ProcessBased):
         self._model.selecting.stop_drawing(OBJECT)
         self._model.restore_previous_area()
         settings.NOISE_THRESHOLD_PERCENT = round(settings.NOISE_THRESHOLD_PERCENT, 5)
-        self._model.state_tip.next_state('noise threshold calibrated')
+        self._model.state_tip.change_tip('noise threshold calibrated')
+        self._model.state_tip.change_tip('object selected', happened=False)
         view_output.show_message('Калибровка шумоподавления успешно завершена.')
 
 
@@ -174,7 +175,9 @@ class CoordinateSystemCalibrator(ProcessBased):
 
         self._model.area_controller.set_area(area, self._laser_borders)
         view_output.show_message('Калибровка координатной системы успешно завершена.')
-        self._model.state_tip.next_state('area selected')
+        self._model.state_tip.change_tip('area selected')
+        self._model.state_tip.change_tip('coordinate system calibrated')
+        self._model.state_tip.change_tip('object selected', happened=False)
         self.stop()
 
 

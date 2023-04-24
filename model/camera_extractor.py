@@ -1,16 +1,19 @@
 import cv2
 import numpy as np
 
-from common.settings import settings, private_settings, FLIP_SIDE_NONE
 from common.abstractions import Initializable
+from common.settings import settings, private_settings, FLIP_SIDE_NONE
 from view import view_output
-
 
 DEGREE_TO_CV2_MAP = {90: cv2.ROTATE_90_CLOCKWISE,
                      180: cv2.ROTATE_180,
                      270: cv2.ROTATE_90_COUNTERCLOCKWISE}
 
 DEFAULT_CAMERA_ID = 0
+
+
+class NoneFrameException(Exception):
+    ...
 
 
 class FrameExtractor(Initializable):
@@ -61,8 +64,12 @@ class FrameExtractor(Initializable):
 
     def extract_frame(self):
         _, frame = self._camera.read()
+        if frame is None:
+            raise NoneFrameException('extracted frame is None with no reason')
         rotated = self.rotate_frame(frame)
         flipped = self.flip_frame(rotated)
+        if flipped is None:
+            raise NoneFrameException('extracted frame is None after transformations')
         return flipped
 
 

@@ -1,4 +1,5 @@
-from time import time
+from time import time, sleep
+from functools import partial
 
 from common.logger import logger
 from common.settings import settings, OBJECT, AREA, private_settings, \
@@ -11,8 +12,10 @@ from model.other_services import SelectingService, LaserService, StateTipSupervi
 from view import view_output
 from view.drawing import Processor
 from view.view_model import ViewModel
+from common.program import exit_program
 
 
+RESTART_IN_TIME_SEC = 10
 # Пробовал увеличивать количество потоков в программе до 4-х (+ экстрактор + трекер в своих потоках)
 # Итог: это только ухудшило производительность, так что больше 2-х потоков смысла иметь нет
 # И запускать из цикла отрисовки вьюхи тоже смысла нет, т.к. это асинхронный цикл и будет всё тормозить
@@ -37,10 +40,11 @@ class Orchestrator(ThreadLoopable):
         self.previous_area = None
         self._throttle_to_fps_viewed = time()
         self._frame_interval = MutableValue(1 / settings.FPS_VIEWED)
+        self._fatal_error_count_repeatedly = 0
         self.rotate_image(private_settings.ROTATION_ANGLE, user_action=False)
         self.flip_image(private_settings.FLIP_SIDE, user_action=False)
         if self._extractor.initialized and self.laser.initialized:
-            self.state_tip.next_state('devices connected')
+            self.state_tip.change_tip('devices connected')
         if area is not None:
             self.selecting.load_selected_area(area)
 
@@ -58,6 +62,7 @@ class Orchestrator(ThreadLoopable):
                     else:
                         self._throttle_to_fps_viewed = time()
                 processed_image = self._draw_and_convert(self._resize_to_minimum(frame))
+                self._fatal_error_count_repeatedly = 0
                 self._view_model.on_image_ready(processed_image)
             self._current_frame = frame
 
@@ -68,8 +73,20 @@ class Orchestrator(ThreadLoopable):
                 return
             view_output.show_fatal(re)
         except Exception as e:
+            self._handle_fatal_error()
             view_output.show_fatal(e)
             logger.exception('Unexpected exception:')
+
+    def _handle_fatal_error(self):
+        self._fatal_error_count_repeatedly += 1
+        if self._fatal_error_count_repeatedly > 2:
+            view_output.show_error(f'В связи с множественными внутренними ошибками подключения и синхронизации '
+                                   f' работа программы не может быть продолжена.'
+                                   f' Программа перезапустится автоматически через {RESTART_IN_TIME_SEC} секунд')
+            for i in range(RESTART_IN_TIME_SEC, 0, -1):
+                sleep(1)
+                self._view_model.set_tip(f'Перезапуск программы будет произведён через {i} секунд')
+            self._view_model.execute_command(partial(exit_program, self, restart=True))
 
     def _resize_to_minimum(self, frame):
         frame_width = frame.shape[0]
@@ -115,7 +132,7 @@ class Orchestrator(ThreadLoopable):
             return
         self.previous_area = area
         self.area_controller.set_area(area, self.laser.laser_borders)
-        self.state_tip.next_state('area selected')
+        self.state_tip.change_tip('area selected')
 
     def _on_object_selected(self):
         selected, object = self.selecting.check_selected(OBJECT)
@@ -135,7 +152,7 @@ class Orchestrator(ThreadLoopable):
         self.selecting.start_drawing(self.tracker, OBJECT)
         self.selecting.object_is_selecting = False
         self._frame_interval.value = 1 / settings.FPS_PROCESSED
-        self.state_tip.next_state('object selected')
+        self.state_tip.change_tip('object selected')
 
     def _new_object(self, select_in_calibrating):
         if select_in_calibrating:
@@ -233,7 +250,7 @@ class Orchestrator(ThreadLoopable):
             view_output.show_error('Калибровка лазера во время слежения за объектом невозможна.')
             return
         self.laser.calibrate_laser()
-        self.state_tip.next_state('laser calibrated')
+        self.state_tip.change_tip('laser calibrated')
 
     def center_laser(self):
         if self.tracker.in_progress:
@@ -263,7 +280,7 @@ class Orchestrator(ThreadLoopable):
         self.restore_previous_area()
         settings.NOISE_THRESHOLD_PERCENT = 0.0
         self._frame_interval.value = 1 / settings.FPS_VIEWED
-        self.state_tip.next_state('area selected')
+        self.state_tip.change_tip('area selected')
         Processor.load_color()
 
     def rotate_image(self, degree, user_action=True):

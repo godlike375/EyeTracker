@@ -34,7 +34,7 @@ def threaded(fn):
 
 @dataclass
 class MutableValue:
-    __slots__ = ["value"]
+    __slots__ = ['value']
     value: object
 
 
