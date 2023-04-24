@@ -89,10 +89,11 @@ class SelectingService:
 
 
 class LaserService():
-    def __init__(self):
+    def __init__(self, state_tip):
         self._laser_controller = MoveController(serial_off=False)
         self.initialized = self._laser_controller.initialized
         self.errored = False
+        self.state_tip = state_tip
 
         MAX_LASER_RANGE = settings.MAX_LASER_RANGE_PLUS_MINUS
         left_top = Point(-MAX_LASER_RANGE, -MAX_LASER_RANGE)
@@ -125,9 +126,10 @@ class LaserService():
         self.refresh_data()
         if self._laser_controller.is_errored:
             self.errored = True
-            view_output.show_fatal('Контроллер лазера внезапно встал на концевик. Это непредвиденная ситуация. '
+            view_output.show_error('Контроллер лазера внезапно дошёл до предельных координат. Ситуация внештатная. \n'
                                    'Необходимо откалибровать контроллер лазера повторно. '
                                    'До этого момента слежения за объектом невозможно')
+            self.state_tip.change_tip('laser calibrated', False)
             return None
         if self.controller_is_ready():
             self._laser_controller.set_new_position(position)

@@ -30,8 +30,8 @@ class Orchestrator(ThreadLoopable):
         self.area_controller = AreaController(min_xy=-settings.MAX_LASER_RANGE_PLUS_MINUS,
                                               max_xy=settings.MAX_LASER_RANGE_PLUS_MINUS)
         self.tracker = Tracker(settings.TRACKING_FRAMES_MEAN_NUMBER)
-        self.laser = LaserService()
         self.state_tip = StateTipSupervisor(self._view_model)
+        self.laser = LaserService(self.state_tip)
 
         self._current_frame = None
         self.threshold_calibrator = NoiseThresholdCalibrator(self, self._view_model)
@@ -160,13 +160,14 @@ class Orchestrator(ThreadLoopable):
             return True
 
         if not self.selecting.selector_is_selected(AREA):
-            view_output.show_error('Перед выделением объекта необходимо выделить область слежения.')
+            view_output.show_error('Перед выделением объекта необходимо откалибровать координатную систему.')
             return False
 
         if self.laser.errored:
             view_output.show_error(
                 'Необходимо откалибровать контроллер лазера повторно. '
-                'До этого момента слежения за объектом невозможно.')
+                'До этого момента слежение за объектом невозможно.')
+            self.state_tip.change_tip('laser calibrated', False)
             return False
         if self.selecting.selector_is_selected(OBJECT):
             confirm = view_output.ask_confirmation('Выделенный объект перестанет отслеживаться. Продолжить?')
