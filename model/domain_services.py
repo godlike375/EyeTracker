@@ -134,7 +134,7 @@ class Orchestrator(ThreadLoopable):
         self.area_controller.set_area(area, self.laser.laser_borders)
         self.state_tip.change_tip('area selected')
 
-    def _on_object_selected(self):
+    def _on_object_selected(self, run_thread_after=None):
         selected, object = self.selecting.check_selected(OBJECT)
         out_of_area = False
         if selected and not (self.threshold_calibrator.in_progress or self.coordinate_calibrator.in_progress):
@@ -145,7 +145,8 @@ class Orchestrator(ThreadLoopable):
                 self.selecting.stop_drawing(OBJECT)
 
         if not selected or out_of_area:
-            self._view_model.new_selection(OBJECT, retry_select_object_in_calibrating=True)
+            self._view_model.new_selection(OBJECT, retry_select_object_in_calibrating=True,
+                                           additional_callback=run_thread_after)
             return
 
         self.tracker.start_tracking(self._current_frame, object.left_top, object.right_bottom)
@@ -153,6 +154,7 @@ class Orchestrator(ThreadLoopable):
         self.selecting.object_is_selecting = False
         self._frame_interval.value = 1 / settings.FPS_PROCESSED
         self.state_tip.change_tip('object selected')
+        run_thread_after().start()
 
     def _new_object(self, select_in_calibrating):
         if select_in_calibrating:

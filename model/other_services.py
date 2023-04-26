@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 from typing import List
+from functools import partial
 
 from common.abstractions import Drawable
 from common.coordinates import Point
 from common.logger import logger
 from common.settings import AREA, OBJECT, TRACKER, CALIBRATE_LASER_COMMAND_ID, settings
-from common.thread_helpers import run_thread_after_func
 from model.move_controller import MoveController
 from model.selector import AreaSelector, ObjectSelector
 from view import view_output
@@ -48,7 +48,7 @@ class SelectingService:
         on_selected = self._on_object_selected if OBJECT in name else self._on_area_selected
 
         if call_func_after_selection is not None:
-            on_selected = run_thread_after_func(on_selected, call_func_after_selection)
+            on_selected = partial(on_selected, call_func_after_selection)
 
         selector = ObjectSelector(name, on_selected) if OBJECT in name else AreaSelector(name, on_selected)
         self._active_drawn_objects[name] = selector
