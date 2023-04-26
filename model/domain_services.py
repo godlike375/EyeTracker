@@ -154,7 +154,8 @@ class Orchestrator(ThreadLoopable):
         self.selecting.object_is_selecting = False
         self._frame_interval.value = 1 / settings.FPS_PROCESSED
         self.state_tip.change_tip('object selected')
-        run_thread_after().start()
+        if run_thread_after is not None:
+            run_thread_after().start()
 
     def _new_object(self, select_in_calibrating):
         if select_in_calibrating:
