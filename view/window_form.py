@@ -4,6 +4,7 @@ from tkinter import (
     TOP, BOTTOM, X, Toplevel,
     Text, Button, LEFT, W,
     messagebox, END, RIGHT,
+    IntVar
 )
 from tkinter.ttk import Progressbar
 
@@ -18,7 +19,8 @@ from view.view_command_process import CommandExecutor
 
 SECOND_LENGTH = 1000
 INDICATORS_WIDTH_ADDITION = 20
-REVERSED_MENU_HEIGHT_ADDITION = 145
+REVERSED_MENU_HEIGHT_ADDITION = 175
+STRAIGHT_MENU_HEIGHT_ADDITION = 35
 ZERO_LINE_AND_COLUMN = 0.0
 MARGIN_FIELDS = 3
 BUTTON_MARGIN = MARGIN_FIELDS * 10
@@ -44,6 +46,9 @@ class View:
         self._settings = None
 
         self._commands = CommandExecutor(self)
+
+        self._rotate_var = IntVar()
+        self._flip_var = IntVar()
 
         self.setup_menus()
         self.setup_layout()
@@ -84,19 +89,27 @@ class View:
         rotate_90 = partial(self._view_model.rotate_image, 90)
         rotate_180 = partial(self._view_model.rotate_image, 180)
         rotate_270 = partial(self._view_model.rotate_image, 270)
-        rotation_menu.add_radiobutton(label='0°', command=rotate_0, activebackground='black')
-        rotation_menu.add_radiobutton(label='90°', command=rotate_90, activebackground='black')
-        rotation_menu.add_radiobutton(label='180°', command=rotate_180, activebackground='black')
-        rotation_menu.add_radiobutton(label='270°', command=rotate_270, activebackground='black')
+        self._rotate_var = IntVar()
+        rotation_menu.add_radiobutton(label='0°', command=rotate_0,
+                                      value=0, variable=self._rotate_var, activebackground='black')
+        rotation_menu.add_radiobutton(label='90°', command=rotate_90,
+                                      value=90, variable=self._rotate_var, activebackground='black')
+        rotation_menu.add_radiobutton(label='180°', command=rotate_180,
+                                      value=180, variable=self._rotate_var, activebackground='black')
+        rotation_menu.add_radiobutton(label='270°', command=rotate_270,
+                                      value=270, variable=self._rotate_var, activebackground='black')
         main_menu.add_cascade(label='Повернуть', menu=rotation_menu)
 
         flip_menu = Menu(tearoff=False)
         flip_none = partial(self._view_model.flip_image, side=FLIP_SIDE_NONE)
         flip_vertical = partial(self._view_model.flip_image, side=FLIP_SIDE_VERTICAL)
         flip_horizontal = partial(self._view_model.flip_image, side=FLIP_SIDE_HORIZONTAL)
-        flip_menu.add_radiobutton(label='Не отражать', command=flip_none, activebackground='black')
-        flip_menu.add_radiobutton(label='По вертикали', command=flip_vertical, activebackground='black')
-        flip_menu.add_radiobutton(label='По горизонтали', command=flip_horizontal, activebackground='black')
+        flip_menu.add_radiobutton(label='Не отражать', command=flip_none,
+                                  value=FLIP_SIDE_NONE, variable=self._flip_var, activebackground='black')
+        flip_menu.add_radiobutton(label='По вертикали', command=flip_vertical,
+                                  value=FLIP_SIDE_VERTICAL, variable=self._flip_var, activebackground='black')
+        flip_menu.add_radiobutton(label='По горизонтали', command=flip_horizontal,
+                                  value=FLIP_SIDE_HORIZONTAL, variable=self._flip_var, activebackground='black')
         main_menu.add_cascade(label='Отразить', menu=flip_menu)
 
         main_menu.add_command(label='Настройки', command=self.open_settings)
@@ -122,7 +135,7 @@ class View:
     def setup_window_geometry(self, reverse=False):
         window_height = DOWNSCALED_HEIGHT
         window_width = RESOLUTIONS[window_height] + INDICATORS_WIDTH_ADDITION
-        window_size = f'{window_height}x{window_width + INDICATORS_WIDTH_ADDITION}' if not reverse else \
+        window_size = f'{window_height + STRAIGHT_MENU_HEIGHT_ADDITION}x{window_width + INDICATORS_WIDTH_ADDITION}' if not reverse else \
             f'{window_width + REVERSED_MENU_HEIGHT_ADDITION}x{window_height + INDICATORS_WIDTH_ADDITION}'
         self._root.geometry(window_size)
 

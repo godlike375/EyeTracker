@@ -123,8 +123,14 @@ class ViewModel:
     def rotate_image(self, degree):
         self._model.rotate_image(degree)
 
+    def set_rotate_angle(self, angle):
+        self._view._rotate_var.set(angle)
+
     def flip_image(self, side):
         self._model.flip_image(side)
+
+    def set_flip_side(self, side):
+        self._view._flip_var.set(side)
 
     def setup_window_geometry(self, reverse):
         self._view._commands.queue_command(partial(self._view.setup_window_geometry, reverse))

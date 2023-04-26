@@ -123,7 +123,7 @@ class Orchestrator(ThreadLoopable):
         relative_coords = self.area_controller.calc_laser_coords(center)
         result = self.laser.set_new_position(relative_coords)
         if result is None:
-            self.cancel_active_process(confirm=False)
+            self.cancel_active_process(need_confirm=False)
 
     def _on_area_selected(self):
         selected, area = self.selecting.check_selected(AREA)
@@ -267,13 +267,13 @@ class Orchestrator(ThreadLoopable):
             return
         self.laser.move_laser(x, y)
 
-    def cancel_active_process(self, confirm=True):
-        if confirm:
+    def cancel_active_process(self, need_confirm=True):
+        if need_confirm:
             if self.selecting.object_is_selecting or \
                     self.threshold_calibrator.in_progress or \
                     self.tracker.in_progress:
-                confirm = view_output.ask_confirmation('Прервать активный процесс?')
-                if not confirm:
+                need_confirm = view_output.ask_confirmation('Прервать активный процесс?')
+                if not need_confirm:
                     return
         self.selecting.cancel_selecting()
         self.threshold_calibrator.stop()
@@ -300,14 +300,16 @@ class Orchestrator(ThreadLoopable):
                 return
 
         private_settings.ROTATION_ANGLE = degree
-        self.cancel_active_process(confirm=False)
+        self.cancel_active_process(need_confirm=False)
         self.selecting.stop_drawing(AREA)
+        self.previous_area = None
         self._extractor.set_frame_rotate(degree)
         if degree in (90, 270):
             self._view_model.setup_window_geometry(reverse=True)
         else:
             self._view_model.setup_window_geometry(reverse=False)
-        self.previous_area = None
+        self._view_model.set_rotate_angle(degree)
+
 
     def flip_image(self, side, user_action=True):
         if self.tracker.in_progress:
@@ -323,10 +325,11 @@ class Orchestrator(ThreadLoopable):
                 return
 
         private_settings.FLIP_SIDE = side
-        self.cancel_active_process(confirm=False)
+        self.cancel_active_process(need_confirm=False)
         self.selecting.stop_drawing(AREA)
-        self._extractor.set_frame_flip(side)
         self.previous_area = None
+        self._extractor.set_frame_flip(side)
+        self._view_model.set_flip_side(side)
 
     def stop_thread(self):
         self.coordinate_calibrator.stop()
