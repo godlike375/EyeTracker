@@ -12,15 +12,15 @@ from PIL import ImageTk
 
 from common.logger import logger
 from common.settings import (
-    settings, OBJECT, FLIP_SIDE_NONE, FLIP_SIDE_VERTICAL,
+    settings, OBJECT, AREA, FLIP_SIDE_NONE, FLIP_SIDE_VERTICAL,
     FLIP_SIDE_HORIZONTAL, RESOLUTIONS, DOWNSCALED_HEIGHT, get_repo_path
 )
 from view.view_command_process import CommandExecutor
 
 SECOND_LENGTH = 1000
 INDICATORS_WIDTH_ADDITION = 20
-REVERSED_MENU_HEIGHT_ADDITION = 175
-STRAIGHT_MENU_HEIGHT_ADDITION = 35
+REVERSED_MENU_HEIGHT_ADDITION = 150
+STRAIGHT_MENU_HEIGHT_ADDITION = 20
 ZERO_LINE_AND_COLUMN = 0.0
 MARGIN_FIELDS = 3
 BUTTON_MARGIN = MARGIN_FIELDS * 10
@@ -57,11 +57,6 @@ class View:
         main_menu = Menu(self._root)
         self._root.config(menu=main_menu)
 
-        object_callback = partial(self._view_model.new_selection, OBJECT)
-        main_menu.add_command(label='Выделить объект', command=object_callback)
-
-        main_menu.add_command(label='Прервать', command=self._view_model.cancel_active_process)
-
         calibration_menu = Menu(tearoff=False)
         calibration_menu.add_command(label='Лазер', command=self._view_model.calibrate_laser, activebackground='black')
         calibration_menu.add_command(label='Шумоподавление',
@@ -70,19 +65,12 @@ class View:
                                      command=self._view_model.calibrate_coordinate_system, activebackground='black')
         main_menu.add_cascade(label='Откалибровать', menu=calibration_menu)
 
-        position_menu = Menu(tearoff=False)
-        MAX_LASER_RANGE = settings.MAX_LASER_RANGE_PLUS_MINUS
-        move_left_top = partial(self._view_model.move_laser, -MAX_LASER_RANGE, -MAX_LASER_RANGE)
-        move_right_top = partial(self._view_model.move_laser, MAX_LASER_RANGE, -MAX_LASER_RANGE)
-        move_left_bottom = partial(self._view_model.move_laser, -MAX_LASER_RANGE, MAX_LASER_RANGE)
-        move_right_bottom = partial(self._view_model.move_laser, MAX_LASER_RANGE, MAX_LASER_RANGE)
-        move_center = partial(self._view_model.move_laser, 0, 0)
-        position_menu.add_radiobutton(label='Лево верх', command=move_left_top, activebackground='black')
-        position_menu.add_radiobutton(label='Право верх', command=move_right_top, activebackground='black')
-        position_menu.add_radiobutton(label='Лево низ', command=move_left_bottom, activebackground='black')
-        position_menu.add_radiobutton(label='Право низ', command=move_right_bottom, activebackground='black')
-        position_menu.add_radiobutton(label='Центр', command=move_center, activebackground='black')
-        main_menu.add_cascade(label='Позиционировать лазер', menu=position_menu)
+
+        object_callback = partial(self._view_model.new_selection, OBJECT)
+        main_menu.add_command(label='Выделить объект', command=object_callback)
+
+        main_menu.add_command(label='Прервать', command=self._view_model.cancel_active_process)
+
 
         rotation_menu = Menu(tearoff=False)
         rotate_0 = partial(self._view_model.rotate_image, 0)
@@ -111,6 +99,27 @@ class View:
         flip_menu.add_radiobutton(label='По горизонтали', command=flip_horizontal,
                                   value=FLIP_SIDE_HORIZONTAL, variable=self._flip_var, activebackground='black')
         main_menu.add_cascade(label='Отразить', menu=flip_menu)
+
+
+        manual_menu = Menu(tearoff=False)
+        area_callback = partial(self._view_model.new_selection, AREA)
+        manual_menu.add_command(label='Выделить область', command=area_callback)
+        position_menu = Menu(tearoff=False)
+
+        MAX_LASER_RANGE = settings.MAX_LASER_RANGE_PLUS_MINUS
+        move_left_top = partial(self._view_model.move_laser, -MAX_LASER_RANGE, -MAX_LASER_RANGE)
+        move_right_top = partial(self._view_model.move_laser, MAX_LASER_RANGE, -MAX_LASER_RANGE)
+        move_left_bottom = partial(self._view_model.move_laser, -MAX_LASER_RANGE, MAX_LASER_RANGE)
+        move_right_bottom = partial(self._view_model.move_laser, MAX_LASER_RANGE, MAX_LASER_RANGE)
+        move_center = partial(self._view_model.move_laser, 0, 0)
+        position_menu.add_radiobutton(label='Лево верх', command=move_left_top, activebackground='black')
+        position_menu.add_radiobutton(label='Право верх', command=move_right_top, activebackground='black')
+        position_menu.add_radiobutton(label='Лево низ', command=move_left_bottom, activebackground='black')
+        position_menu.add_radiobutton(label='Право низ', command=move_right_bottom, activebackground='black')
+        position_menu.add_radiobutton(label='Центр', command=move_center, activebackground='black')
+        manual_menu.add_cascade(label='Позиционировать лазер', menu=position_menu)
+        main_menu.add_cascade(label='Ручное управление', menu=manual_menu)
+
 
         main_menu.add_command(label='Настройки', command=self.open_settings)
 

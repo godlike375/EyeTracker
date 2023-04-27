@@ -49,6 +49,12 @@ def main(args):
         model_core.laser.center_laser()
         save_data(model_core)
         logger.debug('settings saved')
+    except KeyboardInterrupt:
+        logger.debug('mainloop finished')
+        model_core.stop_thread()
+        model_core.laser.center_laser()
+        save_data(model_core)
+        logger.debug('settings saved')
     except Exception as e:
         view_output.show_fatal(f'Произошла фатальная ошибка.\n'
                                f'{e}\n'
