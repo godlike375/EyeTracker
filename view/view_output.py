@@ -9,17 +9,26 @@ _view = None
 
 def show_message(message: str, title: str = ''):
     logger.debug(message)
-    _view._commands.queue_command(partial(messagebox.showinfo, title, message))
+    if not _view is None:
+        _view._commands.queue_command(partial(messagebox.showinfo, title, message))
+    else:
+        messagebox.showinfo(title, message)
 
 
 def show_warning(message: str, title: str = 'Предупреждение'):
     logger.warning(message)
-    _view._commands.queue_command(partial(messagebox.showwarning, title, message))
+    if not _view is None:
+        _view._commands.queue_command(partial(messagebox.showwarning, title, message))
+    else:
+        messagebox.showwarning(title, message)
 
 
 def show_error(message: str, title: str = 'Ошибка'):
     logger.error(message)
-    _view._commands.queue_command(partial(messagebox.showerror, title, message))
+    if not _view is None:
+        _view._commands.queue_command(partial(messagebox.showerror, title, message))
+    else:
+        messagebox.showerror(title, message)
 
 
 def show_fatal(e):

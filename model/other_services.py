@@ -150,7 +150,8 @@ class StateTipSupervisor:
         self._view_model = view_model
         # Расположены в порядке приоритета от наибольшего к наименьшему
         self.all_events = (
-            EventCheck('devices connected', False, 'Подключите все необходимые устройства (лазер и камеру)'),
+            EventCheck('camera connected', False, 'Подключите камеру'),
+            EventCheck('laser connected', False, 'Подключите контроллер лазера'),
             EventCheck('laser calibrated', False, 'Откалибруйте лазер'),
             EventCheck('noise threshold calibrated', False, 'Откалибруйте шумоподавление'),
             EventCheck('coordinate system calibrated', False, 'Откалибруйте координатную систему'),

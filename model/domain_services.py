@@ -6,7 +6,7 @@ from common.settings import settings, OBJECT, AREA, private_settings, \
     RESOLUTIONS, DOWNSCALED_HEIGHT
 from common.thread_helpers import ThreadLoopable, MutableValue
 from model.area_controller import AreaController
-from model.camera_extractor import FrameExtractor
+from model.camera_extractor import CameraService
 from model.frame_processing import Tracker, NoiseThresholdCalibrator, CoordinateSystemCalibrator
 from model.other_services import SelectingService, LaserService, StateTipSupervisor
 from view import view_output
@@ -25,11 +25,11 @@ class Orchestrator(ThreadLoopable):
 
     def __init__(self, view_model: ViewModel, run_immediately: bool = True, area: tuple = None):
         self._view_model = view_model
-        self._extractor = FrameExtractor(settings.CAMERA_ID)
+        self.camera = CameraService(settings.CAMERA_ID)
         self.selecting = SelectingService(self._on_area_selected, self._on_object_selected)
         self.area_controller = AreaController(min_xy=-settings.MAX_LASER_RANGE_PLUS_MINUS,
                                               max_xy=settings.MAX_LASER_RANGE_PLUS_MINUS)
-        self.tracker = Tracker(settings.TRACKING_FRAMES_MEAN_NUMBER)
+        self.tracker = Tracker(settings.MEAN_COORDINATES_FRAME_COUNT)
         self.state_tip = StateTipSupervisor(self._view_model)
         self.laser = LaserService(self.state_tip)
 
@@ -43,8 +43,10 @@ class Orchestrator(ThreadLoopable):
         self._fatal_error_count_repeatedly = 0
         self.rotate_image(private_settings.ROTATION_ANGLE, user_action=False)
         self.flip_image(private_settings.FLIP_SIDE, user_action=False)
-        if self._extractor.initialized and self.laser.initialized:
-            self.state_tip.change_tip('devices connected')
+        if self.camera.initialized:
+            self.state_tip.change_tip('camera connected')
+        if self.laser.initialized:
+            self.state_tip.change_tip('laser connected')
         if area is not None:
             self.selecting.load_selected_area(area)
 
@@ -52,7 +54,7 @@ class Orchestrator(ThreadLoopable):
 
     def _processing_loop(self):
         try:
-            frame = self._extractor.extract_frame()
+            frame = self.camera.extract_frame()
             if self.selecting.object_is_selecting or \
                     not Processor.frames_are_same(frame, self._current_frame):
                 if self.tracker.in_progress:
@@ -128,6 +130,7 @@ class Orchestrator(ThreadLoopable):
     def _on_area_selected(self):
         selected, area = self.selecting.check_selected(AREA)
         if not selected:
+            # TODO: если не выделялась вручную, то retry не нужен. Калибровку надо перезапускать
             self._view_model.new_selection(AREA, retry_select_object_in_calibrating=True)
             return
         self.previous_area = area
@@ -180,7 +183,10 @@ class Orchestrator(ThreadLoopable):
         self.selecting.object_is_selecting = True
         return True
 
-    def _new_area(self):
+    def _new_area(self, dont_reselect_area):
+        # TODO: поправить логику и сделать без костылей вроде этого
+        if dont_reselect_area:
+            return False
         if self.selecting.object_is_selecting:
             view_output.show_warning('Необходимо завершить выделение объекта.')
             return False
@@ -207,7 +213,7 @@ class Orchestrator(ThreadLoopable):
                 return
 
         if AREA in name:
-            if not self._new_area():
+            if not self._new_area(dont_reselect_area=retry_select_object_in_calibrating):
                 return
 
         self.selecting.stop_drawing(name)
@@ -304,7 +310,7 @@ class Orchestrator(ThreadLoopable):
         self.cancel_active_process(need_confirm=False)
         self.selecting.stop_drawing(AREA)
         self.previous_area = None
-        self._extractor.set_frame_rotate(degree)
+        self.camera.set_frame_rotate(degree)
         if degree in (90, 270):
             self._view_model.setup_window_geometry(reverse=True)
         else:
@@ -329,7 +335,7 @@ class Orchestrator(ThreadLoopable):
         self.cancel_active_process(need_confirm=False)
         self.selecting.stop_drawing(AREA)
         self.previous_area = None
-        self._extractor.set_frame_flip(side)
+        self.camera.set_frame_flip(side)
         self._view_model.set_flip_side(side)
 
     def stop_thread(self):

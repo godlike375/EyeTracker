@@ -16,7 +16,7 @@ PERCENT_FROM_DECIMAL = 100
 
 
 class Tracker(RectBased, Drawable, ProcessBased):
-    def __init__(self, mean_count=settings.TRACKING_FRAMES_MEAN_NUMBER):
+    def __init__(self, mean_count=settings.MEAN_COORDINATES_FRAME_COUNT):
         self._mean_count = mean_count
         self.tracker = dlib.correlation_tracker()
         self._denoisers: list[Denoiser] = []
@@ -79,7 +79,7 @@ class Tracker(RectBased, Drawable, ProcessBased):
 class NoiseThresholdCalibrator(ProcessBased):
     CALIBRATION_THRESHOLD_STEP = 0.0025
 
-    # В течение settings.OBJECT_NOT_MOVING_DURATION секунд цель трекинга не должна двигаться
+    # В течение settings.THRESHOLD_CALIBRATION_DURATION секунд цель трекинга не должна двигаться
     def __init__(self, model, view_model):
         super().__init__()
         self._last_position = None
@@ -98,12 +98,12 @@ class NoiseThresholdCalibrator(ProcessBased):
             self._last_position = center
             self._last_timestamp = time()
             return False
-        elif time() - self._last_timestamp > settings.OBJECT_NOT_MOVING_DURATION:
+        elif time() - self._last_timestamp > settings.THRESHOLD_CALIBRATION_DURATION:
             self.in_progress = False
             return True
 
     def _calibration_progress(self):
-        return int(((time() - self._last_timestamp) / settings.OBJECT_NOT_MOVING_DURATION) * PERCENT_FROM_DECIMAL)
+        return int(((time() - self._last_timestamp) / settings.THRESHOLD_CALIBRATION_DURATION) * PERCENT_FROM_DECIMAL)
 
     def _threshold_calibrating(self, center):
         if self._is_calibration_successful(center):
@@ -146,7 +146,7 @@ class CoordinateSystemCalibrator(ProcessBased):
         progress = 0
         self._wait_for_controller_ready()
 
-        for point in self._laser_borders:
+        for point in self._laser_borders[:-1]:
             self._model.laser.set_new_position(point)
             self._wait_for_controller_ready()
 
@@ -155,6 +155,12 @@ class CoordinateSystemCalibrator(ProcessBased):
 
             progress += 25
             self._view_model.set_progress(progress)
+
+        last_point = self._laser_borders[-1]
+        self._model.laser.set_new_position(last_point)
+        self._wait_for_controller_ready()
+        screen_position = ((object.left_top + object.right_bottom) / 2).to_int()
+        area._points.append(screen_position)
 
         self._finish_calibrating(area)
 
@@ -169,9 +175,16 @@ class CoordinateSystemCalibrator(ProcessBased):
         self._model.tracker.stop()
         self._model.selecting.stop_drawing(OBJECT)
 
-        area.finish_selecting()
         self._view_model.set_progress(0)
         self._view_model.progress_bar_set_visibility(False)
+
+        area.finish_selecting()
+        if area.is_empty:
+            view_output.show_error('Необходимо повторить калибровку на более близком расстоянии '
+                                   'камеры от области лазера.')
+            self._model.state_tip.change_tip('object selected', happened=False)
+            self.stop()
+            return
 
         self._model.area_controller.set_area(area, self._laser_borders)
         view_output.show_message('Калибровка координатной системы успешно завершена.')

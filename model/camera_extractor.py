@@ -16,7 +16,7 @@ class NoneFrameException(Exception):
     ...
 
 
-class FrameExtractor(Initializable):
+class CameraService(Initializable):
     def __init__(self, source: int = settings.CAMERA_ID):
         super().__init__(initialized=True)
         self._frame_rotate_degree = private_settings.ROTATION_ANGLE

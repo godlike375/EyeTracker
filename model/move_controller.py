@@ -41,6 +41,7 @@ class MoveController(Initializable):
                         f'Не удалось открыть заданный настройкой SERIAL_PORT последовательный порт'
                         f' {manual_port}, а так же не удалось определить подходящий порт автоматически.'
                         f' Программа продолжит работать без контроллера лазера.')
+                    self.init_error()
                     return
                 for description in ports_descriptions:
                     if LASER_DEVICE_NAME in description:

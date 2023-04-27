@@ -199,6 +199,10 @@ class View:
             return
         self._settings = Toplevel(self._root)
         self._settings.title('Настройки')
+        try:
+            self._settings.iconbitmap(str(get_repo_path(bundled=True) / "tracking.ico"))
+        except Exception:
+            logger.warning('tracking.ico not found')
 
         reset_settings_button = Button(self._settings, command=self._view_model.reset_settings,
                                        text='Сбросить настройки')
