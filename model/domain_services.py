@@ -109,7 +109,10 @@ class Orchestrator(ThreadLoopable):
         center = self.tracker.get_tracked_position(frame)
         if self.coordinate_calibrator.in_progress or self.threshold_calibrator.in_progress:
             return
-        self._move_to_relative_cords(center)
+        object_relative_coords = self._move_to_relative_cords(center)
+        if object_relative_coords is not None:
+            self._view_model.set_tip(f'Текущие координаты объекта: '
+                                     f'{object_relative_coords.x, object_relative_coords.y}')
 
     def restore_previous_area(self):
         if self.previous_area is not None:
@@ -124,8 +127,9 @@ class Orchestrator(ThreadLoopable):
 
         relative_coords = self.area_controller.calc_laser_coords(center)
         result = self.laser.set_new_position(relative_coords)
-        if result is None:
-            self.cancel_active_process(need_confirm=False)
+        if result is not None:
+            return relative_coords
+        self.cancel_active_process(need_confirm=False)
 
     def _on_area_selected(self):
         selected, area = self.selecting.check_selected(AREA)
