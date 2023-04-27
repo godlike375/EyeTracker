@@ -41,14 +41,22 @@ class ViewModel:
     def move_laser(self, x, y):
         self._model.move_laser(x, y)
 
+    def _coordinates_on_video(self, event):
+        x = event.x + (self._view._video_label.winfo_reqwidth() - self._view._video_label.winfo_width())//2
+        y = event.y + (self._view._video_label.winfo_reqheight() - self._view._video_label.winfo_height())//2
+        return x, y
+
     def left_button_click(self, selector, event):
-        selector.left_button_click(Point(event.x, event.y))
+        x, y = self._coordinates_on_video(event)
+        selector.left_button_click(Point(x, y))
 
     def left_button_down_moved(self, selector, event):
-        selector.left_button_down_moved(Point(event.x, event.y))
+        x, y = self._coordinates_on_video(event)
+        selector.left_button_down_moved(Point(x, y))
 
     def left_button_up(self, selector, event):
-        selector.left_button_up(Point(event.x, event.y))
+        x, y = self._coordinates_on_video(event)
+        selector.left_button_up(Point(x, y))
 
     def new_selection(self, name, retry_select_object_in_calibrating=False, additional_callback=None):
         # TODO: кроме name параметры нужны только чтобы передать их в new_selection модели

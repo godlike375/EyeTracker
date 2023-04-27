@@ -24,7 +24,7 @@ class Selector(ABC):
         self._unbindings = []
 
     def left_button_click(self, event):
-        self._points.append(Point(event.x, event.y))
+        self._points.append(event)
 
     def left_button_down_moved(self, event):
         ...
@@ -117,7 +117,7 @@ class ObjectSelector(RectBased, Drawable, Selector):
 
     def left_button_up(self, event):
         logger.debug(f'end selecting {self.name} {event.x, event.y}')
-        self._points.append(Point(event.x, event.y))
+        self._points.append(event)
         points_count = len(self._points)
         # Условие относится к багу, описанному выше. Такие невалидные состояния отметаем
         if points_count < ObjectSelector.MAX_POINTS:
