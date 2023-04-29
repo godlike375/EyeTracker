@@ -44,17 +44,6 @@ def main(args):
         view_model.set_model(model_core)
         logger.debug('mainloop started')
         root.mainloop()
-        logger.debug('mainloop finished')
-        model_core.stop_thread()
-        model_core.laser.center_laser()
-        save_data(model_core)
-        logger.debug('settings saved')
-    except KeyboardInterrupt:
-        logger.debug('mainloop finished')
-        model_core.stop_thread()
-        model_core.laser.center_laser()
-        save_data(model_core)
-        logger.debug('settings saved')
     except Exception as e:
         view_output.show_fatal(f'Произошла фатальная ошибка.\n'
                                f'{e}\n'
@@ -62,6 +51,14 @@ def main(args):
                                f'Будет произведена попытка сохранения данных')
         logger.exception(e)
         save_data(model_core)
+        return
+    except KeyboardInterrupt:
+        logger.debug('interrupted using KeyboardInterrupt')
+    logger.debug('mainloop finished')
+    model_core.stop_thread()
+    model_core.laser.center_laser()
+    save_data(model_core)
+    logger.debug('settings saved')
 
 
 if __name__ == '__main__':

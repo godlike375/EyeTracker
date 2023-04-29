@@ -50,6 +50,9 @@ class Orchestrator(ThreadLoopable):
         if area is not None:
             self.selecting.load_selected_area(area)
 
+        #self.calibrate_laser()
+        # TODO: FIXME почему-то вызывается, но калибровки не происходит
+
         super().__init__(self._processing_loop, self._frame_interval, run_immediately)
 
     def _processing_loop(self):

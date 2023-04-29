@@ -192,6 +192,7 @@ class CoordinateSystemCalibrator(ProcessBased):
         self._model.state_tip.change_tip('coordinate system calibrated')
         self._model.state_tip.change_tip('object selected', happened=False)
         self.stop()
+        self._model.center_laser()
 
 
 class Denoiser:
