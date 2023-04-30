@@ -137,7 +137,7 @@ class LaserService():
 
 @dataclass
 class EventCheck:
-    __slots__ = ['name', 'happened', 'tip', 'priority']
+    __slots__ = ['name', 'happened', 'tip']
     name: str
     happened: bool
     tip: str
@@ -147,7 +147,7 @@ class StateTipSupervisor:
     def __init__(self, view_model):
         self._view_model = view_model
         # Расположены в порядке приоритета от наибольшего к наименьшему
-        self.all_events = (
+        self._all_events = (
             EventCheck('camera connected', False, 'Подключите камеру'),
             EventCheck('laser connected', False, 'Подключите контроллер лазера'),
             EventCheck('laser calibrated', False, 'Откалибруйте лазер'),
@@ -158,7 +158,7 @@ class StateTipSupervisor:
         )
 
     def change_tip(self, event_name: str, happened=True):
-        for event in self.all_events:
+        for event in self._all_events:
             if event_name == event.name:
                 event.happened = happened
         prioritized = self._most_prioritized_event()
@@ -168,6 +168,6 @@ class StateTipSupervisor:
         self._view_model.set_tip(prioritized.tip)
 
     def _most_prioritized_event(self):
-        for event in self.all_events:
+        for event in self._all_events:
             if not event.happened:
                 return event
