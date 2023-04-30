@@ -30,10 +30,6 @@ class View:
     def __init__(self, tk: Tk, view_model):
         self._root = tk
         self._view_model = view_model
-        self._last_image_height = 0
-        self._last_image_width = 0
-        self._current_image = None
-        self._prev_image = None
         self._image_alive_ref = None
         self._interval_ms = int(1 / settings.FPS_VIEWED * SECOND_LENGTH)
 
@@ -135,7 +131,7 @@ class View:
         self._indicators_frame.pack(side=BOTTOM, fill=X)
         self._tip.pack(side=TOP, anchor=W)
         self.progress_bar_set_visibility(False)
-        self.show_image()
+        self._processing_loop()
 
     def setup_window_geometry(self, reverse=False):
         window_height = DOWNSCALED_HEIGHT
@@ -150,24 +146,12 @@ class View:
 
         logger.debug(f'window size = {window_size}')
 
-    def set_current_image(self, img):
-        self._prev_image = self._current_image
-        self._current_image = img
-
-    def show_image(self):
-        self._root.after(self._interval_ms, self.show_image)
+    def _processing_loop(self):
+        self._root.after(self._interval_ms, self._processing_loop)
 
         self._commands.exec_queued_commands()
 
-        if self._current_image is None or self._prev_image is self._current_image:
-            return
-        image = self._current_image
-
-        if image.width != self._last_image_width or image.height != self._last_image_height:
-            self._image_alive_ref = None
-            self._last_image_height = image.height
-            self._last_image_width = image.width
-
+    def check_show_image(self, image):
         if self._image_alive_ref is not None:
             # Для повышения производительности вставляем в готовый лейбл изображение, не пересоздавая
             self._image_alive_ref.paste(image)

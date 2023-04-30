@@ -30,7 +30,7 @@ class ViewModel:
         self._view = view
 
     def on_image_ready(self, image):
-        self._view.set_current_image(image)
+        self.execute_command(partial(self._view.check_show_image, image))
 
     def calibrate_laser(self):
         self._model.calibrate_laser()
@@ -132,6 +132,7 @@ class ViewModel:
         self._model.rotate_image(degree)
 
     def set_rotate_angle(self, angle):
+        self._view._image_alive_ref = None
         self._view._rotate_var.set(angle)
 
     def flip_image(self, side):
