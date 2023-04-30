@@ -14,7 +14,6 @@ DOWNSCALED_HEIGHT = 640
 
 AREA = 'area'
 OBJECT = 'object'
-TRACKER = 'tracker'
 FOLDER = 'config'
 FILE = 'eyetracker_settings.ini'
 PRIVATE_FILE = 'private_settings.ini'

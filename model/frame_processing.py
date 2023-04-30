@@ -4,10 +4,10 @@ from time import time, sleep
 
 import dlib
 
-from common.abstractions import ProcessBased, RectBased, Drawable
+from common.abstractions import ProcessBased, RectBased, Drawable, Cancellable
 from common.coordinates import Point, calc_center
 from common.logger import logger
-from common.settings import settings, TRACKER, OBJECT, AREA, MIN_THROTTLE_DIFFERENCE
+from common.settings import settings, OBJECT, AREA, MIN_THROTTLE_DIFFERENCE
 from common.thread_helpers import threaded
 from view import view_output
 from view.drawing import Processor
@@ -15,15 +15,14 @@ from view.drawing import Processor
 PERCENT_FROM_DECIMAL = 100
 
 
-class Tracker(RectBased, Drawable, ProcessBased):
+class Tracker(RectBased, Drawable, ProcessBased, Cancellable):
     def __init__(self, mean_count=settings.MEAN_COORDINATES_FRAME_COUNT):
+        ProcessBased.__init__(self)
         self._mean_count = mean_count
         self.tracker = dlib.correlation_tracker()
         self._denoisers: list[Denoiser] = []
         self._length_xy = None
         self._center = None
-        self.in_progress = False
-        self.name = TRACKER
         self.is_selected = True  # Для перевыделения объекта
 
     @property
@@ -99,7 +98,7 @@ class NoiseThresholdCalibrator(ProcessBased):
             self._last_timestamp = time()
             return False
         elif time() - self._last_timestamp > settings.THRESHOLD_CALIBRATION_DURATION:
-            self.in_progress = False
+            self.stop()
             return True
 
     def _calibration_progress(self):

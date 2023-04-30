@@ -1,7 +1,8 @@
-from time import time, sleep
 from functools import partial
+from time import time, sleep
 
 from common.logger import logger
+from common.program import exit_program
 from common.settings import settings, OBJECT, AREA, private_settings, \
     RESOLUTIONS, DOWNSCALED_HEIGHT
 from common.thread_helpers import ThreadLoopable, MutableValue
@@ -12,10 +13,10 @@ from model.other_services import SelectingService, LaserService, StateTipSupervi
 from view import view_output
 from view.drawing import Processor
 from view.view_model import ViewModel
-from common.program import exit_program
-
 
 RESTART_IN_TIME_SEC = 10
+
+
 # Пробовал увеличивать количество потоков в программе до 4-х (+ экстрактор + трекер в своих потоках)
 # Итог: это только ухудшило производительность, так что больше 2-х потоков смысла иметь нет
 # И запускать из цикла отрисовки вьюхи тоже смысла нет, т.к. это асинхронный цикл и будет всё тормозить
@@ -50,7 +51,7 @@ class Orchestrator(ThreadLoopable):
         if area is not None:
             self.selecting.load_selected_area(area)
 
-        #self.calibrate_laser()
+        # self.calibrate_laser()
         # TODO: FIXME почему-то вызывается, но калибровки не происходит
 
         super().__init__(self._processing_loop, self._frame_interval, run_immediately)
@@ -210,7 +211,7 @@ class Orchestrator(ThreadLoopable):
         return True
 
     def new_selection(self, name, retry_select_object_in_calibrating=False, additional_callback=None):
-        if (self.threshold_calibrator.in_progress or self.coordinate_calibrator.in_progress)\
+        if (self.threshold_calibrator.in_progress or self.coordinate_calibrator.in_progress) \
                 and not retry_select_object_in_calibrating:
             view_output.show_warning('Выполняется процесс калибровки, необходимо дождаться его окончания.')
             return
@@ -224,8 +225,8 @@ class Orchestrator(ThreadLoopable):
                 return
 
         self.selecting.stop_drawing(name)
+        self.tracker.stop()
 
-        self.tracker.in_progress = False
         return self.selecting.create_selector(name, additional_callback)
 
     def calibrate_noise_threshold(self):
@@ -323,7 +324,6 @@ class Orchestrator(ThreadLoopable):
         else:
             self._view_model.setup_window_geometry(reverse=False)
         self._view_model.set_rotate_angle(degree)
-
 
     def flip_image(self, side, user_action=True):
         if self.tracker.in_progress:

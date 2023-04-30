@@ -1,7 +1,7 @@
 from abc import ABC
 
 from common.coordinates import Point
-from common.abstractions import RectBased, Drawable
+from common.abstractions import RectBased, Drawable, Cancellable
 from common.logger import logger
 from view.drawing import Processor
 
@@ -14,9 +14,8 @@ EVENT_NAME = 1
 POINTS_ORIENTATION = ['TL', 'TR', 'BR', 'BL']
 
 
-class Selector(ABC):
+class Selector(Cancellable, ABC):
     def __init__(self, name: str, callback, points: tuple = None):
-        super().__init__()
         self.name = name
         self._after_selection = callback
         self._selected = False
@@ -70,7 +69,7 @@ class Selector(ABC):
         if self._after_selection is not None:
             self._after_selection()
 
-    def cancel_selecting(self):
+    def cancel(self):
         if self._selected:
             # Отменить можно только то, что не до конца выделено
             return

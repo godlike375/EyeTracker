@@ -44,3 +44,9 @@ class Initializable(ABC):
 
     def init_success(self):
         self.initialized = True
+
+
+class Cancellable(ABC):
+
+    def cancel(self):
+        ...

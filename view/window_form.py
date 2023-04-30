@@ -65,12 +65,10 @@ class View:
                                      command=self._view_model.calibrate_coordinate_system, activebackground='black')
         main_menu.add_cascade(label='Откалибровать', menu=calibration_menu)
 
-
         object_callback = partial(self._view_model.new_selection, OBJECT)
         main_menu.add_command(label='Выделить объект', command=object_callback)
 
         main_menu.add_command(label='Прервать', command=self._view_model.cancel_active_process)
-
 
         rotation_menu = Menu(tearoff=False)
         rotate_0 = partial(self._view_model.rotate_image, 0)
@@ -100,7 +98,6 @@ class View:
                                   value=FLIP_SIDE_HORIZONTAL, variable=self._flip_var, activebackground='black')
         main_menu.add_cascade(label='Отразить', menu=flip_menu)
 
-
         manual_menu = Menu(tearoff=False)
         area_callback = partial(self._view_model.new_selection, AREA)
         manual_menu.add_command(label='Выделить область', command=area_callback)
@@ -119,7 +116,6 @@ class View:
         position_menu.add_radiobutton(label='Центр', command=move_center, activebackground='black')
         manual_menu.add_cascade(label='Позиционировать лазер', menu=position_menu)
         main_menu.add_cascade(label='Ручное управление', menu=manual_menu)
-
 
         main_menu.add_command(label='Настройки', command=self.open_settings)
 
@@ -144,7 +140,8 @@ class View:
     def setup_window_geometry(self, reverse=False):
         window_height = DOWNSCALED_HEIGHT
         window_width = RESOLUTIONS[window_height] + INDICATORS_WIDTH_ADDITION
-        window_size = f'{window_height + STRAIGHT_MENU_HEIGHT_ADDITION}x{window_width + INDICATORS_WIDTH_ADDITION}' if not reverse else \
+        window_size = f'{window_height + STRAIGHT_MENU_HEIGHT_ADDITION}x{window_width + INDICATORS_WIDTH_ADDITION}' \
+            if not reverse else \
             f'{window_width + REVERSED_MENU_HEIGHT_ADDITION}x{window_height + INDICATORS_WIDTH_ADDITION}'
         self._root.geometry(window_size)
 

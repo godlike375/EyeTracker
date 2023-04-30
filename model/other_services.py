@@ -5,7 +5,7 @@ from functools import partial
 from common.abstractions import Drawable
 from common.coordinates import Point
 from common.logger import logger
-from common.settings import AREA, OBJECT, TRACKER, CALIBRATE_LASER_COMMAND_ID, settings
+from common.settings import AREA, OBJECT, CALIBRATE_LASER_COMMAND_ID, settings
 from model.move_controller import MoveController
 from model.selector import AreaSelector, ObjectSelector
 from view import view_output
@@ -69,16 +69,14 @@ class SelectingService:
     def cancel_selecting(self):
         if not self.selector_exists(AREA):
             return
-        self.get_selector(AREA).cancel_selecting()
+        self.get_selector(AREA).cancel()
         self.stop_drawing(AREA)
         if not self.selector_exists(OBJECT):
             return
         object = self.get_selector(OBJECT)
         self.stop_drawing(OBJECT)
         self.object_is_selecting = False
-        if object.name == TRACKER:
-            return
-        object.cancel_selecting()
+        object.cancel()
 
     def check_selected(self, name):
         selector = self.get_selector(name)
