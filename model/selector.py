@@ -157,7 +157,6 @@ class AreaSelector(Drawable, Selector):
             super().left_button_click(event)
         self._current_point_number += 1
         if self._current_point_number == AreaSelector.MAX_POINTS:
-            self._sort_points_for_viewing()
             self.finish_selecting()
 
     def draw_on_frame(self, frame):

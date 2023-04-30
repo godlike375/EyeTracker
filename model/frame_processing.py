@@ -145,21 +145,15 @@ class CoordinateSystemCalibrator(ProcessBased):
         progress = 0
         self._wait_for_controller_ready()
 
-        for point in self._laser_borders[:-1]:
+        for point in self._laser_borders:
             self._model.laser.set_new_position(point)
             self._wait_for_controller_ready()
 
             screen_position = ((object.left_top + object.right_bottom) / 2).to_int()
-            area.left_button_click(screen_position)
+            area._points.append(screen_position)
 
             progress += 25
             self._view_model.set_progress(progress)
-
-        last_point = self._laser_borders[-1]
-        self._model.laser.set_new_position(last_point)
-        self._wait_for_controller_ready()
-        screen_position = ((object.left_top + object.right_bottom) / 2).to_int()
-        area._points.append(screen_position)
 
         self._finish_calibrating(area)
 
