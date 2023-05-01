@@ -80,7 +80,7 @@ class ViewModel:
         unbindings = (unbind_left_click, unbind_left_down_moved, unbind_left_up)
 
         selector.bind_events(bindings, unbindings)
-        self._model.selecting.start_drawing(selector, name)
+        self._model.selecting.add_to_screen(selector, name)
 
     def calibrate_noise_threshold(self):
         self._model.calibrate_noise_threshold()
@@ -89,7 +89,7 @@ class ViewModel:
         self._model.calibrate_coordinate_system()
 
     def selector_is_selected(self, name):
-        return self._model.selecting.selector_is_selected(name)
+        return self._model.selecting.selecting_is_done(name)
 
     def cancel_active_process(self):
         self._model.cancel_active_process()

@@ -25,7 +25,7 @@ def exit_program(model_core, restart=False):
 def save_data(model_core):
     settings.save()
     private_settings.save()
-    area_is_selected = model_core.selecting.selector_is_selected(AREA)
+    area_is_selected = model_core.selecting.selecting_is_done(AREA)
     if area_is_selected:
         if model_core.threshold_calibrator.in_progress or model_core.coordinate_calibrator.in_progress \
                 and model_core.previous_area:

@@ -1,7 +1,7 @@
 from abc import ABC
 
 from common.coordinates import Point
-from common.abstractions import RectBased, Drawable, Cancellable
+from common.abstractions import RectBased, Drawable, Cancellable, ProcessBased
 from common.logger import logger
 from view.drawing import Processor
 
@@ -14,16 +14,17 @@ EVENT_NAME = 1
 POINTS_ORIENTATION = ['TL', 'TR', 'BR', 'BL']
 
 
-class Selector(Cancellable, ABC):
+class Selector(Cancellable, ABC, ProcessBased):
     def __init__(self, name: str, callback, points: tuple = None):
+        ProcessBased.__init__(self)
         self.name = name
         self._after_selection = callback
-        self._selected = False
         self._points = list(points) if points else []
         self._unbindings = []
 
-    def left_button_click(self, event):
-        self._points.append(event)
+    def left_button_click(self, coordinates):
+        self.start()
+        self._points.append(coordinates)
 
     def left_button_down_moved(self, event):
         ...
@@ -32,15 +33,8 @@ class Selector(Cancellable, ABC):
         ...
 
     @property
-    def is_selected(self):
-        return self._selected and not self.is_empty
-
-    @is_selected.setter
-    def is_selected(self, selected):
-        if type(selected) is bool:
-            self._selected = selected
-        else:
-            raise NotImplementedError('assigned data type is not bool')
+    def is_done(self):
+        return not self.in_progress and super().is_done and not self.is_empty
 
     @property
     def is_empty(self):
@@ -63,17 +57,16 @@ class Selector(Cancellable, ABC):
         self._unbindings = unbindings
 
     def finish_selecting(self):
-        self._selected = True
+        self.finish()
         for unbind in self._unbindings:
             unbind[EVENT_NAME]()
         if self._after_selection is not None:
             self._after_selection()
 
     def cancel(self):
-        if self._selected:
-            # Отменить можно только то, что не до конца выделено
+        if not self.in_progress:
             return
-        self._selected = False
+        super().cancel()
         self._points.clear()
         for unbind in self._unbindings:
             unbind[EVENT_NAME]()
@@ -83,8 +76,7 @@ class ObjectSelector(RectBased, Drawable, Selector):
     MAX_POINTS = 2
 
     def __init__(self, name: str, callback, points=None):
-        super().__init__(name, callback, points)
-        self._selected = False
+        Selector.__init__(self, name, callback, points)
         self._left_top = Point(0, 0)
         self._right_bottom = Point(0, 0)
 
@@ -104,12 +96,12 @@ class ObjectSelector(RectBased, Drawable, Selector):
     def right_bottom(self, value):
         self._right_bottom = value
 
-    def left_button_click(self, event):
-        self._points = [Point(event.x, event.y)]
+    def left_button_click(self, coordinates):
+        super().left_button_click(coordinates)
         # BUG: Баг с событиями: если много раз выделять пустой объект (просто кликать по экрану),
         # то очередь событий ломается и может клик сработать несколько раз
-        self._left_top.x, self._left_top.y = event.x, event.y
-        logger.debug(f'start selecting {event.x, event.y}')
+        self._left_top.x, self._left_top.y = coordinates.x, coordinates.y
+        logger.debug(f'start selecting {coordinates.x, coordinates.y}')
 
     def left_button_down_moved(self, event):
         self._right_bottom.x, self._right_bottom.y = event.x, event.y
@@ -118,8 +110,9 @@ class ObjectSelector(RectBased, Drawable, Selector):
         logger.debug(f'end selecting {self.name} {event.x, event.y}')
         self._points.append(event)
         points_count = len(self._points)
-        # Условие относится к багу, описанному выше. Такие невалидные состояния отметаем
+        # BUG: Условие относится к багу, описанному выше. Такие невалидные состояния отметаем
         if points_count < ObjectSelector.MAX_POINTS:
+            self._points.clear()
             return
         self._sort_points_for_viewing()
         self._left_top, self._right_bottom = self._points
@@ -150,20 +143,20 @@ class AreaSelector(Drawable, Selector):
         self._current_point_number = 0
         Processor.load_color()
 
-    def left_button_click(self, event):
-        logger.debug(f'selecting {self._current_point_number} point at {event.x, event.y}')
+    def left_button_click(self, coordinates):
+        logger.debug(f'selecting {self._current_point_number} point at {coordinates.x, coordinates.y}')
 
         if self._current_point_number < AreaSelector.MAX_POINTS:
-            super().left_button_click(event)
+            super().left_button_click(coordinates)
         self._current_point_number += 1
         if self._current_point_number == AreaSelector.MAX_POINTS:
             self.finish_selecting()
 
     def draw_on_frame(self, frame):
-        if not self._selected:
+        if self.in_progress:
             for point in self._points:
                 frame = Processor.draw_circle(frame, point)
-        else:
+        elif self.is_done:
             for a, b in zip(self._points[:-1], self._points[1:]):
                 frame = Processor.draw_line(frame, a, b)
             frame = Processor.draw_line(frame, self._points[-1], self._points[0])

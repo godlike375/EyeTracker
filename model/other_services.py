@@ -1,8 +1,7 @@
 from dataclasses import dataclass
-from typing import List
 from functools import partial
 
-from common.abstractions import Drawable
+from common.abstractions import Cancellable
 from common.coordinates import Point
 from common.logger import logger
 from common.settings import AREA, OBJECT, CALIBRATE_LASER_COMMAND_ID, settings
@@ -11,35 +10,39 @@ from model.selector import AreaSelector, ObjectSelector
 from view import view_output
 
 
-class SelectingService:
-    def __init__(self, area_selected_callback, object_selected_callback):
+class SelectingService(Cancellable):
+    def __init__(self, area_selected_callback, object_selected_callback, model):
         self._active_drawn_objects = dict()  # {name: Selector}
-        self.object_is_selecting = False
         self._on_area_selected = area_selected_callback
         self._on_object_selected = object_selected_callback
+        self._model = model
 
     def load_selected_area(self, area):
         area_selector = AreaSelector(AREA, self._on_area_selected, area)
         if area_selector.is_empty:
             return
-        area_selector._selected = True
-        self.start_drawing(area_selector, AREA)
+        area_selector._is_done = True
+        area_selector._in_progress = False
+        self.add_to_screen(area_selector, AREA)
         self._on_area_selected()
 
-    def stop_drawing(self, name):
+    def remove_from_screen(self, name):
         if name in self._active_drawn_objects:
             del self._active_drawn_objects[name]
+        self._model.state_tip.change_tip(f'{name} selected', happened=False)
+        if OBJECT in name:
+            self._model.tracker.cancel()
 
-    def start_drawing(self, selector, name):
+    def add_to_screen(self, selector, name):
         self._active_drawn_objects[name] = selector
 
     def check_emptiness(self, selector, name):
         if selector is None or selector.is_empty:
             logger.warning('selected area is too small in size')
             view_output.show_error('Выделенная область слишком мала или некорректно выделена.', 'Ошибка')
-            self.stop_drawing(name)
+            self.remove_from_screen(name)
 
-    def get_active_objects(self) -> List[Drawable]:
+    def get_active_objects(self):
         return self._active_drawn_objects.values()
 
     def create_selector(self, name, call_func_after_selection=None):
@@ -57,31 +60,27 @@ class SelectingService:
     def get_selector(self, name):
         return self._active_drawn_objects.get(name)
 
-    def selector_exists(self, name):
+    def _selector_exists(self, name):
         return name in self._active_drawn_objects
 
-    def selector_is_selected(self, name):
-        selector = self._active_drawn_objects.get(name)
-        if selector is None:
-            return False
-        return selector.is_selected
+    def selecting_is_done(self, name):
+        return self._selector_exists(name) and self.get_selector(name).is_done
 
-    def cancel_selecting(self):
-        if not self.selector_exists(AREA):
-            return
-        self.get_selector(AREA).cancel()
-        self.stop_drawing(AREA)
-        if not self.selector_exists(OBJECT):
-            return
-        object = self.get_selector(OBJECT)
-        self.stop_drawing(OBJECT)
-        self.object_is_selecting = False
-        object.cancel()
+    def selecting_in_progress(self, name):
+        return self._selector_exists(name) and self.get_selector(name).in_progress
 
-    def check_selected(self, name):
+    def cancel(self):
+        for name in (AREA, OBJECT):
+            if not self._selector_exists(name):
+                continue
+            if not self.selecting_is_done(name):
+                self.get_selector(name).cancel()
+                self.remove_from_screen(name)
+
+    def check_selected_correctly(self, name):
         selector = self.get_selector(name)
         self.check_emptiness(selector, name)
-        if not self.selector_is_selected(name):
+        if not self.selecting_is_done(name):
             return False, None
         return True, selector
 

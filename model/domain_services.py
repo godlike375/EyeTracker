@@ -27,11 +27,11 @@ class Orchestrator(ThreadLoopable):
     def __init__(self, view_model: ViewModel, run_immediately: bool = True, area: tuple = None):
         self._view_model = view_model
         self.camera = CameraService(settings.CAMERA_ID)
-        self.selecting = SelectingService(self._on_area_selected, self._on_object_selected)
         self.area_controller = AreaController(min_xy=-settings.MAX_LASER_RANGE_PLUS_MINUS,
                                               max_xy=settings.MAX_LASER_RANGE_PLUS_MINUS)
         self.tracker = Tracker(settings.MEAN_COORDINATES_FRAME_COUNT)
         self.state_tip = StateTipSupervisor(self._view_model)
+        self.selecting = SelectingService(self._on_area_selected, self._on_object_selected, self)
         self.laser = LaserService(self.state_tip)
 
         self._current_frame = None
@@ -59,8 +59,8 @@ class Orchestrator(ThreadLoopable):
     def _processing_loop(self):
         try:
             frame = self.camera.extract_frame()
-            if self.selecting.object_is_selecting or \
-                    not Processor.frames_are_same(frame, self._current_frame):
+            if self.selecting.selecting_in_progress(OBJECT) \
+                    or not Processor.frames_are_same(frame, self._current_frame):
                 if self.tracker.in_progress:
                     self._tracking(frame)
                     if time() - self._throttle_to_fps_viewed < 1 / settings.FPS_VIEWED:
@@ -118,9 +118,9 @@ class Orchestrator(ThreadLoopable):
             self._view_model.set_tip(f'Текущие координаты объекта: '
                                      f'{object_relative_coords.x, object_relative_coords.y}')
 
-    def restore_previous_area(self):
+    def try_restore_previous_area(self):
         if self.previous_area is not None:
-            self.selecting.start_drawing(self.previous_area, AREA)
+            self.selecting.add_to_screen(self.previous_area, AREA)
             self.area_controller.set_area(self.previous_area, self.laser.laser_borders)
         self._view_model.progress_bar_set_visibility(False)
 
@@ -136,7 +136,7 @@ class Orchestrator(ThreadLoopable):
         self.cancel_active_process(need_confirm=False)
 
     def _on_area_selected(self):
-        selected, area = self.selecting.check_selected(AREA)
+        selected, area = self.selecting.check_selected_correctly(AREA)
         if not selected:
             # TODO: если не выделялась вручную, то retry не нужен. Калибровку надо перезапускать
             self._view_model.new_selection(AREA, retry_select_object_in_calibrating=True)
@@ -146,14 +146,13 @@ class Orchestrator(ThreadLoopable):
         self.state_tip.change_tip('area selected')
 
     def _on_object_selected(self, run_thread_after=None):
-        selected, object = self.selecting.check_selected(OBJECT)
+        selected, object = self.selecting.check_selected_correctly(OBJECT)
         out_of_area = False
         if selected and not (self.threshold_calibrator.in_progress or self.coordinate_calibrator.in_progress):
-            center = ((object.left_top + object.right_bottom) / 2).to_int()
-            out_of_area = self.area_controller.point_is_out_of_area(center)
+            out_of_area = self.area_controller.point_is_out_of_area(object.center)
             if out_of_area:
                 view_output.show_error('Невозможно выделить объект за границами области слежения.')
-                self.selecting.stop_drawing(OBJECT)
+                self.selecting.remove_from_screen(OBJECT)
 
         if not selected or out_of_area:
             self._view_model.new_selection(OBJECT, retry_select_object_in_calibrating=True,
@@ -161,8 +160,7 @@ class Orchestrator(ThreadLoopable):
             return
 
         self.tracker.start_tracking(self._current_frame, object.left_top, object.right_bottom)
-        self.selecting.start_drawing(self.tracker, OBJECT)
-        self.selecting.object_is_selecting = False
+        self.selecting.add_to_screen(self.tracker, OBJECT)
         self._frame_interval.value = 1 / settings.FPS_PROCESSED
         self.state_tip.change_tip('object selected')
         if run_thread_after is not None:
@@ -170,10 +168,9 @@ class Orchestrator(ThreadLoopable):
 
     def _new_object(self, select_in_calibrating):
         if select_in_calibrating:
-            self.selecting.object_is_selecting = True
             return True
 
-        if not self.selecting.selector_is_selected(AREA):
+        if not self.selecting.selecting_is_done(AREA):
             view_output.show_error('Перед выделением объекта необходимо откалибровать координатную систему.')
             return False
 
@@ -183,31 +180,30 @@ class Orchestrator(ThreadLoopable):
                 'До этого момента слежение за объектом невозможно.')
             self.state_tip.change_tip('laser calibrated', False)
             return False
-        if self.selecting.selector_is_selected(OBJECT):
+        if self.selecting.selecting_is_done(OBJECT):
             confirm = view_output.ask_confirmation('Выделенный объект перестанет отслеживаться. Продолжить?')
             if not confirm:
                 return False
 
-        self.selecting.object_is_selecting = True
         return True
 
     def _new_area(self, dont_reselect_area):
         # TODO: поправить логику и сделать без костылей вроде этого
         if dont_reselect_area:
             return False
-        if self.selecting.object_is_selecting:
+        if self.selecting.selecting_in_progress(OBJECT):
             view_output.show_warning('Необходимо завершить выделение объекта.')
             return False
 
         tracking_stop_question = ''
-        if self.selecting.selector_is_selected(OBJECT):
+        if self.selecting.selecting_is_done(OBJECT):
             tracking_stop_question = 'Слежение за целью будет остановлено. '
-        if self.selecting.selector_is_selected(AREA):
+        if self.selecting.selecting_is_done(AREA):
             confirm = view_output.ask_confirmation(f'{tracking_stop_question}'
                                                    f'Выделенная область будет стёрта. Продолжить?')
             if not confirm:
                 return False
-        self.selecting.stop_drawing(OBJECT)
+        self.selecting.remove_from_screen(OBJECT)
         return True
 
     def new_selection(self, name, retry_select_object_in_calibrating=False, additional_callback=None):
@@ -224,8 +220,7 @@ class Orchestrator(ThreadLoopable):
             if not self._new_area(dont_reselect_area=retry_select_object_in_calibrating):
                 return
 
-        self.selecting.stop_drawing(name)
-        self.tracker.stop()
+        self.selecting.remove_from_screen(name)
 
         return self.selecting.create_selector(name, additional_callback)
 
@@ -234,9 +229,9 @@ class Orchestrator(ThreadLoopable):
             view_output.show_error('Калибровка шумоподавления во время слежения за объектом невозможна.')
             return
 
-        if self.selecting.selector_is_selected(AREA):
+        if self.selecting.selecting_is_done(AREA):
             self.previous_area = self.selecting.get_selector(AREA)
-            self.selecting.stop_drawing(AREA)
+            self.selecting.remove_from_screen(AREA)
 
         self.threshold_calibrator.start()
         self._view_model.new_selection(OBJECT, retry_select_object_in_calibrating=True,
@@ -252,9 +247,9 @@ class Orchestrator(ThreadLoopable):
             view_output.show_error('Калибровка координатной системы во время слежения за объектом невозможна.')
             return
 
-        if self.selecting.selector_is_selected(AREA):
+        if self.selecting.selecting_is_done(AREA):
             self.previous_area = self.selecting.get_selector(AREA)
-            self.selecting.stop_drawing(AREA)
+            self.selecting.remove_from_screen(AREA)
 
         self.coordinate_calibrator.start()
         self._view_model.new_selection(OBJECT, retry_select_object_in_calibrating=True,
@@ -282,41 +277,50 @@ class Orchestrator(ThreadLoopable):
             return
         self.laser.move_laser(x, y)
 
+    def _active_process_in_progress(self):
+        is_calibrating = self.threshold_calibrator.in_progress or self.coordinate_calibrator.in_progress
+        is_selecting_in_progress = self.selecting.selecting_in_progress(AREA) or \
+            self.selecting.selecting_in_progress(OBJECT)
+        is_active_process = is_selecting_in_progress or self.tracker.in_progress or is_calibrating
+        return is_active_process
+
     def cancel_active_process(self, need_confirm=True):
+        is_calibrating = self.threshold_calibrator.in_progress or self.coordinate_calibrator.in_progress
+        is_selecting_in_progress = self.selecting.selecting_in_progress(AREA) or \
+            self.selecting.selecting_in_progress(OBJECT)
+        is_active_process = is_selecting_in_progress or self.tracker.in_progress or is_calibrating
+        if not is_active_process:
+            return
         if need_confirm:
-            if self.selecting.object_is_selecting or \
-                    self.threshold_calibrator.in_progress or \
-                    self.tracker.in_progress:
+            if is_active_process:
                 need_confirm = view_output.ask_confirmation('Прервать активный процесс?')
                 if not need_confirm:
                     return
-        self.selecting.cancel_selecting()
-        self.threshold_calibrator.stop()
-        self.tracker.stop()
-        self.coordinate_calibrator.stop()
-        self.selecting.stop_drawing(OBJECT)
-        self.restore_previous_area()
-        settings.NOISE_THRESHOLD_PERCENT = 0.0
+        if self.tracker.in_progress:
+            self.selecting.remove_from_screen(OBJECT)
+        self.selecting.cancel()
+        self.threshold_calibrator.cancel()
+        self.coordinate_calibrator.cancel()
         self._frame_interval.value = 1 / settings.FPS_VIEWED
-        self.state_tip.change_tip('area selected')
-        Processor.load_color()
+        if is_calibrating:
+            self.try_restore_previous_area()
+        # Processor.load_color() # TODO:  Разобраться. Иногда получается переключение на красный цвет, если этого нет
 
     def rotate_image(self, degree, user_action=True):
-        if self.tracker.in_progress:
-            view_output.show_error('Поворот изображения во время слежения за объектом невозможен.')
+        if self._active_process_in_progress():
+            view_output.show_error('Поворот изображения во время активного процесса невозможен.')
             return
 
         if private_settings.ROTATION_ANGLE == degree and user_action:
             return
 
-        if self.selecting.selector_is_selected(AREA):
+        if self.selecting.selecting_is_done(AREA):
             confirm = view_output.ask_confirmation('Выделенная область будет стёрта. Продолжить?')
             if not confirm:
                 return
 
         private_settings.ROTATION_ANGLE = degree
-        self.cancel_active_process(need_confirm=False)
-        self.selecting.stop_drawing(AREA)
+        self.selecting.remove_from_screen(AREA)
         self.previous_area = None
         self.camera.set_frame_rotate(degree)
         if degree in (90, 270):
@@ -326,25 +330,25 @@ class Orchestrator(ThreadLoopable):
         self._view_model.set_rotate_angle(degree)
 
     def flip_image(self, side, user_action=True):
-        if self.tracker.in_progress:
-            view_output.show_error('Отражение изображения во время слежения за объектом невозможно.')
+        if self._active_process_in_progress():
+            view_output.show_error('Отражение изображения во время активного процесса невозможно.')
             return
 
         if private_settings.FLIP_SIDE == side and user_action:
             return
 
-        if self.selecting.selector_is_selected(AREA):
+        if self.selecting.selecting_is_done(AREA):
             confirm = view_output.ask_confirmation('Выделенная область будет стёрта. Продолжить?')
             if not confirm:
                 return
 
         private_settings.FLIP_SIDE = side
-        self.cancel_active_process(need_confirm=False)
-        self.selecting.stop_drawing(AREA)
+        self.selecting.remove_from_screen(AREA)
         self.previous_area = None
         self.camera.set_frame_flip(side)
         self._view_model.set_flip_side(side)
 
     def stop_thread(self):
-        self.coordinate_calibrator.stop()
+        self.coordinate_calibrator.cancel()
+        self.threshold_calibrator.cancel()
         super(Orchestrator, self).stop_thread()
