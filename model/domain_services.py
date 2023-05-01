@@ -1,4 +1,4 @@
-from functools import partial
+import sys
 from time import time, sleep
 
 from common.logger import logger
@@ -68,7 +68,6 @@ class Orchestrator(ThreadLoopable):
                     else:
                         self._throttle_to_fps_viewed = time()
                 processed_image = self._draw_and_convert(self._resize_to_minimum(frame))
-                self._fatal_error_count_repeatedly = 0
                 self._view_model.on_image_ready(processed_image)
             self._current_frame = frame
 
@@ -82,6 +81,8 @@ class Orchestrator(ThreadLoopable):
             self._handle_fatal_error()
             view_output.show_fatal(e)
             logger.exception('Unexpected exception:')
+        else:
+            self._fatal_error_count_repeatedly = 0
 
     def _handle_fatal_error(self):
         self._fatal_error_count_repeatedly += 1
@@ -92,7 +93,8 @@ class Orchestrator(ThreadLoopable):
             for i in range(RESTART_IN_TIME_SEC, 0, -1):
                 sleep(1)
                 self._view_model.set_tip(f'Перезапуск программы будет произведён через {i} секунд')
-            self._view_model.execute_command(partial(exit_program, self, restart=True))
+            self._view_model.execute_command(sys.exit)
+            exit_program(self, restart=True)
 
     def _resize_to_minimum(self, frame):
         frame_width = frame.shape[0]

@@ -174,6 +174,9 @@ class View:
     def set_tip(self, tip):
         self._tip.config(text=tip)
 
+    def queue_command(self, command):
+        self._commands.queue_command(command)
+
     def open_settings(self):
         if self._settings is not None:
             self.focus_on_settings_window()

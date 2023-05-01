@@ -25,10 +25,6 @@ class Tracker(RectBased, Drawable, ProcessBased, Cancellable):
         self._center = None
 
     @property
-    def is_done(self):
-        return True  # TODO: выглядит как костыль Для перевыделения объекта
-
-    @property
     def left_top(self):
         return self._center - self._length_xy // 2
 
