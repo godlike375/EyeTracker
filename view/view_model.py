@@ -8,7 +8,7 @@ from model.selector import LEFT_CLICK, LEFT_DOWN, LEFT_UP
 from view import view_output
 from view.drawing import Processor
 
-MOUSE_EVENTS = ('<Button-1>', '<B1-Motion>', '<ButtonRelease-1>')
+MOUSE_EVENTS = ('<Button-1>', '<B1-Motion>', '<ButtonRelease-1>', '<KeyPress>')
 COLOR_RGB_INDEX = 0
 G_INDEX = 1
 R_INDEX = 0
@@ -58,6 +58,18 @@ class ViewModel:
         x, y = self._coordinates_on_video(event)
         selector.left_button_up(Point(x, y))
 
+    def arrow_press(self, object_selector, event):
+        if event.keysym == 'Up':
+            object_selector.arrow_up()
+        elif event.keysym == 'Down':
+            object_selector.arrow_down()
+        elif event.keysym == 'Left':
+            object_selector.arrow_left()
+        elif event.keysym == 'Right':
+            object_selector.arrow_right()
+        elif event.keysym == 'Return': # (enter)
+            object_selector.finish_selecting()
+
     def new_selection(self, name, retry_select_object_in_calibrating=False, additional_callback=None):
         # TODO: кроме name параметры нужны только чтобы передать их в new_selection модели
         #  то есть, эта функция используется и моделью и представлением, что выглядит странно, если подумать...
@@ -69,7 +81,9 @@ class ViewModel:
         binded_left_click = (LEFT_CLICK, partial(self.left_button_click, selector))
         binded_left_down_moved = (LEFT_DOWN, partial(self.left_button_down_moved, selector))
         binded_left_up = (LEFT_UP, partial(self.left_button_up, selector))
-        event_callbacks = dict([binded_left_click, binded_left_down_moved, binded_left_up])
+        arrows = ('<KeyPress>', partial(self.arrow_press, selector))
+        event_callbacks = dict([binded_left_click, binded_left_down_moved, binded_left_up, arrows])
+
         bindings = {}
         for event, callback, abstract_name in zip(MOUSE_EVENTS, event_callbacks.values(), event_callbacks.keys()):
             bindings[abstract_name] = partial(self._root.bind, event, callback)

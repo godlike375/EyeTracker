@@ -12,6 +12,7 @@ MIN_DISTANCE_BETWEEN_POINTS = 20
 MIN_POINTS_SELECTED = 2
 EVENT_NAME = 1
 POINTS_ORIENTATION = ['TL', 'TR', 'BR', 'BL']
+CORRECTIVE_STEP_PIXELS = 1
 
 
 class Selector(Cancellable, ABC, ProcessBased):
@@ -114,9 +115,27 @@ class ObjectSelector(RectBased, Drawable, Selector):
         if points_count < ObjectSelector.MAX_POINTS:
             self._points.clear()
             return
+        elif points_count > ObjectSelector.MAX_POINTS:
+            self._points = self._points[points_count - ObjectSelector.MAX_POINTS:]
         self._sort_points_for_viewing()
         self._left_top, self._right_bottom = self._points
-        self.finish_selecting()
+        # self.finish_selecting()
+
+    def arrow_up(self):
+        self._left_top.y -= CORRECTIVE_STEP_PIXELS
+        self._right_bottom.y -= CORRECTIVE_STEP_PIXELS
+
+    def arrow_down(self):
+        self._left_top.y += CORRECTIVE_STEP_PIXELS
+        self._right_bottom.y += CORRECTIVE_STEP_PIXELS
+
+    def arrow_left(self):
+        self._left_top.x -= CORRECTIVE_STEP_PIXELS
+        self._right_bottom.x -= CORRECTIVE_STEP_PIXELS
+
+    def arrow_right(self):
+        self._left_top.x += CORRECTIVE_STEP_PIXELS
+        self._right_bottom.x += CORRECTIVE_STEP_PIXELS
 
     def draw_on_frame(self, frame):
         return Processor.draw_rectangle(frame, self._left_top, self._right_bottom)
@@ -130,9 +149,9 @@ class ObjectSelector(RectBased, Drawable, Selector):
     def is_empty(self):
         ltx, lty, rbx, rby = *self._left_top, *self._right_bottom
         return ltx == rbx or lty == rby or \
-            abs(ltx - rbx) < MIN_DISTANCE_BETWEEN_POINTS or \
-            abs(lty - rby) < MIN_DISTANCE_BETWEEN_POINTS or \
-            super().is_empty
+               abs(ltx - rbx) < MIN_DISTANCE_BETWEEN_POINTS or \
+               abs(lty - rby) < MIN_DISTANCE_BETWEEN_POINTS or \
+               super().is_empty
 
 
 class AreaSelector(Drawable, Selector):
