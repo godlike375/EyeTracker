@@ -10,7 +10,7 @@ from sys import maxsize
 from view import view_output
 
 RESOLUTIONS = {1280: 720, 800: 600, 640: 480}
-DOWNSCALED_HEIGHT = 640
+DOWNSCALED_WIDTH = 640
 
 AREA = 'area'
 OBJECT = 'object'

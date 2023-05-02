@@ -4,7 +4,7 @@ from time import time, sleep
 from common.logger import logger
 from common.program import exit_program
 from common.settings import settings, OBJECT, AREA, private_settings, \
-    RESOLUTIONS, DOWNSCALED_HEIGHT
+    RESOLUTIONS, DOWNSCALED_WIDTH
 from common.thread_helpers import ThreadLoopable, MutableValue
 from model.area_controller import AreaController
 from model.camera_extractor import CameraService
@@ -100,13 +100,13 @@ class Orchestrator(ThreadLoopable):
     def _resize_to_minimum(self, frame):
         frame_width = frame.shape[0]
         frame_height = frame.shape[1]
-        if frame_height == DOWNSCALED_HEIGHT or frame_width == DOWNSCALED_HEIGHT:
+        if frame_height == DOWNSCALED_WIDTH or frame_width == DOWNSCALED_WIDTH:
             return frame
         reversed = frame_height < frame_width
-        down_width = RESOLUTIONS[DOWNSCALED_HEIGHT]
+        down_width = RESOLUTIONS[DOWNSCALED_WIDTH]
         if reversed:
-            return Processor.resize_frame_absolute(frame, DOWNSCALED_HEIGHT, down_width)
-        return Processor.resize_frame_absolute(frame, down_width, DOWNSCALED_HEIGHT)
+            return Processor.resize_frame_absolute(frame, DOWNSCALED_WIDTH, down_width)
+        return Processor.resize_frame_absolute(frame, down_width, DOWNSCALED_WIDTH)
 
     def _draw_and_convert(self, frame):
         processed = Processor.draw_active_objects(frame, self.selecting.get_active_objects())

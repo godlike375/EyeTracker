@@ -10,7 +10,7 @@ from PIL import ImageTk
 from common.logger import logger
 from common.settings import (
     settings, OBJECT, AREA, FLIP_SIDE_NONE, FLIP_SIDE_VERTICAL,
-    FLIP_SIDE_HORIZONTAL, RESOLUTIONS, DOWNSCALED_HEIGHT, get_repo_path
+    FLIP_SIDE_HORIZONTAL, RESOLUTIONS, DOWNSCALED_WIDTH, get_repo_path
 )
 from view.view_command_process import CommandExecutor
 from view.view_model import (
@@ -23,9 +23,8 @@ from view.view_model import (
 from view.window_settings import WindowSettings
 
 SECOND_LENGTH = 1000
-INDICATORS_WIDTH_ADDITION = 20
-REVERSED_MENU_HEIGHT_ADDITION = 150
-STRAIGHT_MENU_HEIGHT_ADDITION = 20
+INDICATORS_HEIGHT_ADDITION = 45
+REQUIRED_MENU_WIDTH = 780
 
 
 class View:
@@ -157,11 +156,13 @@ class View:
         self._processing_loop()
 
     def setup_window_geometry(self, reverse=False):
-        window_height = DOWNSCALED_HEIGHT
-        window_width = RESOLUTIONS[window_height] + INDICATORS_WIDTH_ADDITION
-        window_size = f'{window_height + STRAIGHT_MENU_HEIGHT_ADDITION}x{window_width + INDICATORS_WIDTH_ADDITION}' \
+        # ширина окна должна доходить до определенного значения, т.к. формат изображения с камеры зависит от камеры
+
+        window_width = DOWNSCALED_WIDTH
+        window_heigth = RESOLUTIONS[window_width]
+        window_size = f'{max(REQUIRED_MENU_WIDTH, window_width)}x{window_heigth + INDICATORS_HEIGHT_ADDITION}' \
             if not reverse else \
-            f'{window_width + REVERSED_MENU_HEIGHT_ADDITION}x{window_height + INDICATORS_WIDTH_ADDITION}'
+            f'{max(REQUIRED_MENU_WIDTH, window_heigth)}x{window_width + INDICATORS_HEIGHT_ADDITION}'
         self._root.geometry(window_size)
         self._geometry_changed = True
         self._image_alive_ref = None
