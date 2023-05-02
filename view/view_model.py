@@ -8,6 +8,13 @@ from model.selector import LEFT_CLICK, LEFT_DOWN, LEFT_UP
 from view import view_output
 from view.drawing import Processor
 
+CALIBRATION_MENU_NAME = 'Откалибровать'
+SELECTION_MENU_NAME = 'Выделить объект'
+ROTATION_MENU_NAME = 'Повернуть'
+FLIP_MENU_NAME = 'Отразить'
+MANUAL_MENU_NAME = 'Ручное управление'
+SAME_RULES_CHANGEABLE = (CALIBRATION_MENU_NAME, ROTATION_MENU_NAME, FLIP_MENU_NAME, MANUAL_MENU_NAME)
+
 MOUSE_EVENTS = ('<Button-1>', '<B1-Motion>', '<ButtonRelease-1>', '<KeyPress>')
 COLOR_RGB_INDEX = 0
 G_INDEX = 1
@@ -30,7 +37,7 @@ class ViewModel:
         self._view = view
 
     def on_image_ready(self, image):
-        self.execute_command(partial(self._view.check_show_image, image))
+        self._view._current_image = image
 
     def calibrate_laser(self):
         self._model.calibrate_laser()
@@ -146,7 +153,6 @@ class ViewModel:
         self._model.rotate_image(degree)
 
     def set_rotate_angle(self, angle):
-        self._view._image_alive_ref = None
         self._view._rotate_var.set(angle)
 
     def flip_image(self, side):
@@ -181,5 +187,16 @@ class ViewModel:
         else:
             self._view.destroy_settings_window()
 
+    def set_menu_state(self, label, state):
+        if label == 'all':
+            for i in SAME_RULES_CHANGEABLE:
+                self.execute_command(partial(self._view._menu.entryconfig, i, state=state))
+            if state == 'disabled':
+                self.set_menu_state(SELECTION_MENU_NAME, 'disabled')
+            return
+
+        self.execute_command(partial(self._view._menu.entryconfig, label, state=state))
+
+
     def execute_command(self, command):
-        self._view._commands.queue_command(command)
+        self._view.queue_command(command)

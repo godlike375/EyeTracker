@@ -119,7 +119,6 @@ class ObjectSelector(RectBased, Drawable, Selector):
             self._points = self._points[points_count - ObjectSelector.MAX_POINTS:]
         self._sort_points_for_viewing()
         self._left_top, self._right_bottom = self._points
-        # self.finish_selecting()
 
     def arrow_up(self):
         self._left_top.y -= CORRECTIVE_STEP_PIXELS

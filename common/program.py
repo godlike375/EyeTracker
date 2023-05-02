@@ -7,8 +7,6 @@ from common.settings import settings, private_settings, AREA, SelectedArea
 
 
 def exit_program(model_core, restart=False):
-    # TODO: главный поток завершить, иначе через модель не выйти
-    #  или послать команду модели отложенную
     model_core.stop_thread()
     settings.save()
     private_settings.save()
@@ -27,7 +25,7 @@ def save_data(model_core):
     private_settings.save()
     area_is_selected = model_core.selecting.selecting_is_done(AREA)
     if area_is_selected:
-        if model_core.threshold_calibrator.in_progress or model_core.coordinate_calibrator.in_progress \
+        if model_core._calibrating_in_progress() \
                 and model_core.previous_area:
             SelectedArea.save(model_core.previous_area.points)
         else:

@@ -118,6 +118,7 @@ class NoiseThresholdCalibrator(ProcessBased, Cancellable, Calibrator):
 
     @threaded
     def calibrate(self):
+        settings.NOISE_THRESHOLD_PERCENT = 0.0
         object = self._model.selecting.get_selector(OBJECT)
         while True:
             if not self.in_progress:
@@ -135,10 +136,13 @@ class NoiseThresholdCalibrator(ProcessBased, Cancellable, Calibrator):
         self._model.state_tip.change_tip('noise threshold calibrated')
         self._model.state_tip.change_tip('object selected', happened=False)
         view_output.show_message('Калибровка шумоподавления успешно завершена.')
+        self._view_model.set_menu_state('all', 'normal')
+        self.finish()
 
     def cancel(self):
         super().cancel()
         settings.NOISE_THRESHOLD_PERCENT = 0.0
+        self._view_model.set_menu_state('all', 'normal')
 
 
 class CoordinateSystemCalibrator(ProcessBased, Calibrator):
@@ -161,9 +165,7 @@ class CoordinateSystemCalibrator(ProcessBased, Calibrator):
             self._model.laser.set_new_position(point)
             self._wait_for_controller_ready()
 
-            screen_position = object.center
-            area._points.append(screen_position)
-
+            area.left_button_click(object.center)
             progress += 25
             self._view_model.set_progress(progress)
 
@@ -183,21 +185,22 @@ class CoordinateSystemCalibrator(ProcessBased, Calibrator):
         self._view_model.set_progress(0)
         self._view_model.progress_bar_set_visibility(False)
 
-        self._area.finish_selecting()
+        self._view_model.set_menu_state('all', 'normal')
+        self._model.state_tip.change_tip('object selected', happened=False)
         if self._area.is_empty:
             view_output.show_error('Необходимо повторить калибровку на более близком расстоянии '
                                    'камеры от области лазера.')
-            self._model.state_tip.change_tip('object selected', happened=False)
             self.cancel()
             return
 
         self._model.area_controller.set_area(self._area, self._laser_borders)
         view_output.show_message('Калибровка координатной системы успешно завершена.')
-        self._model.state_tip.change_tip('area selected')
-        self._model.state_tip.change_tip('coordinate system calibrated')
-        self._model.state_tip.change_tip('object selected', happened=False)
-        self.cancel()
+        self.finish()
         self._model.center_laser()
+
+    def cancel(self):
+        super().cancel()
+        self._view_model.set_menu_state('all', 'normal')
 
 
 class Denoiser:

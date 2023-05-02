@@ -17,14 +17,14 @@ from view.view_model import ViewModel
 RESTART_IN_TIME_SEC = 10
 
 
-# Пробовал увеличивать количество потоков в программе до 4-х (+ экстрактор + трекер в своих потоках)
-# Итог: это только ухудшило производительность, так что больше 2-х потоков смысла иметь нет
-# И запускать из цикла отрисовки вьюхи тоже смысла нет, т.к. это асинхронный цикл и будет всё тормозить
+# WARNING: Пробовал увеличивать количество потоков в программе до 4-х (+ экстрактор + трекер в своих потоках)
+#  Итог: это только ухудшило производительность, так что больше 2-х потоков смысла иметь нет
+#  И запускать из цикла отрисовки вьюхи тоже смысла нет, т.к. это асинхронный цикл и будет всё тормозить
 
 
 class Orchestrator(ThreadLoopable):
 
-    def __init__(self, view_model: ViewModel, run_immediately: bool = True, area: tuple = None):
+    def __init__(self, view_model: ViewModel, run_immediately: bool = True, area: tuple = None, debug_on=False):
         self._view_model = view_model
         self.camera = CameraService(settings.CAMERA_ID)
         self.area_controller = AreaController(min_xy=-settings.MAX_LASER_RANGE_PLUS_MINUS,
@@ -32,11 +32,12 @@ class Orchestrator(ThreadLoopable):
         self.tracker = Tracker(settings.MEAN_COORDINATES_FRAME_COUNT)
         self.state_tip = StateTipSupervisor(self._view_model)
         self.selecting = SelectingService(self._on_area_selected, self._on_object_selected, self)
-        self.laser = LaserService(self.state_tip)
+        self.laser = LaserService(self.state_tip, debug_on=debug_on)
 
         self._current_frame = None
-        self.threshold_calibrator = NoiseThresholdCalibrator(self, self._view_model)
-        self.coordinate_calibrator = CoordinateSystemCalibrator(self, self._view_model)
+
+        self.calibrators = {'noise threshold': NoiseThresholdCalibrator(self, self._view_model),
+                            'coordinate system': CoordinateSystemCalibrator(self, self._view_model)}
 
         self.previous_area = None
         self._throttle_to_fps_viewed = time()
@@ -111,9 +112,12 @@ class Orchestrator(ThreadLoopable):
         processed = Processor.draw_active_objects(frame, self.selecting.get_active_objects())
         return Processor.frame_to_image(processed)
 
+    def _calibrating_in_progress(self):
+        return any([i.in_progress for i in self.calibrators.values()])
+
     def _tracking(self, frame):
         center = self.tracker.get_tracked_position(frame)
-        if self.coordinate_calibrator.in_progress or self.threshold_calibrator.in_progress:
+        if self._calibrating_in_progress():
             return
         object_relative_coords = self._move_to_relative_cords(center)
         if object_relative_coords is not None:
@@ -143,14 +147,15 @@ class Orchestrator(ThreadLoopable):
             # TODO: если не выделялась вручную, то retry не нужен. Калибровку надо перезапускать
             self._view_model.new_selection(AREA, retry_select_object_in_calibrating=True)
             return
+        self._view_model.set_menu_state('all', 'normal')
         self.previous_area = area
         self.area_controller.set_area(area, self.laser.laser_borders)
-        self.state_tip.change_tip('area selected')
+        self.state_tip.change_tip('coordinate system calibrated')
 
     def _on_object_selected(self, run_thread_after=None):
         selected, object = self.selecting.check_selected_correctly(OBJECT)
         out_of_area = False
-        if selected and not (self.threshold_calibrator.in_progress or self.coordinate_calibrator.in_progress):
+        if selected and not (self._calibrating_in_progress()):
             out_of_area = self.area_controller.point_is_out_of_area(object.center)
             if out_of_area:
                 view_output.show_error('Невозможно выделить объект за границами области слежения.')
@@ -164,6 +169,7 @@ class Orchestrator(ThreadLoopable):
         self.tracker.start_tracking(self._current_frame, object.left_top, object.right_bottom)
         self.selecting.add_to_screen(self.tracker, OBJECT)
         self._frame_interval.value = 1 / settings.FPS_PROCESSED
+        self._view_model.set_menu_state('all', 'disabled')
         self.state_tip.change_tip('object selected')
         if run_thread_after is not None:
             run_thread_after().start()
@@ -171,10 +177,6 @@ class Orchestrator(ThreadLoopable):
     def _new_object(self, select_in_calibrating):
         if select_in_calibrating:
             return True
-
-        if not self.selecting.selecting_is_done(AREA):
-            view_output.show_error('Перед выделением объекта необходимо откалибровать координатную систему.')
-            return False
 
         if self.laser.errored:
             view_output.show_error(
@@ -193,9 +195,6 @@ class Orchestrator(ThreadLoopable):
         # TODO: поправить логику и сделать без костылей вроде этого
         if dont_reselect_area:
             return False
-        if self.selecting.selecting_in_progress(OBJECT):
-            view_output.show_warning('Необходимо завершить выделение объекта.')
-            return False
 
         tracking_stop_question = ''
         if self.selecting.selecting_is_done(OBJECT):
@@ -209,10 +208,6 @@ class Orchestrator(ThreadLoopable):
         return True
 
     def new_selection(self, name, retry_select_object_in_calibrating=False, additional_callback=None):
-        if (self.threshold_calibrator.in_progress or self.coordinate_calibrator.in_progress) \
-                and not retry_select_object_in_calibrating:
-            view_output.show_warning('Выполняется процесс калибровки, необходимо дождаться его окончания.')
-            return
 
         if OBJECT in name:
             if not self._new_object(retry_select_object_in_calibrating):
@@ -223,71 +218,48 @@ class Orchestrator(ThreadLoopable):
                 return
 
         self.selecting.remove_from_screen(name)
-
+        self._view_model.set_menu_state('all', 'disabled')
         return self.selecting.create_selector(name, additional_callback)
 
-    def calibrate_noise_threshold(self):
-        if self.tracker.in_progress:
-            view_output.show_error('Калибровка шумоподавления во время слежения за объектом невозможна.')
-            return
-
+    def _calibrate_common(self, name):
         if self.selecting.selecting_is_done(AREA):
             self.previous_area = self.selecting.get_selector(AREA)
             self.selecting.remove_from_screen(AREA)
 
-        self.threshold_calibrator.start()
+        calibrator = self.calibrators[name]
+
+        calibrator.start()
+        self._view_model.set_menu_state('all', 'disabled')
         self._view_model.new_selection(OBJECT, retry_select_object_in_calibrating=True,
-                                       additional_callback=self.threshold_calibrator.calibrate)
-
-        settings.NOISE_THRESHOLD_PERCENT = 0.0
-
+                                       additional_callback=calibrator.calibrate)
         self._view_model.progress_bar_set_visibility(True)
         self._view_model.set_progress(0)
+
+    def calibrate_noise_threshold(self):
+        self._calibrate_common('noise threshold')
 
     def calibrate_coordinate_system(self):
-        if self.tracker.in_progress:
-            view_output.show_error('Калибровка координатной системы во время слежения за объектом невозможна.')
-            return
-
-        if self.selecting.selecting_is_done(AREA):
-            self.previous_area = self.selecting.get_selector(AREA)
-            self.selecting.remove_from_screen(AREA)
-
-        self.coordinate_calibrator.start()
-        self._view_model.new_selection(OBJECT, retry_select_object_in_calibrating=True,
-                                       additional_callback=self.coordinate_calibrator.calibrate)
-        self._view_model.progress_bar_set_visibility(True)
-        self._view_model.set_progress(0)
+        self._calibrate_common('coordinate system')
 
     def calibrate_laser(self):
-        # TODO: по возможности отрефакторить дублирование условий
-        if self.tracker.in_progress:
-            view_output.show_error('Калибровка лазера во время слежения за объектом невозможна.')
-            return
         self.laser.calibrate_laser()
         self.state_tip.change_tip('laser calibrated')
 
     def center_laser(self):
-        if self.tracker.in_progress:
-            view_output.show_error('Позиционирование лазера во время слежения за объектом невозможно.')
-            return
         self.laser.center_laser()
 
     def move_laser(self, x, y):
-        if self.tracker.in_progress:
-            view_output.show_error('Позиционирование лазера во время слежения за объектом невозможно.')
-            return
         self.laser.move_laser(x, y)
 
     def _active_process_in_progress(self):
-        is_calibrating = self.threshold_calibrator.in_progress or self.coordinate_calibrator.in_progress
+        is_calibrating = self._calibrating_in_progress()
         is_selecting_in_progress = self.selecting.selecting_in_progress(AREA) or \
             self.selecting.selecting_in_progress(OBJECT)
         is_active_process = is_selecting_in_progress or self.tracker.in_progress or is_calibrating
         return is_active_process
 
     def cancel_active_process(self, need_confirm=True):
-        is_calibrating = self.threshold_calibrator.in_progress or self.coordinate_calibrator.in_progress
+        is_calibrating = self._calibrating_in_progress()
         is_selecting_in_progress = self.selecting.selecting_in_progress(AREA) or \
             self.selecting.selecting_in_progress(OBJECT)
         is_active_process = is_selecting_in_progress or self.tracker.in_progress or is_calibrating
@@ -301,18 +273,13 @@ class Orchestrator(ThreadLoopable):
         if self.tracker.in_progress:
             self.selecting.remove_from_screen(OBJECT)
         self.selecting.cancel()
-        self.threshold_calibrator.cancel()
-        self.coordinate_calibrator.cancel()
+        [i.cancel() for i in self.calibrators.values()]
         self._frame_interval.value = 1 / settings.FPS_VIEWED
         if is_calibrating:
             self.try_restore_previous_area()
-        # Processor.load_color() # TODO:  Разобраться. Иногда получается переключение на красный цвет, если этого нет
+        # Processor.load_color() # TODO:  Разобраться. Иногда получалось переключение на красный цвет, если этого нет
 
     def rotate_image(self, degree, user_action=True):
-        if self._active_process_in_progress():
-            view_output.show_error('Поворот изображения во время активного процесса невозможен.')
-            return
-
         if private_settings.ROTATION_ANGLE == degree and user_action:
             return
 
@@ -330,12 +297,9 @@ class Orchestrator(ThreadLoopable):
         else:
             self._view_model.setup_window_geometry(reverse=False)
         self._view_model.set_rotate_angle(degree)
+        self.state_tip.change_tip('coordinate system changed')
 
     def flip_image(self, side, user_action=True):
-        if self._active_process_in_progress():
-            view_output.show_error('Отражение изображения во время активного процесса невозможно.')
-            return
-
         if private_settings.FLIP_SIDE == side and user_action:
             return
 
@@ -349,8 +313,8 @@ class Orchestrator(ThreadLoopable):
         self.previous_area = None
         self.camera.set_frame_flip(side)
         self._view_model.set_flip_side(side)
+        self.state_tip.change_tip('coordinate system changed')
 
     def stop_thread(self):
-        self.coordinate_calibrator.cancel()
-        self.threshold_calibrator.cancel()
+        [i.cancel() for i in self.calibrators.values()]
         super(Orchestrator, self).stop_thread()

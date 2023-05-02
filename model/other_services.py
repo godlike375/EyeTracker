@@ -8,7 +8,7 @@ from common.settings import AREA, OBJECT, CALIBRATE_LASER_COMMAND_ID, settings
 from model.move_controller import MoveController
 from model.selector import AreaSelector, ObjectSelector
 from view import view_output
-
+from view.view_model import SELECTION_MENU_NAME
 
 class SelectingService(Cancellable):
     def __init__(self, area_selected_callback, object_selected_callback, model):
@@ -86,8 +86,8 @@ class SelectingService(Cancellable):
 
 
 class LaserService():
-    def __init__(self, state_tip):
-        self._laser_controller = MoveController(serial_off=False)
+    def __init__(self, state_tip, debug_on=False):
+        self._laser_controller = MoveController(debug_on=debug_on)
         self.initialized = self._laser_controller.initialized
         self.errored = False
         self.state_tip = state_tip
@@ -151,20 +151,31 @@ class StateTipSupervisor:
             EventCheck('laser connected', False, 'Подключите контроллер лазера'),
             EventCheck('laser calibrated', False, 'Откалибруйте лазер'),
             EventCheck('noise threshold calibrated', False, 'Откалибруйте шумоподавление'),
-            EventCheck('coordinate system calibrated', False, 'Откалибруйте координатную систему'),
-            EventCheck('area selected', False, 'Выделите область отслеживания'),
+            EventCheck('coordinate system calibrated', False,
+                       'Откалибруйте координатную систему или выделите область вручную'),
             EventCheck('object selected', False, 'Выделите объект слежения')
         )
 
     def change_tip(self, event_name: str, happened=True):
+        if event_name == 'coordinate system changed':
+            for event in self._all_events:
+                if event.name not in (e.name for e in self._all_events[:3]):
+                    event.happened = False
+
         for event in self._all_events:
             if event_name == event.name:
                 event.happened = happened
+
         prioritized = self._most_prioritized_event()
         if prioritized is None:
             self._view_model.set_tip('')
             return
         self._view_model.set_tip(prioritized.tip)
+
+        if prioritized.name == 'object selected':
+            self._view_model.set_menu_state(SELECTION_MENU_NAME, 'normal')
+        else:
+            self._view_model.set_menu_state(SELECTION_MENU_NAME, 'disabled')
 
     def _most_prioritized_event(self):
         for event in self._all_events:
