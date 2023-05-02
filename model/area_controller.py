@@ -59,9 +59,9 @@ class AreaController:
             sound_path = str(get_repo_path(bundled=True) / SOUND_NAME)
             Thread(target=PlaySound, args=(sound_path, SND_FILENAME | SND_PURGE)).start()
             self._beeped = True
-            Processor.CURRENT_COLOR = Processor.COLOR_RED
+            Processor.CURRENT_COLOR = Processor.COLOR_CAUTION
         if not out_of_area:
-            Processor.CURRENT_COLOR = Processor.COLOR_GREEN
+            Processor.load_color()
             self._beeped = False
 
     def calc_laser_coords(self, object_center: Point) -> Point:

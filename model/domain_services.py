@@ -277,7 +277,7 @@ class Orchestrator(ThreadLoopable):
         self._frame_interval.value = 1 / settings.FPS_VIEWED
         if is_calibrating:
             self.try_restore_previous_area()
-        # Processor.load_color() # TODO:  Разобраться. Иногда получалось переключение на красный цвет, если этого нет
+        Processor.load_color() # Если вышло за границу и отменили, то остаётся красный цвет
 
     def rotate_image(self, degree, user_action=True):
         if private_settings.ROTATION_ANGLE == degree and user_action:
