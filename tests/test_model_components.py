@@ -167,7 +167,7 @@ def test_area_controller(relative_coords, intersected_coords):
 
 def test_move_controller():
     settings.STABLE_POSITION_DURATION = 0.01
-    controller = MoveController(serial_off=True)
+    controller = MoveController(debug_on=True)
     controller.set_new_position(Point(10, 10))
     controller.set_new_position(Point(100, 100))
     assert controller._current_position == Point(10, 10)

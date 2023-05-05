@@ -1,4 +1,3 @@
-from copy import copy
 from dataclasses import dataclass
 from math import sqrt
 
@@ -27,40 +26,36 @@ class Point:
         return self
 
     def __mul__(self, other):
-        self = copy(self)
         if type(other) is Point:
-            self.x *= other.x
-            self.y *= other.y
+            return Point(self.x * other.x, self.y * other.y)
         elif type(other) is float or type(other) is int:
-            self.x *= other
-            self.y *= other
+            return Point(self.x * other, self.y * other)
         else:
             raise ValueError('incorrect right operand')
-        return self
 
     def __truediv__(self, other):
-        self = copy(self)
         if type(other) is Point:
-            self.x /= other.x
-            self.y /= other.y
+            return Point(self.x / other.x, self.y / other.y)
         elif type(other) is float or type(other) is int:
-            self.x /= other
-            self.y /= other
+            return Point(self.x / other, self.y / other)
         else:
             raise ValueError('incorrect right operand')
-        return self
+
+    def __floordiv__(self, other):
+        if type(other) is Point:
+            return Point(self.x // other.x, self.y // other.y)
+        elif type(other) is int:
+            return Point(self.x // other, self.y // other)
+        else:
+            raise ValueError('incorrect right operand')
 
     def __add__(self, other):
-        self = copy(self)
         if type(other) is Point:
-            self.x += other.x
-            self.y += other.y
+            return Point(self.x + other.x, self.y + other.y)
         elif type(other) is float or type(other) is int:
-            self.x += other
-            self.y += other
+            return Point(self.x + other, self.y + other)
         else:
             raise ValueError('incorrect right operand')
-        return self
 
     def __abs__(self):
         return Point(abs(self.x), abs(self.y))

@@ -15,10 +15,10 @@ SPLIT_PARTS = 4
 
 class Processor:
     # white
-    COLOR_GREEN = (private_settings.PAINT_COLOR_R, private_settings.PAINT_COLOR_G, private_settings.PAINT_COLOR_B)
-    COLOR_RED = (0, 0, 255)
+    COLOR_NORMAL = (private_settings.PAINT_COLOR_R, private_settings.PAINT_COLOR_G, private_settings.PAINT_COLOR_B)
+    COLOR_CAUTION = (0, 0, 255)
     THICKNESS = 2
-    CURRENT_COLOR = COLOR_GREEN
+    CURRENT_COLOR = COLOR_NORMAL
     FONT_SCALE = 0.8
 
     @staticmethod
@@ -86,5 +86,5 @@ class Processor:
         # TODO: возможно еще добавить выбор цвета предупреждения
         ps = private_settings
         color = (ps.PAINT_COLOR_B, ps.PAINT_COLOR_G, ps.PAINT_COLOR_R)
-        cls.COLOR_GREEN = color
+        cls.COLOR_NORMAL = color
         cls.CURRENT_COLOR = color

@@ -1,45 +1,48 @@
 from dataclasses import dataclass
-from typing import List
 from functools import partial
 
-from common.abstractions import Drawable
+from common.abstractions import Cancellable
 from common.coordinates import Point
 from common.logger import logger
-from common.settings import AREA, OBJECT, TRACKER, CALIBRATE_LASER_COMMAND_ID, settings
+from common.settings import AREA, OBJECT, CALIBRATE_LASER_COMMAND_ID, settings
 from model.move_controller import MoveController
 from model.selector import AreaSelector, ObjectSelector
 from view import view_output
+from view.view_model import SELECTION_MENU_NAME
 
-
-class SelectingService:
-    def __init__(self, area_selected_callback, object_selected_callback):
+class SelectingService(Cancellable):
+    def __init__(self, area_selected_callback, object_selected_callback, model):
         self._active_drawn_objects = dict()  # {name: Selector}
-        self.object_is_selecting = False
         self._on_area_selected = area_selected_callback
         self._on_object_selected = object_selected_callback
+        self._model = model
 
     def load_selected_area(self, area):
         area_selector = AreaSelector(AREA, self._on_area_selected, area)
         if area_selector.is_empty:
             return
-        area_selector._selected = True
-        self.start_drawing(area_selector, AREA)
+        area_selector._is_done = True
+        area_selector._in_progress = False
+        self.add_to_screen(area_selector, AREA)
         self._on_area_selected()
 
-    def stop_drawing(self, name):
+    def remove_from_screen(self, name):
         if name in self._active_drawn_objects:
             del self._active_drawn_objects[name]
+        self._model.state_tip.change_tip(f'{name} selected', happened=False)
+        if OBJECT in name:
+            self._model.tracker.cancel()
 
-    def start_drawing(self, selector, name):
+    def add_to_screen(self, selector, name):
         self._active_drawn_objects[name] = selector
 
     def check_emptiness(self, selector, name):
         if selector is None or selector.is_empty:
             logger.warning('selected area is too small in size')
             view_output.show_error('Выделенная область слишком мала или некорректно выделена.', 'Ошибка')
-            self.stop_drawing(name)
+            self.remove_from_screen(name)
 
-    def get_active_objects(self) -> List[Drawable]:
+    def get_active_objects(self):
         return self._active_drawn_objects.values()
 
     def create_selector(self, name, call_func_after_selection=None):
@@ -57,40 +60,34 @@ class SelectingService:
     def get_selector(self, name):
         return self._active_drawn_objects.get(name)
 
-    def selector_exists(self, name):
+    def _selector_exists(self, name):
         return name in self._active_drawn_objects
 
-    def selector_is_selected(self, name):
-        selector = self._active_drawn_objects.get(name)
-        if selector is None:
-            return False
-        return selector.is_selected
+    def selecting_is_done(self, name):
+        return self._selector_exists(name) and self.get_selector(name).is_done
 
-    def cancel_selecting(self):
-        if not self.selector_exists(AREA):
-            return
-        self.get_selector(AREA).cancel_selecting()
-        self.stop_drawing(AREA)
-        if not self.selector_exists(OBJECT):
-            return
-        object = self.get_selector(OBJECT)
-        self.stop_drawing(OBJECT)
-        self.object_is_selecting = False
-        if object.name == TRACKER:
-            return
-        object.cancel_selecting()
+    def selecting_in_progress(self, name):
+        return self._selector_exists(name) and self.get_selector(name).in_progress
 
-    def check_selected(self, name):
+    def cancel(self):
+        for name in (AREA, OBJECT):
+            if not self._selector_exists(name):
+                continue
+            if not self.selecting_is_done(name):
+                self.get_selector(name).cancel()
+                self.remove_from_screen(name)
+
+    def check_selected_correctly(self, name):
         selector = self.get_selector(name)
         self.check_emptiness(selector, name)
-        if not self.selector_is_selected(name):
+        if not self.selecting_is_done(name):
             return False, None
         return True, selector
 
 
 class LaserService():
-    def __init__(self, state_tip):
-        self._laser_controller = MoveController(serial_off=False)
+    def __init__(self, state_tip, debug_on=False):
+        self._laser_controller = MoveController(debug_on=debug_on)
         self.initialized = self._laser_controller.initialized
         self.errored = False
         self.state_tip = state_tip
@@ -139,7 +136,7 @@ class LaserService():
 
 @dataclass
 class EventCheck:
-    __slots__ = ['name', 'happened', 'tip', 'priority']
+    __slots__ = ['name', 'happened', 'tip']
     name: str
     happened: bool
     tip: str
@@ -149,27 +146,38 @@ class StateTipSupervisor:
     def __init__(self, view_model):
         self._view_model = view_model
         # Расположены в порядке приоритета от наибольшего к наименьшему
-        self.all_events = (
+        self._all_events = (
             EventCheck('camera connected', False, 'Подключите камеру'),
             EventCheck('laser connected', False, 'Подключите контроллер лазера'),
             EventCheck('laser calibrated', False, 'Откалибруйте лазер'),
             EventCheck('noise threshold calibrated', False, 'Откалибруйте шумоподавление'),
-            EventCheck('coordinate system calibrated', False, 'Откалибруйте координатную систему'),
-            EventCheck('area selected', False, 'Выделите область отслеживания'),
+            EventCheck('coordinate system calibrated', False,
+                       'Откалибруйте координатную систему или выделите область вручную'),
             EventCheck('object selected', False, 'Выделите объект слежения')
         )
 
     def change_tip(self, event_name: str, happened=True):
-        for event in self.all_events:
+        if event_name == 'coordinate system changed':
+            for event in self._all_events:
+                if event.name not in (e.name for e in self._all_events[:3]):
+                    event.happened = False
+
+        for event in self._all_events:
             if event_name == event.name:
                 event.happened = happened
+
         prioritized = self._most_prioritized_event()
         if prioritized is None:
             self._view_model.set_tip('')
             return
         self._view_model.set_tip(prioritized.tip)
 
+        if prioritized.name == 'object selected':
+            self._view_model.set_menu_state(SELECTION_MENU_NAME, 'normal')
+        else:
+            self._view_model.set_menu_state(SELECTION_MENU_NAME, 'disabled')
+
     def _most_prioritized_event(self):
-        for event in self.all_events:
+        for event in self._all_events:
             if not event.happened:
                 return event

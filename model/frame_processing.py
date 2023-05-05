@@ -4,10 +4,10 @@ from time import time, sleep
 
 import dlib
 
-from common.abstractions import ProcessBased, RectBased, Drawable
+from common.abstractions import ProcessBased, RectBased, Drawable, Cancellable, Calibrator
 from common.coordinates import Point, calc_center
 from common.logger import logger
-from common.settings import settings, TRACKER, OBJECT, AREA, MIN_THROTTLE_DIFFERENCE
+from common.settings import settings, OBJECT, AREA, MIN_THROTTLE_DIFFERENCE
 from common.thread_helpers import threaded
 from view import view_output
 from view.drawing import Processor
@@ -15,30 +15,32 @@ from view.drawing import Processor
 PERCENT_FROM_DECIMAL = 100
 
 
-class Tracker(RectBased, Drawable, ProcessBased):
+class Tracker(RectBased, Drawable, ProcessBased, Cancellable):
     def __init__(self, mean_count=settings.MEAN_COORDINATES_FRAME_COUNT):
+        ProcessBased.__init__(self)
         self._mean_count = mean_count
         self.tracker = dlib.correlation_tracker()
         self._denoisers: list[Denoiser] = []
         self._length_xy = None
         self._center = None
-        self.in_progress = False
-        self.name = TRACKER
-        self.is_selected = True  # Для перевыделения объекта
 
     @property
     def left_top(self):
-        return (self._center - self._length_xy / 2).to_int()
+        return self._center - self._length_xy // 2
 
     @property
     def right_bottom(self):
-        return (self._center + self._length_xy / 2).to_int()
+        return self._center + self._length_xy // 2
+
+    @property
+    def center(self):
+        return self._center
 
     def update_center(self):
         left_cur_pos = Point(int(self._denoisers[0].get()), int(self._denoisers[1].get()))
         right_cur_pos = Point(int(self._denoisers[2].get()), int(self._denoisers[3].get()))
         center = calc_center(left_cur_pos, right_cur_pos)
-        if abs(self._center - center) >= self._length_xy * settings.NOISE_THRESHOLD_PERCENT:
+        if abs(self.center - center) >= self._length_xy * settings.NOISE_THRESHOLD_PERCENT:
             self._center = center
 
     def start_tracking(self, frame, scaled_left_top, scaled_right_bottom):
@@ -69,14 +71,14 @@ class Tracker(RectBased, Drawable, ProcessBased):
                                             ))):
             self._denoisers[i].add(coord)
         self.update_center()
-        return self._center
+        return self.center
 
     def draw_on_frame(self, frame):
         frame = Processor.draw_rectangle(frame, self.left_top, self.right_bottom)
-        return Processor.draw_circle(frame, self._center)
+        return Processor.draw_circle(frame, self.center)
 
 
-class NoiseThresholdCalibrator(ProcessBased):
+class NoiseThresholdCalibrator(ProcessBased, Cancellable, Calibrator):
     CALIBRATION_THRESHOLD_STEP = 0.0025
 
     # В течение settings.THRESHOLD_CALIBRATION_DURATION секунд цель трекинга не должна двигаться
@@ -87,6 +89,7 @@ class NoiseThresholdCalibrator(ProcessBased):
         self._model = model
         self._view_model = view_model
         self._delay_sec = 1 / settings.FPS_PROCESSED
+        self._progress = 0
 
     def _is_calibration_successful(self, center):
         if self._last_position is None:
@@ -99,7 +102,7 @@ class NoiseThresholdCalibrator(ProcessBased):
             self._last_timestamp = time()
             return False
         elif time() - self._last_timestamp > settings.THRESHOLD_CALIBRATION_DURATION:
-            self.in_progress = False
+            self.cancel()
             return True
 
     def _calibration_progress(self):
@@ -107,37 +110,49 @@ class NoiseThresholdCalibrator(ProcessBased):
 
     def _threshold_calibrating(self, center):
         if self._is_calibration_successful(center):
-            self.stop()
+            return True
 
         progress_value = self._calibration_progress()
-        if abs(self._view_model.get_progress() - progress_value) > MIN_THROTTLE_DIFFERENCE:
+        if abs(self._progress - progress_value) > MIN_THROTTLE_DIFFERENCE:
             self._view_model.set_progress(progress_value)
 
     @threaded
     def calibrate(self):
+        settings.NOISE_THRESHOLD_PERCENT = 0.0
         object = self._model.selecting.get_selector(OBJECT)
-        while self.in_progress:
+        while True:
+            if not self.in_progress:
+                exit()
             sleep(self._delay_sec)
-            self._threshold_calibrating(object._center)
+            if self._threshold_calibrating(object.center):
+                break
         self._on_calibrated()
 
     def _on_calibrated(self):
-        self._model.tracker.stop()
-        self._model.selecting.stop_drawing(OBJECT)
-        self._model.restore_previous_area()
+        self._model.tracker.cancel()
+        self._model.selecting.remove_from_screen(OBJECT)
+        self._model.try_restore_previous_area()
         settings.NOISE_THRESHOLD_PERCENT = round(settings.NOISE_THRESHOLD_PERCENT, 5)
         self._model.state_tip.change_tip('noise threshold calibrated')
         self._model.state_tip.change_tip('object selected', happened=False)
         view_output.show_message('Калибровка шумоподавления успешно завершена.')
+        self._view_model.set_menu_state('all', 'normal')
+        self.finish()
+
+    def cancel(self):
+        super().cancel()
+        settings.NOISE_THRESHOLD_PERCENT = 0.0
+        self._view_model.set_menu_state('all', 'normal')
 
 
-class CoordinateSystemCalibrator(ProcessBased):
+class CoordinateSystemCalibrator(ProcessBased, Calibrator):
     def __init__(self, model, view_model):
         super().__init__()
         self._model = model
         self._view_model = view_model
         self._laser_borders = model.laser.laser_borders
         self._delay_sec = 1 / settings.FPS_VIEWED
+        self._area = None
 
     @threaded
     def calibrate(self):
@@ -146,23 +161,16 @@ class CoordinateSystemCalibrator(ProcessBased):
         progress = 0
         self._wait_for_controller_ready()
 
-        for point in self._laser_borders[:-1]:
+        for point in self._laser_borders:
             self._model.laser.set_new_position(point)
             self._wait_for_controller_ready()
 
-            screen_position = ((object.left_top + object.right_bottom) / 2).to_int()
-            area.left_button_click(screen_position)
-
+            area.left_button_click(object.center)
             progress += 25
             self._view_model.set_progress(progress)
 
-        last_point = self._laser_borders[-1]
-        self._model.laser.set_new_position(last_point)
-        self._wait_for_controller_ready()
-        screen_position = ((object.left_top + object.right_bottom) / 2).to_int()
-        area._points.append(screen_position)
-
-        self._finish_calibrating(area)
+        self._area = area
+        self._on_calibrated()
 
     def _wait_for_controller_ready(self):
         while not self._model.laser.controller_is_ready():
@@ -171,27 +179,28 @@ class CoordinateSystemCalibrator(ProcessBased):
             self._model.laser.refresh_data()
             sleep(self._delay_sec)
 
-    def _finish_calibrating(self, area):
-        self._model.tracker.stop()
-        self._model.selecting.stop_drawing(OBJECT)
+    def _on_calibrated(self):
+        self._model.selecting.remove_from_screen(OBJECT)
 
         self._view_model.set_progress(0)
         self._view_model.progress_bar_set_visibility(False)
 
-        area.finish_selecting()
-        if area.is_empty:
+        self._view_model.set_menu_state('all', 'normal')
+        self._model.state_tip.change_tip('object selected', happened=False)
+        if self._area.is_empty:
             view_output.show_error('Необходимо повторить калибровку на более близком расстоянии '
                                    'камеры от области лазера.')
-            self._model.state_tip.change_tip('object selected', happened=False)
-            self.stop()
+            self.cancel()
             return
 
-        self._model.area_controller.set_area(area, self._laser_borders)
+        self._model.area_controller.set_area(self._area, self._laser_borders)
         view_output.show_message('Калибровка координатной системы успешно завершена.')
-        self._model.state_tip.change_tip('area selected')
-        self._model.state_tip.change_tip('coordinate system calibrated')
-        self._model.state_tip.change_tip('object selected', happened=False)
-        self.stop()
+        self.finish()
+        self._model.center_laser()
+
+    def cancel(self):
+        super().cancel()
+        self._view_model.set_menu_state('all', 'normal')
 
 
 class Denoiser:

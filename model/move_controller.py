@@ -16,7 +16,7 @@ LASER_DEVICE_NAME = 'usb-serial ch340'
 
 class MoveController(Initializable):
 
-    def __init__(self, manual_port=None, baud_rate=None, serial_off=False):
+    def __init__(self, manual_port=None, baud_rate=None, debug_on=False):
         super().__init__(initialized=True)
         manual_port = manual_port or f'COM{settings.SERIAL_PORT}'
         baud_rate = baud_rate or settings.SERIAL_BAUD_RATE
@@ -27,7 +27,7 @@ class MoveController(Initializable):
         self._current_line = ''
         self._timer = time()
         self._serial = SerialStub()
-        if serial_off:
+        if debug_on:
             view_output.show_message('Последовательный порт используется в режиме отладки', 'Предупреждение')
             return
 

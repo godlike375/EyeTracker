@@ -40,21 +40,10 @@ def main(args):
         form = View(root, view_model)
         view_output._view = form
         view_model.set_view(form)
-        model_core = Orchestrator(view_model, area=area)
+        model_core = Orchestrator(view_model, area=area, debug_on=args.debug)
         view_model.set_model(model_core)
         logger.debug('mainloop started')
         root.mainloop()
-        logger.debug('mainloop finished')
-        model_core.stop_thread()
-        model_core.laser.center_laser()
-        save_data(model_core)
-        logger.debug('settings saved')
-    except KeyboardInterrupt:
-        logger.debug('mainloop finished')
-        model_core.stop_thread()
-        model_core.laser.center_laser()
-        save_data(model_core)
-        logger.debug('settings saved')
     except Exception as e:
         view_output.show_fatal(f'Произошла фатальная ошибка.\n'
                                f'{e}\n'
@@ -62,10 +51,19 @@ def main(args):
                                f'Будет произведена попытка сохранения данных')
         logger.exception(e)
         save_data(model_core)
+        return
+    except KeyboardInterrupt:
+        logger.debug('interrupted using KeyboardInterrupt')
+    logger.debug('mainloop finished')
+    model_core.stop_thread()
+    model_core.laser.center_laser()
+    save_data(model_core)
+    logger.debug('settings saved')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Object Tracking Program')
     parser.add_argument('--root_dir', type=str, help='Root directory of the program')
+    parser.add_argument('--debug', help='Simulate laser controller connection for debug purpose', action='store_true')
     args = parser.parse_args()
     main(args)
