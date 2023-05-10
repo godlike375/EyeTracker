@@ -133,8 +133,8 @@ class NoiseThresholdCalibrator(ProcessBased, Cancellable, Calibrator):
         self._model.screen.remove_selector(OBJECT)
         self._model.try_restore_previous_area()
         settings.NOISE_THRESHOLD_PERCENT = round(settings.NOISE_THRESHOLD_PERCENT, 5)
-        self._model.state_tip.change_tip('noise threshold calibrated')
-        self._model.state_tip.change_tip('object selected', happened=False)
+        self._model.state_control.change_tip('noise threshold calibrated')
+        self._model.state_control.change_tip('object selected', happened=False)
         view_output.show_message('Калибровка шумоподавления успешно завершена.')
         self._view_model.set_menu_state('all', 'normal')
         self.finish()
@@ -186,7 +186,7 @@ class CoordinateSystemCalibrator(ProcessBased, Calibrator):
         self._view_model.progress_bar_set_visibility(False)
 
         self._view_model.set_menu_state('all', 'normal')
-        self._model.state_tip.change_tip('object selected', happened=False)
+        self._model.state_control.change_tip('object selected', happened=False)
         if self._area.is_empty:
             view_output.show_error('Необходимо повторить калибровку на более близком расстоянии '
                                    'камеры от области лазера.')

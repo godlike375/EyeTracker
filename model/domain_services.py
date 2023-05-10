@@ -8,7 +8,7 @@ from common.thread_helpers import ThreadLoopable, MutableValue
 from model.area_controller import AreaController
 from model.camera_extractor import CameraService
 from model.frame_processing import Tracker, NoiseThresholdCalibrator, CoordinateSystemCalibrator
-from model.other_services import SelectingService, LaserService, StateTipSupervisor, OnScreenService
+from model.other_services import SelectingService, LaserService, StateMachine, OnScreenService
 from view import view_output
 from view.drawing import Processor
 from view.view_model import ViewModel
@@ -29,10 +29,10 @@ class Orchestrator(ThreadLoopable):
         self.area_controller = AreaController(min_xy=-settings.MAX_LASER_RANGE_PLUS_MINUS,
                                               max_xy=settings.MAX_LASER_RANGE_PLUS_MINUS)
         self.tracker = Tracker(settings.MEAN_COORDINATES_FRAME_COUNT)
-        self.state_tip = StateTipSupervisor(self._view_model)
+        self.state_control = StateMachine(self._view_model)
         self.screen = OnScreenService(self)
         self.selecting = SelectingService(self._on_area_selected, self._on_object_selected, self, self.screen)
-        self.laser = LaserService(self.state_tip, debug_on=debug_on)
+        self.laser = LaserService(self.state_control, debug_on=debug_on)
 
         self._current_frame = None
 
@@ -46,9 +46,9 @@ class Orchestrator(ThreadLoopable):
         self.rotate_image(private_settings.ROTATION_ANGLE, user_action=False)
         self.flip_image(private_settings.FLIP_SIDE, user_action=False)
         if self.camera.initialized:
-            self.state_tip.change_tip('camera connected')
+            self.state_control.change_tip('camera connected')
         if self.laser.initialized:
-            self.state_tip.change_tip('laser connected')
+            self.state_control.change_tip('laser connected')
         if area is not None:
             self.selecting.load_selected_area(area)
 
@@ -135,7 +135,7 @@ class Orchestrator(ThreadLoopable):
         self._view_model.set_menu_state('all', 'normal')
         self.previous_area = area
         self.area_controller.set_area(area, self.laser.laser_borders)
-        self.state_tip.change_tip('coordinate system calibrated')
+        self.state_control.change_tip('coordinate system calibrated')
 
     def _on_object_selected(self, run_thread_after=None):
         selected, object = self.selecting.check_selected_correctly(OBJECT)
@@ -155,7 +155,7 @@ class Orchestrator(ThreadLoopable):
         self.screen.add_selector(self.tracker, OBJECT)
         self._frame_interval.value = 1 / settings.FPS_PROCESSED
         self._view_model.set_menu_state('all', 'disabled')
-        self.state_tip.change_tip('object selected')
+        self.state_control.change_tip('object selected')
         if run_thread_after is not None:
             run_thread_after().start()
 
@@ -167,7 +167,7 @@ class Orchestrator(ThreadLoopable):
             view_output.show_error(
                 'Необходимо откалибровать контроллер лазера повторно. '
                 'До этого момента слежение за объектом невозможно.')
-            self.state_tip.change_tip('laser calibrated', False)
+            self.state_control.change_tip('laser calibrated', False)
             return False
         if self.selecting.selecting_is_done(OBJECT):
             confirm = view_output.ask_confirmation('Выделенный объект перестанет отслеживаться. Продолжить?')
@@ -228,7 +228,7 @@ class Orchestrator(ThreadLoopable):
 
     def calibrate_laser(self):
         self.laser.calibrate_laser()
-        self.state_tip.change_tip('laser calibrated')
+        self.state_control.change_tip('laser calibrated')
 
     def center_laser(self):
         self.laser.center_laser()
@@ -282,7 +282,7 @@ class Orchestrator(ThreadLoopable):
         else:
             self._view_model.setup_window_geometry(reverse=False)
         self._view_model.set_rotate_angle(degree)
-        self.state_tip.change_tip('coordinate system changed')
+        self.state_control.change_tip('coordinate system changed')
 
     def flip_image(self, side, user_action=True):
         if private_settings.FLIP_SIDE == side and user_action:
@@ -298,7 +298,7 @@ class Orchestrator(ThreadLoopable):
         self.previous_area = None
         self.camera.set_frame_flip(side)
         self._view_model.set_flip_side(side)
-        self.state_tip.change_tip('coordinate system changed')
+        self.state_control.change_tip('coordinate system changed')
 
     def stop_thread(self):
         [i.cancel() for i in self.calibrators.values()]

@@ -23,7 +23,7 @@ class OnScreenService:
     def remove_selector(self, name):
         if name in self.on_screen_selectors:
             del self.on_screen_selectors[name]
-        self._model.state_tip.change_tip(f'{name} selected', happened=False)
+        self._model.state_control.change_tip(f'{name} selected', happened=False)
         if OBJECT in name:
             self._model.tracker.cancel()
 
@@ -100,11 +100,11 @@ class SelectingService(Cancellable):
 
 
 class LaserService():
-    def __init__(self, state_tip, debug_on=False):
+    def __init__(self, state_control, debug_on=False):
         self._laser_controller = MoveController(debug_on=debug_on)
         self.initialized = self._laser_controller.initialized
         self.errored = False
-        self.state_tip = state_tip
+        self.state_control = state_control
 
         MAX_LASER_RANGE = settings.MAX_LASER_RANGE_PLUS_MINUS
         left_top = Point(-MAX_LASER_RANGE, -MAX_LASER_RANGE)
@@ -140,7 +140,7 @@ class LaserService():
             view_output.show_error('Контроллер лазера внезапно дошёл до предельных координат. Ситуация внештатная. \n'
                                    'Необходимо откалибровать контроллер лазера повторно. '
                                    'До этого момента слежения за объектом невозможно')
-            self.state_tip.change_tip('laser calibrated', False)
+            self.state_control.change_tip('laser calibrated', False)
             return None
         if self.controller_is_ready():
             self._laser_controller.set_new_position(position)
@@ -156,7 +156,7 @@ class EventCheck:
     tip: str
 
 
-class StateTipSupervisor:
+class StateMachine:
     def __init__(self, view_model):
         self._view_model = view_model
         # Расположены в порядке приоритета от наибольшего к наименьшему
