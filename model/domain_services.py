@@ -7,8 +7,9 @@ from common.settings import settings, OBJECT, AREA, private_settings
 from common.thread_helpers import ThreadLoopable, MutableValue
 from model.area_controller import AreaController
 from model.camera_extractor import CameraService
-from model.frame_processing import Tracker, NoiseThresholdCalibrator, CoordinateSystemCalibrator
-from model.other_services import SelectingService, LaserService, StateMachine, OnScreenService
+from model.frame_processing import Tracker
+from model.other_services import SelectingService, LaserService, StateMachine, OnScreenService, \
+    NoiseThresholdCalibrator, CoordinateSystemCalibrator
 from view import view_output
 from view.drawing import Processor
 from view.view_model import ViewModel
@@ -31,7 +32,8 @@ class Orchestrator(ThreadLoopable):
         self.tracker = Tracker(settings.MEAN_COORDINATES_FRAME_COUNT)
         self.state_control = StateMachine(self._view_model)
         self.screen = OnScreenService(self)
-        self.selecting = SelectingService(self._on_area_selected, self._on_object_selected, self, self.screen)
+        self.selecting = SelectingService(self._on_area_selected, self._on_object_selected, self, self.screen,
+                                          self._view_model)
         self.laser = LaserService(self.state_control, debug_on=debug_on)
 
         self._current_frame = None
@@ -159,53 +161,6 @@ class Orchestrator(ThreadLoopable):
         if run_thread_after is not None:
             run_thread_after().start()
 
-    def _new_object(self, select_in_calibrating):
-        if select_in_calibrating:
-            return True
-
-        if self.laser.errored:
-            view_output.show_error(
-                'Необходимо откалибровать контроллер лазера повторно. '
-                'До этого момента слежение за объектом невозможно.')
-            self.state_control.change_tip('laser calibrated', False)
-            return False
-        if self.selecting.selecting_is_done(OBJECT):
-            confirm = view_output.ask_confirmation('Выделенный объект перестанет отслеживаться. Продолжить?')
-            if not confirm:
-                return False
-
-        return True
-
-    def _new_area(self, dont_reselect_area):
-        # TODO: поправить логику и сделать без костылей вроде этого
-        if dont_reselect_area:
-            return False
-
-        tracking_stop_question = ''
-        if self.selecting.selecting_is_done(OBJECT):
-            tracking_stop_question = 'Слежение за целью будет остановлено. '
-        if self.selecting.selecting_is_done(AREA):
-            confirm = view_output.ask_confirmation(f'{tracking_stop_question}'
-                                                   f'Выделенная область будет стёрта. Продолжить?')
-            if not confirm:
-                return False
-        self.screen.remove_selector(OBJECT)
-        return True
-
-    def new_selection(self, name, retry_select_object_in_calibrating=False, additional_callback=None):
-
-        if OBJECT in name:
-            if not self._new_object(retry_select_object_in_calibrating):
-                return
-
-        if AREA in name:
-            if not self._new_area(dont_reselect_area=retry_select_object_in_calibrating):
-                return
-
-        self.screen.remove_selector(name)
-        self._view_model.set_menu_state('all', 'disabled')
-        return self.selecting.create_selector(name, additional_callback)
-
     def _calibrate_common(self, name):
         if self.selecting.selecting_is_done(AREA):
             self.previous_area = self.screen.get_selector(AREA)
@@ -214,7 +169,6 @@ class Orchestrator(ThreadLoopable):
         calibrator = self.calibrators[name]
 
         calibrator.start()
-        self._view_model.set_menu_state('all', 'disabled')
         self._view_model.new_selection(OBJECT, retry_select_object_in_calibrating=True,
                                        additional_callback=calibrator.calibrate)
         self._view_model.progress_bar_set_visibility(True)

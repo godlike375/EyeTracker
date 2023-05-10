@@ -80,7 +80,7 @@ class ViewModel:
     def new_selection(self, name, retry_select_object_in_calibrating=False, additional_callback=None):
         # TODO: кроме name параметры нужны только чтобы передать их в new_selection модели
         #  то есть, эта функция используется и моделью и представлением, что выглядит странно, если подумать...
-        selector = self._model.new_selection(name, retry_select_object_in_calibrating, additional_callback)
+        selector = self._model.selecting.try_create_selector(name, retry_select_object_in_calibrating, additional_callback)
 
         if selector is None:
             return
