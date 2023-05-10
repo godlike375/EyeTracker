@@ -132,7 +132,7 @@ class Orchestrator(ThreadLoopable):
         selected, area = self.selecting.check_selected_correctly(AREA)
         if not selected:
             # TODO: если не выделялась вручную, то retry не нужен. Калибровку надо перезапускать
-            self._view_model.new_selection(AREA, retry_select_object_in_calibrating=True)
+            self._view_model.new_selection(AREA, reselect_while_calibrating=True)
             return
         self._view_model.set_menu_state('all', 'normal')
         self.previous_area = area
@@ -149,7 +149,7 @@ class Orchestrator(ThreadLoopable):
                 self.screen.remove_selector(OBJECT)
 
         if not selected or out_of_area:
-            self._view_model.new_selection(OBJECT, retry_select_object_in_calibrating=True,
+            self._view_model.new_selection(OBJECT, reselect_while_calibrating=True,
                                            additional_callback=run_thread_after)
             return
 
@@ -169,7 +169,7 @@ class Orchestrator(ThreadLoopable):
         calibrator = self.calibrators[name]
 
         calibrator.start()
-        self._view_model.new_selection(OBJECT, retry_select_object_in_calibrating=True,
+        self._view_model.new_selection(OBJECT, reselect_while_calibrating=True,
                                        additional_callback=calibrator.calibrate)
         self._view_model.progress_bar_set_visibility(True)
         self._view_model.set_progress(0)
@@ -212,7 +212,7 @@ class Orchestrator(ThreadLoopable):
         if self.tracker.in_progress:
             self.screen.remove_selector(OBJECT)
         self.selecting.cancel()
-        [i.cancel() for i in self.calibrators.values()]
+        cancel_all_calibrators = [i.cancel() for i in self.calibrators.values()]
         self._frame_interval.value = 1 / settings.FPS_VIEWED
         if is_calibrating:
             self.try_restore_previous_area()
@@ -255,5 +255,5 @@ class Orchestrator(ThreadLoopable):
         self.state_control.change_tip('coordinate system changed')
 
     def stop_thread(self):
-        [i.cancel() for i in self.calibrators.values()]
+        cancel_all_calibrators = [i.cancel() for i in self.calibrators.values()]
         super(Orchestrator, self).stop_thread()

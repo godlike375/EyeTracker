@@ -132,14 +132,14 @@ class SelectingService(Cancellable):
         self._screen.remove_selector(OBJECT)
         return True
 
-    def try_create_selector(self, name, retry_select_object_in_calibrating=False, additional_callback=None):
+    def try_create_selector(self, name, reselect_while_calibrating=False, additional_callback=None):
 
         if OBJECT in name:
-            if not self.is_object_selection_allowed(retry_select_object_in_calibrating):
+            if not self.is_object_selection_allowed(reselect_while_calibrating):
                 return
 
         if AREA in name:
-            if not self.is_area_selection_allowed(dont_reselect_area=retry_select_object_in_calibrating):
+            if not self.is_area_selection_allowed(dont_reselect_area=reselect_while_calibrating):
                 return
 
         self._screen.remove_selector(name)

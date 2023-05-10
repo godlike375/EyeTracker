@@ -77,11 +77,12 @@ class ViewModel:
         elif event.keysym == 'Return':  # (enter)
             object_selector.finish_selecting()
 
-    def new_selection(self, name, retry_select_object_in_calibrating=False, additional_callback=None):
+    def new_selection(self, name, reselect_while_calibrating=False, additional_callback=None, selector=None):
         # TODO: кроме name параметры нужны только чтобы передать их в new_selection модели
         #  то есть, эта функция используется и моделью и представлением, что выглядит странно, если подумать...
-        selector = self._model.selecting.try_create_selector(name, retry_select_object_in_calibrating, additional_callback)
 
+        selector = selector or \
+                   self._model.selecting.try_create_selector(name, reselect_while_calibrating, additional_callback)
         if selector is None:
             return
 
