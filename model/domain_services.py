@@ -8,7 +8,7 @@ from common.thread_helpers import ThreadLoopable, MutableValue
 from model.area_controller import AreaController
 from model.camera_extractor import CameraService
 from model.frame_processing import Tracker, NoiseThresholdCalibrator, CoordinateSystemCalibrator
-from model.other_services import SelectingService, LaserService, StateTipSupervisor
+from model.other_services import SelectingService, LaserService, StateTipSupervisor, OnScreenService
 from view import view_output
 from view.drawing import Processor
 from view.view_model import ViewModel
@@ -30,7 +30,8 @@ class Orchestrator(ThreadLoopable):
                                               max_xy=settings.MAX_LASER_RANGE_PLUS_MINUS)
         self.tracker = Tracker(settings.MEAN_COORDINATES_FRAME_COUNT)
         self.state_tip = StateTipSupervisor(self._view_model)
-        self.selecting = SelectingService(self._on_area_selected, self._on_object_selected, self)
+        self.screen = OnScreenService(self)
+        self.selecting = SelectingService(self._on_area_selected, self._on_object_selected, self, self.screen)
         self.laser = LaserService(self.state_tip, debug_on=debug_on)
 
         self._current_frame = None
@@ -67,7 +68,7 @@ class Orchestrator(ThreadLoopable):
                         return
                     else:
                         self._throttle_to_fps_viewed = time()
-                processed_image = self._draw_and_convert(Processor.resize_to_minimum(frame))
+                processed_image = self.screen.prepare_image(frame)
                 self._view_model.on_image_ready(processed_image)
             self._current_frame = frame
 
@@ -96,10 +97,6 @@ class Orchestrator(ThreadLoopable):
             self._view_model.execute_command(sys.exit)
             exit_program(self, restart=True)
 
-    def _draw_and_convert(self, frame):
-        processed = Processor.draw_active_objects(frame, self.selecting.get_active_objects())
-        return Processor.frame_to_image(processed)
-
     def _calibrating_in_progress(self):
         return any([i.in_progress for i in self.calibrators.values()])
 
@@ -114,7 +111,7 @@ class Orchestrator(ThreadLoopable):
 
     def try_restore_previous_area(self):
         if self.previous_area is not None:
-            self.selecting.add_to_screen(self.previous_area, AREA)
+            self.screen.add_selector(self.previous_area, AREA)
             self.area_controller.set_area(self.previous_area, self.laser.laser_borders)
         self._view_model.progress_bar_set_visibility(False)
 
@@ -147,7 +144,7 @@ class Orchestrator(ThreadLoopable):
             out_of_area = self.area_controller.point_is_out_of_area(object.center)
             if out_of_area:
                 view_output.show_error('Невозможно выделить объект за границами области слежения.')
-                self.selecting.remove_from_screen(OBJECT)
+                self.screen.remove_selector(OBJECT)
 
         if not selected or out_of_area:
             self._view_model.new_selection(OBJECT, retry_select_object_in_calibrating=True,
@@ -155,7 +152,7 @@ class Orchestrator(ThreadLoopable):
             return
 
         self.tracker.start_tracking(self._current_frame, object.left_top, object.right_bottom)
-        self.selecting.add_to_screen(self.tracker, OBJECT)
+        self.screen.add_selector(self.tracker, OBJECT)
         self._frame_interval.value = 1 / settings.FPS_PROCESSED
         self._view_model.set_menu_state('all', 'disabled')
         self.state_tip.change_tip('object selected')
@@ -192,7 +189,7 @@ class Orchestrator(ThreadLoopable):
                                                    f'Выделенная область будет стёрта. Продолжить?')
             if not confirm:
                 return False
-        self.selecting.remove_from_screen(OBJECT)
+        self.screen.remove_selector(OBJECT)
         return True
 
     def new_selection(self, name, retry_select_object_in_calibrating=False, additional_callback=None):
@@ -205,14 +202,14 @@ class Orchestrator(ThreadLoopable):
             if not self._new_area(dont_reselect_area=retry_select_object_in_calibrating):
                 return
 
-        self.selecting.remove_from_screen(name)
+        self.screen.remove_selector(name)
         self._view_model.set_menu_state('all', 'disabled')
         return self.selecting.create_selector(name, additional_callback)
 
     def _calibrate_common(self, name):
         if self.selecting.selecting_is_done(AREA):
-            self.previous_area = self.selecting.get_selector(AREA)
-            self.selecting.remove_from_screen(AREA)
+            self.previous_area = self.screen.get_selector(AREA)
+            self.screen.remove_selector(AREA)
 
         calibrator = self.calibrators[name]
 
@@ -259,7 +256,7 @@ class Orchestrator(ThreadLoopable):
                 if not need_confirm:
                     return
         if self.tracker.in_progress:
-            self.selecting.remove_from_screen(OBJECT)
+            self.screen.remove_selector(OBJECT)
         self.selecting.cancel()
         [i.cancel() for i in self.calibrators.values()]
         self._frame_interval.value = 1 / settings.FPS_VIEWED
@@ -277,7 +274,7 @@ class Orchestrator(ThreadLoopable):
                 return
 
         private_settings.ROTATION_ANGLE = degree
-        self.selecting.remove_from_screen(AREA)
+        self.screen.remove_selector(AREA)
         self.previous_area = None
         self.camera.set_frame_rotate(degree)
         if degree in (90, 270):
@@ -297,7 +294,7 @@ class Orchestrator(ThreadLoopable):
                 return
 
         private_settings.FLIP_SIDE = side
-        self.selecting.remove_from_screen(AREA)
+        self.screen.remove_selector(AREA)
         self.previous_area = None
         self.camera.set_frame_flip(side)
         self._view_model.set_flip_side(side)

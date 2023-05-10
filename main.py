@@ -18,6 +18,7 @@ def main(args):
     if args.root_dir:
         common.settings.ROOT_DIR = args.root_dir
     root = Tk()
+    model_core = None
     try:
         settings.load()
         private_settings.load()

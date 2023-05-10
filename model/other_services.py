@@ -9,13 +9,46 @@ from model.move_controller import MoveController
 from model.selector import AreaSelector, ObjectSelector
 from view import view_output
 from view.view_model import SELECTION_MENU_NAME
+from view.drawing import Processor
+
+
+class OnScreenService:
+    def __init__(self, model):
+        self.on_screen_selectors = dict()  # {name: Selector}
+        self._model = model
+
+    def add_selector(self, selector, name):
+        self.on_screen_selectors[name] = selector
+
+    def remove_selector(self, name):
+        if name in self.on_screen_selectors:
+            del self.on_screen_selectors[name]
+        self._model.state_tip.change_tip(f'{name} selected', happened=False)
+        if OBJECT in name:
+            self._model.tracker.cancel()
+
+    def get_selector(self, name):
+        return self.on_screen_selectors.get(name)
+
+    def selector_exists(self, name):
+        return name in self.on_screen_selectors
+
+    def prepare_image(self, frame):
+        frame = Processor.resize_to_minimum(frame)
+        processed = self._draw_active_objects(frame)
+        return Processor.frame_to_image(processed)
+
+    def _draw_active_objects(self, frame):
+        for obj in self.on_screen_selectors.values():
+            frame = obj.draw_on_frame(frame)
+        return frame
 
 class SelectingService(Cancellable):
-    def __init__(self, area_selected_callback, object_selected_callback, model):
-        self._active_drawn_objects = dict()  # {name: Selector}
+    def __init__(self, area_selected_callback, object_selected_callback, model, screen):
         self._on_area_selected = area_selected_callback
         self._on_object_selected = object_selected_callback
         self._model = model
+        self._screen = screen
 
     def load_selected_area(self, area):
         area_selector = AreaSelector(AREA, self._on_area_selected, area)
@@ -23,27 +56,14 @@ class SelectingService(Cancellable):
             return
         area_selector._is_done = True
         area_selector._in_progress = False
-        self.add_to_screen(area_selector, AREA)
+        self._screen.add_selector(area_selector, AREA)
         self._on_area_selected()
-
-    def remove_from_screen(self, name):
-        if name in self._active_drawn_objects:
-            del self._active_drawn_objects[name]
-        self._model.state_tip.change_tip(f'{name} selected', happened=False)
-        if OBJECT in name:
-            self._model.tracker.cancel()
-
-    def add_to_screen(self, selector, name):
-        self._active_drawn_objects[name] = selector
 
     def check_emptiness(self, selector, name):
         if selector is None or selector.is_empty:
             logger.warning('selected area is too small in size')
             view_output.show_error('Выделенная область слишком мала или некорректно выделена.', 'Ошибка')
-            self.remove_from_screen(name)
-
-    def get_active_objects(self):
-        return self._active_drawn_objects.values()
+            self._screen.remove_selector(name)
 
     def create_selector(self, name, call_func_after_selection=None):
         logger.debug(f'creating new selector {name}')
@@ -54,31 +74,25 @@ class SelectingService(Cancellable):
             on_selected = partial(on_selected, call_func_after_selection)
 
         selector = ObjectSelector(name, on_selected) if OBJECT in name else AreaSelector(name, on_selected)
-        self._active_drawn_objects[name] = selector
+        self._screen.add_selector(selector, name)
         return selector
 
-    def get_selector(self, name):
-        return self._active_drawn_objects.get(name)
-
-    def _selector_exists(self, name):
-        return name in self._active_drawn_objects
-
     def selecting_is_done(self, name):
-        return self._selector_exists(name) and self.get_selector(name).is_done
+        return self._screen.selector_exists(name) and self._screen.get_selector(name).is_done
 
     def selecting_in_progress(self, name):
-        return self._selector_exists(name) and self.get_selector(name).in_progress
+        return self._screen.selector_exists(name) and self._screen.get_selector(name).in_progress
 
     def cancel(self):
         for name in (AREA, OBJECT):
-            if not self._selector_exists(name):
+            if not self._screen.selector_exists(name):
                 continue
             if not self.selecting_is_done(name):
-                self.get_selector(name).cancel()
-                self.remove_from_screen(name)
+                self._screen.get_selector(name).cancel()
+                self._screen.remove_selector(name)
 
     def check_selected_correctly(self, name):
-        selector = self.get_selector(name)
+        selector = self._screen.get_selector(name)
         self.check_emptiness(selector, name)
         if not self.selecting_is_done(name):
             return False, None

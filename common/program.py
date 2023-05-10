@@ -21,6 +21,10 @@ def exit_program(model_core, restart=False):
 
 
 def save_data(model_core):
+    if model_core is None:
+        # модель не инициализирована, значит программа даже на начальном этапе не загрузилась, нечего сохранять
+        raise Exception
+        return
     settings.save()
     private_settings.save()
     area_is_selected = model_core.selecting.selecting_is_done(AREA)
@@ -29,7 +33,7 @@ def save_data(model_core):
                 and model_core.previous_area:
             SelectedArea.save(model_core.previous_area.points)
         else:
-            area_selector = model_core.selecting.get_selector(AREA)
+            area_selector = model_core.screen.get_selector(AREA)
             SelectedArea.save(area_selector.points)
     else:
         SelectedArea.remove()

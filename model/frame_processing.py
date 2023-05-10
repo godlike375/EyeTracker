@@ -119,7 +119,7 @@ class NoiseThresholdCalibrator(ProcessBased, Cancellable, Calibrator):
     @threaded
     def calibrate(self):
         settings.NOISE_THRESHOLD_PERCENT = 0.0
-        object = self._model.selecting.get_selector(OBJECT)
+        object = self._model.screen.get_selector(OBJECT)
         while True:
             if not self.in_progress:
                 exit()
@@ -130,7 +130,7 @@ class NoiseThresholdCalibrator(ProcessBased, Cancellable, Calibrator):
 
     def _on_calibrated(self):
         self._model.tracker.cancel()
-        self._model.selecting.remove_from_screen(OBJECT)
+        self._model.screen.remove_selector(OBJECT)
         self._model.try_restore_previous_area()
         settings.NOISE_THRESHOLD_PERCENT = round(settings.NOISE_THRESHOLD_PERCENT, 5)
         self._model.state_tip.change_tip('noise threshold calibrated')
@@ -156,7 +156,7 @@ class CoordinateSystemCalibrator(ProcessBased, Calibrator):
 
     @threaded
     def calibrate(self):
-        object = self._model.selecting.get_selector(OBJECT)
+        object = self._model.screen.get_selector(OBJECT)
         area = self._model.selecting.create_selector(AREA)
         progress = 0
         self._wait_for_controller_ready()
@@ -180,7 +180,7 @@ class CoordinateSystemCalibrator(ProcessBased, Calibrator):
             sleep(self._delay_sec)
 
     def _on_calibrated(self):
-        self._model.selecting.remove_from_screen(OBJECT)
+        self._model.screen.remove_selector(OBJECT)
 
         self._view_model.set_progress(0)
         self._view_model.progress_bar_set_visibility(False)

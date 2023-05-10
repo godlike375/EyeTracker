@@ -74,7 +74,7 @@ class ViewModel:
             object_selector.arrow_left()
         elif event.keysym == 'Right':
             object_selector.arrow_right()
-        elif event.keysym == 'Return': # (enter)
+        elif event.keysym == 'Return':  # (enter)
             object_selector.finish_selecting()
 
     def new_selection(self, name, retry_select_object_in_calibrating=False, additional_callback=None):
@@ -101,7 +101,7 @@ class ViewModel:
         unbindings = (unbind_left_click, unbind_left_down_moved, unbind_left_up)
 
         selector.bind_events(bindings, unbindings)
-        self._model.selecting.add_to_screen(selector, name)
+        self._model.screen.add_selector(selector, name)
 
     def calibrate_noise_threshold(self):
         self._model.calibrate_noise_threshold()
@@ -196,7 +196,6 @@ class ViewModel:
             return
 
         self.execute_command(partial(self._view._menu.entryconfig, label, state=state))
-
 
     def execute_command(self, command):
         self._view.queue_command(command)

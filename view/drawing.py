@@ -1,10 +1,7 @@
-from typing import List
-
 import cv2
 import numpy as np
 from PIL import Image
 
-from common.abstractions import Drawable
 from common.coordinates import Point
 from common.logger import logger
 from common.settings import settings, private_settings, RESOLUTIONS, DOWNSCALED_WIDTH
@@ -55,12 +52,6 @@ class Processor:
         font = cv2.FONT_HERSHEY_SIMPLEX
         return cv2.putText(frame, text, (coords.x, coords.y), font,
                            cls.FONT_SCALE, Processor.CURRENT_COLOR, cls.THICKNESS, cv2.LINE_AA)
-
-    @classmethod
-    def draw_active_objects(cls, frame, active_objects: List[Drawable]):
-        for obj in active_objects:
-            frame = obj.draw_on_frame(frame)
-        return frame
 
     @staticmethod
     def resize_frame_relative(frame, percent):
