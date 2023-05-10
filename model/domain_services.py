@@ -3,8 +3,7 @@ from time import time, sleep
 
 from common.logger import logger
 from common.program import exit_program
-from common.settings import settings, OBJECT, AREA, private_settings, \
-    RESOLUTIONS, DOWNSCALED_WIDTH
+from common.settings import settings, OBJECT, AREA, private_settings
 from common.thread_helpers import ThreadLoopable, MutableValue
 from model.area_controller import AreaController
 from model.camera_extractor import CameraService
@@ -68,7 +67,7 @@ class Orchestrator(ThreadLoopable):
                         return
                     else:
                         self._throttle_to_fps_viewed = time()
-                processed_image = self._draw_and_convert(self._resize_to_minimum(frame))
+                processed_image = self._draw_and_convert(Processor.resize_to_minimum(frame))
                 self._view_model.on_image_ready(processed_image)
             self._current_frame = frame
 
@@ -96,17 +95,6 @@ class Orchestrator(ThreadLoopable):
                 self._view_model.set_tip(f'Перезапуск программы будет произведён через {i} секунд')
             self._view_model.execute_command(sys.exit)
             exit_program(self, restart=True)
-
-    def _resize_to_minimum(self, frame):
-        frame_width = frame.shape[0]
-        frame_height = frame.shape[1]
-        if frame_height == DOWNSCALED_WIDTH or frame_width == DOWNSCALED_WIDTH:
-            return frame
-        reversed = frame_height < frame_width
-        down_width = RESOLUTIONS[DOWNSCALED_WIDTH]
-        if reversed:
-            return Processor.resize_frame_absolute(frame, DOWNSCALED_WIDTH, down_width)
-        return Processor.resize_frame_absolute(frame, down_width, DOWNSCALED_WIDTH)
 
     def _draw_and_convert(self, frame):
         processed = Processor.draw_active_objects(frame, self.selecting.get_active_objects())

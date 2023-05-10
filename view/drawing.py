@@ -7,7 +7,7 @@ from PIL import Image
 from common.abstractions import Drawable
 from common.coordinates import Point
 from common.logger import logger
-from common.settings import settings, private_settings
+from common.settings import settings, private_settings, RESOLUTIONS, DOWNSCALED_WIDTH
 
 SPLIT_PARTS = 4
 # другие значения не работают с 90 градусов поворотом при разрешениях кроме 640
@@ -70,6 +70,18 @@ class Processor:
 
     def resize_frame_absolute(frame, new_height, new_width):
         return cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_AREA)
+
+    @classmethod
+    def resize_to_minimum(cls, frame):
+        frame_width = frame.shape[0]
+        frame_height = frame.shape[1]
+        if frame_height == DOWNSCALED_WIDTH or frame_width == DOWNSCALED_WIDTH:
+            return frame
+        reversed = frame_height < frame_width
+        down_width = RESOLUTIONS[DOWNSCALED_WIDTH]
+        if reversed:
+            return cls.resize_frame_absolute(frame, DOWNSCALED_WIDTH, down_width)
+        return cls.resize_frame_absolute(frame, down_width, DOWNSCALED_WIDTH)
 
     @classmethod
     def frames_are_same(cls, one, another):
