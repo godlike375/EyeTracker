@@ -1,0 +1,60 @@
+import numpy as np
+from unittest.mock import Mock, patch
+from model.camera_extractor import CameraService
+import pytest
+from common.settings import FLIP_SIDE_NONE, FLIP_SIDE_HORIZONTAL, FLIP_SIDE_VERTICAL
+from model import camera_extractor
+
+@pytest.fixture
+def black_frame():
+    return np.zeros((100, 100, 3), dtype=np.uint8)
+
+@pytest.fixture
+def mocked_source_camera():
+    extractor = CameraService(auto_set=False)
+    extractor.try_set_camera = Mock(return_value=True)
+    return extractor
+
+def patch_extractor(extractor, frame=None):
+    extractor._camera = Mock()
+    extractor._camera.read = frame or Mock(return_value=(Mock(), Mock()))
+
+def test_extractor(mocked_source_camera):
+    extractor = mocked_source_camera
+    patch_extractor(extractor)
+    extractor.extract_frame()
+    assert extractor._camera.read.call_count > 0
+
+def test_extractor_invalid_camera(mocked_source_camera):
+    mock_show_error = Mock(return_value=None)
+    camera_extractor.DEFAULT_CAMERA_ID = 5
+    with patch("view.view_output.show_error", mock_show_error):
+        extractor = mocked_source_camera
+        extractor.try_set_camera = Mock(return_value=False)
+        extractor.set_source(4)
+        assert mock_show_error.call_count == 1
+
+def test_extractor_rotate(black_frame, mocked_source_camera):
+    extractor = mocked_source_camera
+    with pytest.raises(KeyError):
+        extractor.set_frame_rotate(360)
+        extractor.rotate_frame(black_frame)
+
+    extractor.set_frame_rotate(90)
+    extractor.set_frame_rotate(180)
+    extractor.set_frame_rotate(270)
+    extractor.rotate_frame(black_frame)
+
+def test_extractor_flip(black_frame, mocked_source_camera):
+    extractor = mocked_source_camera
+    extractor.set_frame_flip('invalid')
+    try:
+        extractor.flip_frame(black_frame)
+    except BaseException:
+        assert True
+    else:
+        assert False
+    extractor.set_frame_flip(FLIP_SIDE_NONE)
+    extractor.set_frame_flip(FLIP_SIDE_HORIZONTAL)
+    extractor.set_frame_flip(FLIP_SIDE_VERTICAL)
+    extractor.flip_frame(black_frame)

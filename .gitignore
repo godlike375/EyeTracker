@@ -1,6 +1,6 @@
 .idea
 __pycache__
-tests/test_saved_config.ini
+/tests/config/*
 config/*
 output/*
 logs

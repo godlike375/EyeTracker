@@ -148,8 +148,8 @@ class SelectingService(Cancellable):
 
 
 class LaserService():
-    def __init__(self, state_control, debug_on=False):
-        self._laser_controller = MoveController(debug_on=debug_on)
+    def __init__(self, state_control, debug_on=False, laser_controller=None):
+        self._laser_controller = laser_controller or MoveController(debug_on=debug_on)
         self.initialized = self._laser_controller.initialized
         self.errored = False
         self.state_control = state_control
@@ -176,6 +176,7 @@ class LaserService():
         self._laser_controller._move_laser(Point(x, y))
 
     def controller_is_ready(self):
+        # TODO: используется только в калибровке, а в обычном режиме нет. Исправить
         return self._laser_controller.can_send and self._laser_controller.is_ready
 
     def refresh_data(self):

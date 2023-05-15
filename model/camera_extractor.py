@@ -17,11 +17,12 @@ class NoneFrameException(Exception):
 
 
 class CameraService(Initializable):
-    def __init__(self, source: int = settings.CAMERA_ID):
+    def __init__(self, camera_id: int = settings.CAMERA_ID, auto_set=True):
         super().__init__(initialized=True)
         self._frame_rotate_degree = private_settings.ROTATION_ANGLE
         self._frame_flip_side = private_settings.FLIP_SIDE
-        self.set_source(source)
+        if auto_set:
+            self.set_source(camera_id)
 
     def try_set_camera(self, camera_id):
         self._camera = cv2.VideoCapture(camera_id)
@@ -68,6 +69,7 @@ class CameraService(Initializable):
             raise NoneFrameException('extracted frame is None with no reason')
         rotated = self.rotate_frame(frame)
         flipped = self.flip_frame(rotated)
+        # TODO: код ниже возможно мёртвый
         if flipped is None:
             raise NoneFrameException('extracted frame is None after transformations')
         return flipped

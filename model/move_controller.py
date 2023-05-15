@@ -28,7 +28,7 @@ class MoveController(Initializable):
         self._timer = time()
         self._serial = SerialStub()
         if debug_on:
-            view_output.show_message('Последовательный порт используется в режиме отладки', 'Предупреждение')
+            view_output.show_warning('Последовательный порт используется в режиме отладки')
             return
 
         try:

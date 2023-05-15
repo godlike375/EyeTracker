@@ -24,9 +24,10 @@ RESTART_IN_TIME_SEC = 10
 
 class Orchestrator(ThreadLoopable):
 
-    def __init__(self, view_model: ViewModel, run_immediately: bool = True, area: tuple = None, debug_on=False):
+    def __init__(self, view_model: ViewModel, run_immediately: bool = True, area: tuple = None, debug_on=False,
+                 camera=None, laser=None):
         self._view_model = view_model
-        self.camera = CameraService(settings.CAMERA_ID)
+        self.camera = camera or CameraService(settings.CAMERA_ID)
         self.area_controller = AreaController(min_xy=-settings.MAX_LASER_RANGE_PLUS_MINUS,
                                               max_xy=settings.MAX_LASER_RANGE_PLUS_MINUS)
         self.tracker = Tracker(settings.MEAN_COORDINATES_FRAME_COUNT)
@@ -34,7 +35,7 @@ class Orchestrator(ThreadLoopable):
         self.screen = OnScreenService(self)
         self.selecting = SelectingService(self._on_area_selected, self._on_object_selected, self, self.screen,
                                           self._view_model)
-        self.laser = LaserService(self.state_control, debug_on=debug_on)
+        self.laser = laser or LaserService(self.state_control, debug_on=debug_on)
 
         self._current_frame = None
 
