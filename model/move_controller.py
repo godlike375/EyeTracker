@@ -34,6 +34,13 @@ class MoveController(Initializable, ThreadLoopable):
         self._pool_interval = MutableValue(1 / int(settings.FPS_PROCESSED * 0.5) )
         self._commands = CommandExecutor()
 
+        MAX_LASER_RANGE = settings.MAX_LASER_RANGE_PLUS_MINUS
+        left_top = Point(-MAX_LASER_RANGE, -MAX_LASER_RANGE)
+        right_top = Point(MAX_LASER_RANGE, -MAX_LASER_RANGE)
+        right_bottom = Point(MAX_LASER_RANGE, MAX_LASER_RANGE)
+        left_bottom = Point(-MAX_LASER_RANGE, MAX_LASER_RANGE)
+        self.laser_borders = [left_top, right_top, right_bottom, left_bottom]
+
         if debug_on:
             view_output.show_warning('Последовательный порт используется в режиме отладки')
             ThreadLoopable.__init__(self, self._processing_loop, self._pool_interval, run_immediately=run_immediately)
@@ -62,13 +69,6 @@ class MoveController(Initializable, ThreadLoopable):
             logger.exception('Cannot open the proper serial port')
         else:
             self._serial = serial
-
-        MAX_LASER_RANGE = settings.MAX_LASER_RANGE_PLUS_MINUS
-        left_top = Point(-MAX_LASER_RANGE, -MAX_LASER_RANGE)
-        right_top = Point(MAX_LASER_RANGE, -MAX_LASER_RANGE)
-        right_bottom = Point(MAX_LASER_RANGE, MAX_LASER_RANGE)
-        left_bottom = Point(-MAX_LASER_RANGE, MAX_LASER_RANGE)
-        self.laser_borders = [left_top, right_top, right_bottom, left_bottom]
 
         ThreadLoopable.__init__(self, self._processing_loop, self._pool_interval, run_immediately=run_immediately)
 

@@ -36,6 +36,7 @@ def main(args):
         view_output.show_error(
             message=f'Ошибка загрузки ранее выделенной области \n{e} \nРабота программы будет продолжена')
         logger.exception(e)
+        SelectedArea.remove()
     logger.debug('settings loaded')
     try:
         view_model = ViewModel(root)

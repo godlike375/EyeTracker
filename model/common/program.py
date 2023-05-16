@@ -24,7 +24,6 @@ def save_data(model_core):
     if model_core is None:
         # модель не инициализирована, значит программа даже на начальном этапе не загрузилась, нечего сохранять
         raise Exception
-        return
     settings.save()
     private_settings.save()
     area_is_selected = model_core.selecting.selecting_is_done(AREA)
