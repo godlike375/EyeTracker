@@ -17,6 +17,7 @@ def test_object_selector(selected_object_points, created_selector=None):
     funcs = [selector.left_button_click, *repeat(selector.left_button_down_moved, 2), selector.left_button_up]
     for event, point in zip(funcs, selected_object_points):
         event(point)
+    selector.finish_selecting()
     assert selector.is_done
     assert selector.left_top == Point(0, 0)
     assert selector.right_bottom == Point(MIN_DISTANCE_BETWEEN_POINTS, MIN_DISTANCE_BETWEEN_POINTS)

@@ -12,6 +12,10 @@ from view.drawing import Processor
 from view.view_model import ViewModel
 from view.window_form import View
 
+import sys
+# https://stackoverflow.com/questions/33225086/how-often-does-python-switch-threads
+sys.setswitchinterval(1 / (settings.FPS_PROCESSED * 1.5))
+
 
 def main(args):
     turn_logging_on(logger)
