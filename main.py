@@ -4,7 +4,7 @@ from tkinter import Tk
 
 import model.common.settings
 from model.common.logger import logger, turn_logging_on
-from model.common.program import save_data
+from model.common.program import save_data, exit_program
 from model.common.settings import settings, SelectedArea, private_settings
 from model.domain_services import Orchestrator
 from view import view_output
@@ -58,9 +58,7 @@ def main(args):
     except KeyboardInterrupt:
         logger.debug('interrupted using KeyboardInterrupt')
     logger.debug('mainloop finished')
-    model_core.stop_thread()
-    model_core.laser.center_laser()
-    save_data(model_core)
+    exit_program(model_core)
     logger.debug('settings saved')
 
 

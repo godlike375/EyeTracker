@@ -259,4 +259,6 @@ class Orchestrator(ThreadLoopable):
 
     def stop_thread(self):
         cancel_all_calibrators = [i.cancel() for i in self.calibrators.values()]
+        self.laser.center_laser()
+        self.laser.stop_thread()
         super(Orchestrator, self).stop_thread()
