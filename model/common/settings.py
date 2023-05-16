@@ -143,6 +143,9 @@ class Settings:
         else:
             return True
 
+    def _set_attr_force(self, key, value):
+        super().__setattr__(key, value)
+
     def load(self, folder: str = FOLDER, file: str = FILE):
         base_path = get_repo_path()
 

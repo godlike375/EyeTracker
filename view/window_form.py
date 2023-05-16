@@ -7,12 +7,12 @@ from tkinter.ttk import Progressbar
 
 from PIL import ImageTk
 
-from common.logger import logger
-from common.settings import (
+from model.common.logger import logger
+from model.common.settings import (
     settings, OBJECT, AREA, FLIP_SIDE_NONE, FLIP_SIDE_VERTICAL,
     FLIP_SIDE_HORIZONTAL, RESOLUTIONS, DOWNSCALED_WIDTH, get_repo_path
 )
-from view.view_command_process import CommandExecutor
+from model.command_processor import CommandExecutor
 from view.view_model import (
     CALIBRATION_MENU_NAME,
     SELECTION_MENU_NAME,
@@ -44,7 +44,7 @@ class View:
         self._progress_bar = Progressbar(self._indicators_frame)
         self._settings = WindowSettings(self._root, self._view_model)
 
-        self._commands = CommandExecutor(self)
+        self._commands = CommandExecutor()
 
         self._rotate_var = IntVar()
         self._flip_var = IntVar()

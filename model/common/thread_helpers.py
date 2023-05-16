@@ -51,6 +51,8 @@ def thread_loop_runner(func, interval: MutableValue = None):
 
 class ThreadLoopable:
     def __init__(self, loop_func, interval: MutableValue, run_immediately: bool = True):
+        self._loop_func = loop_func
+        self._interval = interval
         if run_immediately:
             self.start_thread(loop_func, interval)
 
@@ -60,3 +62,12 @@ class ThreadLoopable:
 
     def stop_thread(self):
         self._thread_loop.stop()
+
+    def __enter__(self):
+        self.start_thread(self._loop_func, self._interval)
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        self.stop_thread()
+        if exc_value:
+            raise exc_value

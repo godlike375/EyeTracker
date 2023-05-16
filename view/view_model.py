@@ -1,9 +1,9 @@
 from functools import partial
 from tkinter import Tk, END, colorchooser
 
-from common.program import exit_program
-from common.coordinates import Point
-from common.settings import settings, private_settings
+from model.common.program import exit_program
+from model.common.coordinates import Point
+from model.common.settings import settings, private_settings
 from model.selector import LEFT_CLICK, LEFT_DOWN, LEFT_UP
 from view import view_output
 from view.drawing import Processor

@@ -1,8 +1,8 @@
 from unittest.mock import Mock
 from model.frame_processing import Denoiser, Tracker
-from common.coordinates import Point
+from model.common.coordinates import Point
 import numpy as np
-from common.settings import settings
+from model.common.settings import settings
 
 
 def test_denoiser():

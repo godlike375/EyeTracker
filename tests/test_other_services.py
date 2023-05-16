@@ -3,10 +3,9 @@ from unittest.mock import Mock, patch
 import pytest
 
 from model.domain_services import Orchestrator
-from common.settings import AREA, OBJECT
-from tests.test_selector import test_object_selector
+from model.common.settings import AREA, OBJECT
+from tests.test_selector import test_object_selector, selected_object_points
 from tests.test_camera_extractor import mocked_source_camera
-from tests.test_selector import selected_object_points
 
 
 @pytest.fixture

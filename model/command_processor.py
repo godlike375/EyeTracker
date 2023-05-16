@@ -24,13 +24,22 @@ class CommandQueue:
 
 
 class CommandExecutor:
-    def __init__(self, view):
-        self._view = view
+    def __init__(self):
         self._queue = CommandQueue()
 
     def exec_queued_commands(self):
+        at_least_one_executed = False
         for command in self._queue:
             command()
+            at_least_one_executed = True
+        return at_least_one_executed
+
+    def exec_latest_command(self):
+        command = self._queue.pop_command()
+        if command is not None:
+            command()
+            return True
+        return False
 
     def queue_command(self, command):
         self._queue.add_command(command)

@@ -1,7 +1,7 @@
 from functools import partial
 from tkinter import messagebox
 
-from common.logger import logger
+from model.common.logger import logger
 
 _view = None
 

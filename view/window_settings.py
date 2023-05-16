@@ -6,8 +6,8 @@ from tkinter import (
     messagebox, END, RIGHT,
 )
 
-from common.logger import logger
-from common.settings import settings, get_repo_path
+from model.common.logger import logger
+from model.common.settings import settings, get_repo_path
 
 
 ZERO_LINE_AND_COLUMN = 0.0

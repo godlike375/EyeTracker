@@ -1,14 +1,15 @@
 import sys
 from time import time, sleep
 
-from common.logger import logger
-from common.program import exit_program
-from common.settings import settings, OBJECT, AREA, private_settings
-from common.thread_helpers import ThreadLoopable, MutableValue
+from model.common.logger import logger
+from model.common.program import exit_program
+from model.common.settings import settings, OBJECT, AREA, private_settings
+from model.common.thread_helpers import ThreadLoopable, MutableValue
 from model.area_controller import AreaController
 from model.camera_extractor import CameraService
 from model.frame_processing import Tracker
-from model.other_services import SelectingService, LaserService, StateMachine, OnScreenService, \
+from model.move_controller import MoveController
+from model.other_services import SelectingService, StateMachine, OnScreenService, \
     NoiseThresholdCalibrator, CoordinateSystemCalibrator
 from view import view_output
 from view.drawing import Processor
@@ -35,7 +36,7 @@ class Orchestrator(ThreadLoopable):
         self.screen = OnScreenService(self)
         self.selecting = SelectingService(self._on_area_selected, self._on_object_selected, self, self.screen,
                                           self._view_model)
-        self.laser = laser or LaserService(self.state_control, debug_on=debug_on)
+        self.laser = laser or MoveController(self._on_laser_error, debug_on=debug_on)
 
         self._current_frame = None
 
@@ -124,10 +125,11 @@ class Orchestrator(ThreadLoopable):
             return
 
         relative_coords = self.area_controller.calc_laser_coords(center)
-        result = self.laser.set_new_position(relative_coords)
-        if result is not None:
-            return relative_coords
+        self.laser.set_new_position(relative_coords)
+
+    def _on_laser_error(self):
         self.cancel_active_process(need_confirm=False)
+        self.state_control.change_tip('laser calibrated', False)
 
     def _on_area_selected(self):
         selected, area = self.selecting.check_selected_correctly(AREA)

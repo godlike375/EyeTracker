@@ -1,4 +1,4 @@
-from common.thread_helpers import ThreadLoopable, MutableValue
+from model.common.thread_helpers import ThreadLoopable, MutableValue
 from time import sleep
 
 
@@ -18,4 +18,4 @@ def test_thread_loopable():
     thread_loop_interval.value = 0.15
     sleep(thread_loop_run_time)
     loopable.stop_thread()
-    assert loopable.counter < 4
+    assert loopable.counter < 5

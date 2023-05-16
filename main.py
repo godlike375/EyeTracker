@@ -2,10 +2,10 @@ import argparse
 from pathlib import Path
 from tkinter import Tk
 
-import common.settings
-from common.logger import logger, turn_logging_on
-from common.program import save_data
-from common.settings import settings, SelectedArea, private_settings
+import model.common.settings
+from model.common.logger import logger, turn_logging_on
+from model.common.program import save_data
+from model.common.settings import settings, SelectedArea, private_settings
 from model.domain_services import Orchestrator
 from view import view_output
 from view.drawing import Processor
@@ -15,9 +15,9 @@ from view.window_form import View
 
 def main(args):
     turn_logging_on(logger)
-    common.settings.ROOT_DIR = Path(__file__).absolute().parent
+    model.common.settings.ROOT_DIR = Path(__file__).absolute().parent
     if args.root_dir:
-        common.settings.ROOT_DIR = args.root_dir
+        model.common.settings.ROOT_DIR = args.root_dir
     root = Tk()
     model_core = None
     try:

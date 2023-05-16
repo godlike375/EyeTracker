@@ -4,9 +4,9 @@ from winsound import PlaySound, SND_PURGE, SND_FILENAME
 import cv2
 import numpy as np
 
-from common.coordinates import Point
-from common.logger import logger
-from common.settings import get_repo_path
+from model.common.coordinates import Point
+from model.common.logger import logger
+from model.common.settings import get_repo_path
 from model.selector import AreaSelector
 from view.drawing import Processor
 

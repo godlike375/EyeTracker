@@ -1,5 +1,5 @@
 from itertools import repeat
-from common.coordinates import Point
+from model.common.coordinates import Point
 from unittest.mock import Mock
 from model.selector import ObjectSelector, AreaSelector, MIN_DISTANCE_BETWEEN_POINTS
 import pytest

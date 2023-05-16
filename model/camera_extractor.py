@@ -1,8 +1,8 @@
 import cv2
 import numpy as np
 
-from common.abstractions import Initializable
-from common.settings import settings, private_settings, FLIP_SIDE_NONE
+from model.common.abstractions import Initializable
+from model.common.settings import settings, private_settings, FLIP_SIDE_NONE
 from view import view_output
 
 DEGREE_TO_CV2_MAP = {90: cv2.ROTATE_90_CLOCKWISE,

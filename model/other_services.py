@@ -2,12 +2,11 @@ from dataclasses import dataclass
 from functools import partial
 from time import time, sleep
 
-from common.abstractions import Cancellable, ProcessBased, Calibrator
-from common.coordinates import Point
-from common.logger import logger
-from common.settings import AREA, OBJECT, CALIBRATE_LASER_COMMAND_ID, settings, MIN_THROTTLE_DIFFERENCE
-from common.thread_helpers import threaded
-from model.move_controller import MoveController
+from model.common.abstractions import Cancellable, ProcessBased, Calibrator
+
+from model.common.logger import logger
+from model.common.settings import AREA, OBJECT, settings, MIN_THROTTLE_DIFFERENCE
+from model.common.thread_helpers import threaded
 from model.selector import AreaSelector, ObjectSelector
 from view import view_output
 from view.view_model import SELECTION_MENU_NAME
@@ -145,56 +144,6 @@ class SelectingService(Cancellable):
         self._screen.remove_selector(name)
 
         return self.create_selector(name, additional_callback)
-
-
-class LaserService():
-    def __init__(self, state_control, debug_on=False, laser_controller=None):
-        self._laser_controller = laser_controller or MoveController(debug_on=debug_on)
-        self.initialized = self._laser_controller.initialized
-        self.errored = False
-        self.state_control = state_control
-
-        MAX_LASER_RANGE = settings.MAX_LASER_RANGE_PLUS_MINUS
-        left_top = Point(-MAX_LASER_RANGE, -MAX_LASER_RANGE)
-        right_top = Point(MAX_LASER_RANGE, -MAX_LASER_RANGE)
-        right_bottom = Point(MAX_LASER_RANGE, MAX_LASER_RANGE)
-        left_bottom = Point(-MAX_LASER_RANGE, MAX_LASER_RANGE)
-        self.laser_borders = [left_top, right_top, right_bottom, left_bottom]
-
-    def calibrate_laser(self):
-        logger.debug('laser calibrated')
-        self._laser_controller._move_laser(Point(0, 0), command=CALIBRATE_LASER_COMMAND_ID)
-        self.errored = False
-        self._laser_controller._errored = False
-
-    def center_laser(self):
-        logger.debug('laser centered')
-        self._laser_controller._move_laser(Point(0, 0))
-
-    def move_laser(self, x, y):
-        logger.debug(f'laser moved to {x, y}')
-        self._laser_controller._move_laser(Point(x, y))
-
-    def controller_is_ready(self):
-        # TODO: используется только в калибровке, а в обычном режиме нет. Исправить
-        return self._laser_controller.can_send and self._laser_controller.is_ready
-
-    def refresh_data(self):
-        self._laser_controller.read_line()
-
-    def set_new_position(self, position: Point):
-        self.refresh_data()
-        if self._laser_controller.is_errored:
-            self.errored = True
-            view_output.show_error('Контроллер лазера внезапно дошёл до предельных координат. \n'
-                                   'Необходимо откалибровать контроллер лазера повторно. '
-                                   'До этого момента слежение за объектом невозможно')
-            self.state_control.change_tip('laser calibrated', False)
-            return None
-        if self.controller_is_ready():
-            self._laser_controller.set_new_position(position)
-            return True
-        return False
 
 
 @dataclass
@@ -346,7 +295,6 @@ class CoordinateSystemCalibrator(ProcessBased, Calibrator):
         while not self._model.laser.controller_is_ready():
             if not self.in_progress:
                 exit()
-            self._model.laser.refresh_data()
             sleep(self._delay_sec)
 
     def _on_calibrated(self):

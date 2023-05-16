@@ -2,8 +2,8 @@ import os
 import sys
 from pathlib import Path
 
-from common.logger import logger
-from common.settings import settings, private_settings, AREA, SelectedArea
+from model.common.logger import logger
+from model.common.settings import settings, private_settings, AREA, SelectedArea
 
 
 def exit_program(model_core, restart=False):

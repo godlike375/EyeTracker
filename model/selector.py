@@ -1,8 +1,8 @@
 from abc import ABC
 
-from common.coordinates import Point
-from common.abstractions import RectBased, Drawable, Cancellable, ProcessBased
-from common.logger import logger
+from model.common.coordinates import Point
+from model.common.abstractions import RectBased, Drawable, Cancellable, ProcessBased
+from model.common.logger import logger
 from view.drawing import Processor
 
 LEFT_CLICK = 'left_click'

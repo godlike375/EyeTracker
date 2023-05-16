@@ -2,7 +2,7 @@ import numpy as np
 from unittest.mock import Mock, patch
 from model.camera_extractor import CameraService
 import pytest
-from common.settings import FLIP_SIDE_NONE, FLIP_SIDE_HORIZONTAL, FLIP_SIDE_VERTICAL
+from model.common.settings import FLIP_SIDE_NONE, FLIP_SIDE_HORIZONTAL, FLIP_SIDE_VERTICAL
 from model import camera_extractor
 
 @pytest.fixture

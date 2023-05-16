@@ -3,10 +3,10 @@ from itertools import chain, repeat
 
 import dlib
 
-from common.abstractions import ProcessBased, RectBased, Drawable, Cancellable
-from common.coordinates import Point, calc_center
-from common.logger import logger
-from common.settings import settings
+from model.common.abstractions import ProcessBased, RectBased, Drawable, Cancellable
+from model.common.coordinates import Point, calc_center
+from model.common.logger import logger
+from model.common.settings import settings
 from view.drawing import Processor
 
 

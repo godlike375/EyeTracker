@@ -1,11 +1,8 @@
-import logging
-from pathlib import Path
 from unittest.mock import Mock, patch, mock_open
 
 import pytest
 
-from common.coordinates import Point
-from common.settings import settings, ROOT_FOLDER
+from model.common.settings import settings
 
 
 @pytest.fixture
