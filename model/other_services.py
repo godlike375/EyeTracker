@@ -176,11 +176,10 @@ class StateMachine:
 
     def change_state(self, event_name: str, happened=True):
         if event_name == 'coordinate system changed':
-            for event in self._all_events:
-                # TODO: Похоже на баг. Зачем сбрасывать первые 3 события, если изменилась координатная система?
-                #  Наоборот по идее надо сбрасывать все остальные
-                if event.name not in (e.name for e in self._all_events[:3]):
-                    event.happened = False
+            for event in self._all_events[:2]:
+                event.happened = True
+            for event in self._all_events[6:]:
+                event.happened = False
 
         for event in self._all_events:
             if event_name == event.name:
