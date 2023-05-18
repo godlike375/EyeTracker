@@ -1,12 +1,12 @@
 from functools import partial
 from tkinter import Tk, END, colorchooser
 
-from model.common.program import exit_program
-from model.common.coordinates import Point
-from model.common.settings import settings, private_settings
-from model.selector import LEFT_CLICK, LEFT_DOWN, LEFT_UP
-from view import view_output
-from view.drawing import Processor
+from eye_tracker.common.program import exit_program
+from eye_tracker.common.coordinates import Point
+from eye_tracker.common.settings import settings, private_settings
+from eye_tracker.model.selector import LEFT_CLICK, LEFT_DOWN, LEFT_UP
+from eye_tracker.view import view_output
+from eye_tracker.view.drawing import Processor
 
 CALIBRATION_MENU_NAME = 'Откалибровать'
 SELECTION_MENU_NAME = 'Выделить объект'

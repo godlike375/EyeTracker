@@ -1,21 +1,19 @@
 import sys
 from time import time, sleep
 
-from model.common.logger import logger
-from model.common.program import exit_program
-from model.common.settings import settings, OBJECT, AREA, private_settings
-from model.common.thread_helpers import ThreadLoopable, MutableValue
-from model.area_controller import AreaController
-from model.camera_extractor import CameraService, NoneFrameException
-from model.frame_processing import Tracker
-from model.move_controller import MoveController
-from model.other_services import SelectingService, StateMachine, OnScreenService, \
+from eye_tracker.common.logger import logger
+from eye_tracker.common.program import exit_program
+from eye_tracker.common.settings import settings, OBJECT, AREA, private_settings
+from eye_tracker.common.thread_helpers import ThreadLoopable, MutableValue
+from eye_tracker.model.area_controller import AreaController
+from eye_tracker.model.camera_extractor import CameraService
+from eye_tracker.model.frame_processing import Tracker
+from eye_tracker.model.move_controller import MoveController
+from eye_tracker.model.other_services import SelectingService, StateMachine, OnScreenService, \
     NoiseThresholdCalibrator, CoordinateSystemCalibrator
-from view import view_output
-from view.drawing import Processor
-from view.view_model import ViewModel
-
-RESTART_IN_TIME_SEC = 10
+from eye_tracker.view import view_output
+from eye_tracker.view.drawing import Processor
+from eye_tracker.view.view_model import ViewModel
 
 
 # WARNING: Пробовал увеличивать количество потоков в программе до 4-х (+ экстрактор + трекер в своих потоках)
@@ -24,6 +22,8 @@ RESTART_IN_TIME_SEC = 10
 
 
 class ErrorHandler:
+    RESTART_IN_TIME_SEC = 10
+
     def __init__(self, view_model):
         self._fatal_error_count_repeatedly = 0
         self._view_model = view_model
@@ -31,30 +31,33 @@ class ErrorHandler:
     def _handle_fatal_error(self, error):
         self._fatal_error_count_repeatedly += 1
         if self._fatal_error_count_repeatedly > 2:
-            view_output.show_error(f'В связи с множественными внутренними ошибками вида:\n\n'
-                                   f'[ {error} ] работа программы не может быть продолжена.\n\n'
-                                   f'Программа перезапустится автоматически через {RESTART_IN_TIME_SEC} секунд.')
-            for i in range(RESTART_IN_TIME_SEC, 0, -1):
+            view_output.show_error \
+                (
+                    f'В связи с множественными внутренними ошибками вида:\n\n'
+                    f'[ {error} ] работа программы не может быть продолжена.\n\n'
+                    f'Программа перезапустится автоматически через {ErrorHandler.RESTART_IN_TIME_SEC} секунд.'
+                )
+            for i in range(ErrorHandler.RESTART_IN_TIME_SEC, 0, -1):
                 sleep(1)
                 self._view_model.set_tip(f'Перезапуск программы будет произведён через {i} секунд')
             self._view_model.execute_command(sys.exit)
+            logger.debug('fatal error')
             exit_program(self, restart=True)
 
     def handle_exceptions(self, func):
         def wrapper(*args, **kwargs):
             try:
                 func(*args, **kwargs)
-            except RuntimeError as e:
+            except Exception as e:
                 if 'dictionary changed size during iteration' in str(e):
                     return
                 if 'dictionary keys changed during iteration' in str(e):
                     return
-                self._handle_fatal_error(e)
-            except Exception as e:
-                self._handle_fatal_error(e)
                 logger.exception('Unexpected exception:')
+                self._handle_fatal_error(e)
             else:
                 self._fatal_error_count_repeatedly = 0
+
         return wrapper
 
 
@@ -64,7 +67,7 @@ class Orchestrator(ThreadLoopable):
                  camera=None, laser=None):
         self._view_model = view_model
         self._error_handler = ErrorHandler(view_model)
-        self._processing_loop = self._error_handler.handle_exceptions(self._processing_loop) # manual decoration
+        self._processing_loop = self._error_handler.handle_exceptions(self._processing_loop)  # manual decoration
 
         self.camera = camera or CameraService(settings.CAMERA_ID)
         self.area_controller = AreaController(min_xy=-settings.MAX_LASER_RANGE_PLUS_MINUS,
@@ -122,7 +125,7 @@ class Orchestrator(ThreadLoopable):
         if self._calibrating_in_progress():
             return
         object_relative_coords = self._move_to_relative_cords(center)
-        #if object_relative_coords is not None:
+        # if object_relative_coords is not None:
         self._view_model.set_tip(f'Текущие координаты объекта: '
                                  f'{object_relative_coords.x, object_relative_coords.y}')
 
@@ -210,14 +213,14 @@ class Orchestrator(ThreadLoopable):
     def _active_process_in_progress(self):
         is_calibrating = self._calibrating_in_progress()
         is_selecting_in_progress = self.selecting.selecting_in_progress(AREA) or \
-            self.selecting.selecting_in_progress(OBJECT)
+                                   self.selecting.selecting_in_progress(OBJECT)
         is_active_process = is_selecting_in_progress or self.tracker.in_progress or is_calibrating
         return is_active_process
 
     def cancel_active_process(self, need_confirm=True):
         is_calibrating = self._calibrating_in_progress()
         is_selecting_in_progress = self.selecting.selecting_in_progress(AREA) or \
-            self.selecting.selecting_in_progress(OBJECT)
+                                   self.selecting.selecting_in_progress(OBJECT)
         is_active_process = is_selecting_in_progress or self.tracker.in_progress or is_calibrating
         if not is_active_process:
             return
@@ -233,7 +236,7 @@ class Orchestrator(ThreadLoopable):
         self._frame_interval.value = 1 / settings.FPS_VIEWED
         if is_calibrating:
             self.try_restore_previous_area()
-        Processor.load_color() # Если вышло за границу и отменили, то остаётся красный цвет
+        Processor.load_color()  # Если вышло за границу и отменили, то остаётся красный цвет
 
     def rotate_image(self, degree, user_action=True):
         if private_settings.ROTATION_ANGLE == degree and user_action:

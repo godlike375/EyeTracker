@@ -3,11 +3,11 @@ from itertools import chain, repeat
 
 import dlib
 
-from model.common.abstractions import ProcessBased, RectBased, Drawable, Cancellable
-from model.common.coordinates import Point, calc_center
-from model.common.logger import logger
-from model.common.settings import settings
-from view.drawing import Processor
+from eye_tracker.common.abstractions import ProcessBased, RectBased, Drawable, Cancellable
+from eye_tracker.common.coordinates import Point, calc_center
+from eye_tracker.common.logger import logger
+from eye_tracker.common.settings import settings
+from eye_tracker.view.drawing import Processor
 
 
 class Tracker(RectBased, Drawable, ProcessBased, Cancellable):

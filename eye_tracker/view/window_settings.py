@@ -6,9 +6,8 @@ from tkinter import (
     messagebox, END, RIGHT,
 )
 
-from model.common.logger import logger
-from model.common.settings import settings, get_repo_path
-
+from eye_tracker.common.logger import logger
+from eye_tracker.common.settings import settings, get_repo_path, ASSETS_FOLDER
 
 ZERO_LINE_AND_COLUMN = 0.0
 MARGIN_FIELDS = 3
@@ -28,7 +27,7 @@ class WindowSettings:
         self._settings = Toplevel(self._root)
         self._settings.title('Настройки')
         try:
-            self._settings.iconbitmap(str(get_repo_path(bundled=True) / "tracking.ico"))
+            self._settings.iconbitmap(str(get_repo_path(bundled=True) / ASSETS_FOLDER / "tracking.ico"))
         except Exception:
             logger.warning('tracking.ico not found')
 

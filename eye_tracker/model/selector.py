@@ -1,9 +1,9 @@
 from abc import ABC
 
-from model.common.coordinates import Point
-from model.common.abstractions import RectBased, Drawable, Cancellable, ProcessBased
-from model.common.logger import logger
-from view.drawing import Processor
+from eye_tracker.common.coordinates import Point
+from eye_tracker.common.abstractions import RectBased, Drawable, Cancellable, ProcessBased
+from eye_tracker.common.logger import logger
+from eye_tracker.view.drawing import Processor
 
 LEFT_CLICK = 'left_click'
 LEFT_DOWN = 'left_down'

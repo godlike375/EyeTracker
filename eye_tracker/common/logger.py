@@ -36,5 +36,4 @@ def turn_logging_on(logger, console=False):
         handler.setFormatter(logging.Formatter(_log_format))
     logger.addHandler(handler)
 
-
 logger = _setup_logger(logging.DEBUG)

@@ -2,7 +2,7 @@ from unittest.mock import Mock, patch, mock_open
 
 import pytest
 
-from model.common.settings import settings
+from eye_tracker.common.settings import settings
 
 
 @pytest.fixture

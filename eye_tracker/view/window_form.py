@@ -7,20 +7,21 @@ from tkinter.ttk import Progressbar
 
 from PIL import ImageTk
 
-from model.common.logger import logger
-from model.common.settings import (
+from eye_tracker.common.logger import logger
+from eye_tracker.common.settings import (
     settings, OBJECT, AREA, FLIP_SIDE_NONE, FLIP_SIDE_VERTICAL,
     FLIP_SIDE_HORIZONTAL, RESOLUTIONS, DOWNSCALED_WIDTH, get_repo_path
 )
-from model.command_processor import CommandExecutor
-from view.view_model import (
+from eye_tracker.model.command_processor import CommandExecutor
+from eye_tracker.view.view_model import (
     CALIBRATION_MENU_NAME,
     SELECTION_MENU_NAME,
     ROTATION_MENU_NAME,
     FLIP_MENU_NAME,
     MANUAL_MENU_NAME
 )
-from view.window_settings import WindowSettings
+from eye_tracker.view.window_settings import WindowSettings
+from eye_tracker.common.settings import ASSETS_FOLDER
 
 SECOND_LENGTH = 1000
 INDICATORS_HEIGHT_ADDITION = 45
@@ -140,7 +141,7 @@ class View:
     def setup_layout(self):
         self._root.title('Eye tracker')
         try:
-            self._root.iconbitmap(str(get_repo_path(bundled=True) / "tracking.ico"))
+            self._root.iconbitmap(str(get_repo_path(bundled=True) / ASSETS_FOLDER / "tracking.ico"))
         except Exception:
             logger.warning('tracking.ico not found')
 

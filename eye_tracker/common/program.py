@@ -2,8 +2,8 @@ import os
 import sys
 from pathlib import Path
 
-from model.common.logger import logger
-from model.common.settings import settings, private_settings, AREA, SelectedArea
+from eye_tracker.common.logger import logger
+from eye_tracker.common.settings import settings, private_settings, AREA, SelectedArea
 
 
 def exit_program(model_core, restart=False):
@@ -11,11 +11,11 @@ def exit_program(model_core, restart=False):
     settings.save()
     private_settings.save()
     save_data(model_core)
-    try:
-        os.execv(str(Path.cwd() / sys.argv[0]), [sys.argv[0]])
-    except OSError:
-        logger.debug('could not restart the program (exec from .py?)')
-        sys.exit()
+    if restart:
+        try:
+            os.execv(str(Path.cwd() / sys.argv[0]), [sys.argv[0]])
+        except OSError:
+            logger.debug('could not restart the program (exec from .py?)')
     logger.debug(f'program {"exited" if not restart else "restarted"} ')
     sys.exit()
 

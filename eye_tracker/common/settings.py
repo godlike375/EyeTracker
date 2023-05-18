@@ -7,11 +7,12 @@ from os.path import exists
 from pathlib import Path
 from sys import maxsize
 
-from view import view_output
+from eye_tracker.view import view_output
 
 RESOLUTIONS = {1280: 720, 800: 600, 640: 480}
 DOWNSCALED_WIDTH = 640
 
+ASSETS_FOLDER = 'assets'
 AREA = 'area'
 OBJECT = 'object'
 FOLDER = 'config'

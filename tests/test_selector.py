@@ -1,13 +1,9 @@
 from itertools import repeat
-from model.common.coordinates import Point
+from eye_tracker.common.coordinates import Point
 from unittest.mock import Mock
-from model.selector import ObjectSelector, AreaSelector, MIN_DISTANCE_BETWEEN_POINTS
+from eye_tracker.model.selector import ObjectSelector, AreaSelector, MIN_DISTANCE_BETWEEN_POINTS
 import pytest
-
-
-@pytest.fixture
-def selected_object_points():
-    return [Point(0, 0), Point(1, 1), Point(2, 2), Point(MIN_DISTANCE_BETWEEN_POINTS, MIN_DISTANCE_BETWEEN_POINTS)]
+from tests.fixtures import selected_object_points
 
 
 def test_object_selector(selected_object_points, created_selector=None):

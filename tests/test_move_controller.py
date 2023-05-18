@@ -1,7 +1,7 @@
-from model.move_controller import MoveController
-from model.common.coordinates import Point
+from eye_tracker.model.move_controller import MoveController
+from eye_tracker.common.coordinates import Point
 from time import sleep
-from model.common.settings import settings
+from eye_tracker.common.settings import settings
 
 
 def test_move_controller():

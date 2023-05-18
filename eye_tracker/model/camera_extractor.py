@@ -1,9 +1,9 @@
 import cv2
 import numpy as np
 
-from model.common.abstractions import Initializable
-from model.common.settings import settings, private_settings, FLIP_SIDE_NONE
-from view import view_output
+from eye_tracker.common.abstractions import Initializable
+from eye_tracker.common.settings import settings, private_settings, FLIP_SIDE_NONE
+from eye_tracker.view import view_output
 
 DEGREE_TO_CV2_MAP = {90: cv2.ROTATE_90_CLOCKWISE,
                      180: cv2.ROTATE_180,

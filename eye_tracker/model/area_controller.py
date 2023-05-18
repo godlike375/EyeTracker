@@ -4,11 +4,12 @@ from winsound import PlaySound, SND_PURGE, SND_FILENAME
 import cv2
 import numpy as np
 
-from model.common.coordinates import Point
-from model.common.logger import logger
-from model.common.settings import get_repo_path
-from model.selector import AreaSelector
-from view.drawing import Processor
+from eye_tracker.common.settings import ASSETS_FOLDER
+from eye_tracker.common.coordinates import Point
+from eye_tracker.common.logger import logger
+from eye_tracker.common.settings import get_repo_path
+from eye_tracker.model.selector import AreaSelector
+from eye_tracker.view.drawing import Processor
 
 SOUND_NAME = 'alert.wav'
 
@@ -56,7 +57,7 @@ class AreaController:
 
     def beep(self, out_of_area):
         if out_of_area and not self._beeped:
-            sound_path = str(get_repo_path(bundled=True) / SOUND_NAME)
+            sound_path = str(get_repo_path(bundled=True) / ASSETS_FOLDER / SOUND_NAME)
             Thread(target=PlaySound, args=(sound_path, SND_FILENAME | SND_PURGE)).start()
             self._beeped = True
             Processor.CURRENT_COLOR = Processor.COLOR_CAUTION

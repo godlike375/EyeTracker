@@ -2,15 +2,15 @@ import argparse
 from pathlib import Path
 from tkinter import Tk
 
-import model.common.settings
-from model.common.logger import logger, turn_logging_on
-from model.common.program import save_data, exit_program
-from model.common.settings import settings, SelectedArea, private_settings
-from model.domain_services import Orchestrator
-from view import view_output
-from view.drawing import Processor
-from view.view_model import ViewModel
-from view.window_form import View
+import eye_tracker.common.settings
+from eye_tracker.common.logger import logger, turn_logging_on
+from eye_tracker.common.program import save_data, exit_program
+from eye_tracker.common.settings import settings, SelectedArea, private_settings
+from eye_tracker.model.domain_services import Orchestrator
+from eye_tracker.view import view_output
+from eye_tracker.view.drawing import Processor
+from eye_tracker.view.view_model import ViewModel
+from eye_tracker.view.window_form import View
 
 import sys
 # https://stackoverflow.com/questions/33225086/how-often-does-python-switch-threads
@@ -19,9 +19,9 @@ sys.setswitchinterval(1 / (settings.FPS_PROCESSED * 1.5))
 
 def main(args):
     turn_logging_on(logger)
-    model.common.settings.ROOT_DIR = Path(__file__).absolute().parent
+    eye_tracker.common.settings.ROOT_DIR = Path(__file__).absolute().parent
     if args.root_dir:
-        model.common.settings.ROOT_DIR = args.root_dir
+        eye_tracker.common.settings.ROOT_DIR = args.root_dir
     root = Tk()
     model_core = None
     try:
@@ -63,7 +63,6 @@ def main(args):
         logger.debug('interrupted using KeyboardInterrupt')
     logger.debug('mainloop finished')
     exit_program(model_core)
-    logger.debug('settings saved')
 
 
 if __name__ == '__main__':

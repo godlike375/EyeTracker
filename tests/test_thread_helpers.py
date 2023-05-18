@@ -1,4 +1,4 @@
-from model.common.thread_helpers import ThreadLoopable, MutableValue
+from eye_tracker.common.thread_helpers import ThreadLoopable, MutableValue
 from time import sleep
 
 

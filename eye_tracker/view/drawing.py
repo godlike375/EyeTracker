@@ -2,9 +2,9 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from model.common.coordinates import Point
-from model.common.logger import logger
-from model.common.settings import settings, private_settings, RESOLUTIONS, DOWNSCALED_WIDTH
+from eye_tracker.common.coordinates import Point
+from eye_tracker.common.logger import logger
+from eye_tracker.common.settings import settings, private_settings, RESOLUTIONS, DOWNSCALED_WIDTH
 
 SPLIT_PARTS = 4
 # другие значения не работают с 90 градусов поворотом при разрешениях кроме 640

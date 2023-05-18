@@ -1,5 +1,5 @@
-from model.area_controller import AreaController
-from model.common.coordinates import Point
+from eye_tracker.model.area_controller import AreaController
+from eye_tracker.common.coordinates import Point
 from unittest.mock import Mock
 import pytest
 

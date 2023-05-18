@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
-from model.common.coordinates import Point
-from model.common.thread_helpers import threaded
+from eye_tracker.common.coordinates import Point
+from eye_tracker.common.thread_helpers import threaded
 
 
 class Cancellable(ABC):

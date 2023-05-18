@@ -2,15 +2,15 @@ from dataclasses import dataclass
 from functools import partial
 from time import time, sleep
 
-from model.common.abstractions import Cancellable, ProcessBased, Calibrator
+from eye_tracker.common.abstractions import Cancellable, ProcessBased, Calibrator
 
-from model.common.logger import logger
-from model.common.settings import AREA, OBJECT, settings, MIN_THROTTLE_DIFFERENCE
-from model.common.thread_helpers import threaded
-from model.selector import AreaSelector, ObjectSelector
-from view import view_output
-from view.view_model import SELECTION_MENU_NAME
-from view.drawing import Processor
+from eye_tracker.common.logger import logger
+from eye_tracker.common.settings import AREA, OBJECT, settings, MIN_THROTTLE_DIFFERENCE
+from eye_tracker.common.thread_helpers import threaded
+from eye_tracker.model.selector import AreaSelector, ObjectSelector
+from eye_tracker.view import view_output
+from eye_tracker.view.view_model import SELECTION_MENU_NAME
+from eye_tracker.view.drawing import Processor
 
 PERCENT_FROM_DECIMAL = 100
 
@@ -164,7 +164,7 @@ class StateMachine:
         # Расположены в порядке приоритета от наибольшего к наименьшему
         self._all_events = (
             EventCheck('enter pressed', True, 'Выделите объект, отрегулируйте стрелками положение и нажмите Enter'
-                                               '\n для подтверждения выделения'),
+                                              '\n для подтверждения выделения'),
             EventCheck('calibrating finished', True, 'Происходит процесс калибровки'),
             EventCheck('camera connected', False, 'Подключите камеру'),
             EventCheck('laser connected', False, 'Подключите контроллер лазера'),
@@ -260,7 +260,7 @@ class NoiseThresholdCalibrator(ProcessBased, Cancellable, Calibrator):
         self._model.try_restore_previous_area()
         settings.NOISE_THRESHOLD_PERCENT = round(settings.NOISE_THRESHOLD_PERCENT, 5)
         self._model.state_control.change_state('noise threshold calibrated')
-        #self._model.state_control.change_state('object selected', happened=False)
+        # self._model.state_control.change_state('object selected', happened=False)
         view_output.show_message('Калибровка шумоподавления успешно завершена.')
         self._model.state_control.change_state('calibrating finished')
         self._view_model.set_menu_state('all', 'normal')

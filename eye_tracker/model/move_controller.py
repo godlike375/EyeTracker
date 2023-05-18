@@ -4,13 +4,13 @@ from functools import partial
 from serial import Serial, SerialException
 from serial.tools import list_ports
 
-from model.common.abstractions import Initializable
-from model.common.coordinates import Point
-from model.common.logger import logger
-from model.common.settings import settings, CALIBRATE_LASER_COMMAND_ID
-from view import view_output
-from model.common.thread_helpers import ThreadLoopable, MutableValue
-from model.command_processor import CommandExecutor
+from eye_tracker.common.abstractions import Initializable
+from eye_tracker.common.coordinates import Point
+from eye_tracker.common.logger import logger
+from eye_tracker.common.settings import settings, CALIBRATE_LASER_COMMAND_ID
+from eye_tracker.view import view_output
+from eye_tracker.common.thread_helpers import ThreadLoopable, MutableValue
+from eye_tracker.model.command_processor import CommandExecutor
 
 READY = 'ready'
 ERRORED = 'error'
