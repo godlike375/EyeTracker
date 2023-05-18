@@ -5,14 +5,11 @@
 
 ## Скриншоты:
 
-![](https://myoctocat.com/assets/images/base-octocat.svg)
-### Главное окно программы
+#### Главное окно программы
+![](https://i.ibb.co/KytrkVW/2023-05-18-174338726.png)
 
-![](https://myoctocat.com/assets/images/base-octocat.svg)
 ### Окно настроек программы
-
-![](https://myoctocat.com/assets/images/base-octocat.svg)
-### Слежение за целью
+![](https://i.ibb.co/kHtjqHV/2023-05-18-174531257.png)
 
 ### Реализованные фунции приложения:
 #### Автоматические:
