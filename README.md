@@ -1,40 +1,18 @@
-## EyeTracker
-Данный проект позволяет перемещать лазер за объектом (изначальная цель - глаз во время операции). Построен на архитектуре MVVM.
-Разрабатывался на python 3.8
+# EyeTracker
+## Общие сведения
+#### Данная программа позволяет перемещать лазер за объектом (изначальная цель - глаз во время хирургической операции).
+#### Руководство пользователя располагается в корне репозитория.
 
-### Установка:
+## Скриншоты:
 
-    git clone https://github.com/godlike375/EyeTracker.git
-    
-    cd EyeTracker
-    
-    python -m venv /venv
-    
-    venv_python -m pip install -r requirements.txt
-    
-    venv_python main.py
+![](https://myoctocat.com/assets/images/base-octocat.svg)
+### Главное окно программы
 
-#### Если нужно запускать линтер при коммитах, то вставляем себе pre-commmit хук в .git с текстом:
+![](https://myoctocat.com/assets/images/base-octocat.svg)
+### Окно настроек программы
 
-    #!/bin/bash
-    
-    export PYTHONIOENCODING="utf-8"
-    
-    VENV_PYTHON="./venv_python.sh"
-    
-    "$VENV_PYTHON" -m flake8 ./model ./common ./view
-    
-    if [[ $? -ne 0 ]]; then
-    
-        exit 1
-    
-    fi 
-
-### Компиляция приложения:
-
-    venv_python -m pip install pyinstaller
-    pyinstaller --noconsole --onefile --name eye_tracker --icon tracking.ico --add-data "alert.wav;." --add-data "tracking.ico;." main.py
-
+![](https://myoctocat.com/assets/images/base-octocat.svg)
+### Слежение за целью
 
 ### Реализованные фунции приложения:
 #### Автоматические:
@@ -53,14 +31,14 @@
     Подача звукового сигнала при выходе объекта за границы
     Обнаружение и исправление критических ошибок во время работы программы
     Компактное расположение элементов графического интерфейса
-    Система подсказок по текущим действиям
-    Шкала прогресса в режимах калибровки
+    Система подсказок для упрощения использования программы
+    Отображение состояния прогресса в режимах калибровки
     Упаковка программы в один файл и отсутствие необходимости установки
-    Экономия и перераспределение ресурсов для улучшения качества трекинга
-    Проверка введённых значений и подсказки по ожидаемому вводу
+    Экономия ресурсов для улучшения качества трекинга и обеспечения работоспособности на слабых процессорах
+    Проверка введённых значений настроек программы и подсказки по ожидаемому вводу пользователя
 
 #### Ручные:
-    Выделение объекта
+    Выделение объекта слежения
     Прерывание процесса калибровки или выделения
     Позиционирование лазера
     Поворот изображения с камеры
@@ -69,3 +47,43 @@
     Настройки качества слежения за целью
     Дополнительные кнопки в меню настроек
     Выбор цвета отрисовки линий
+
+## Для разработчиков:
+
+### Установка проекта:
+
+    git clone https://github.com/godlike375/EyeTracker.git
+    
+    cd EyeTracker
+    
+    python -m venv /venv
+    
+    venv_python -m pip install -r requirements.txt
+    
+    venv_python main.py
+
+### Компиляция приложения под Windows:
+
+    venv_python -m pip install pyinstaller
+    pyinstaller --noconsole --onefile --name eye_tracker --icon tracking.ico --add-data "alert.wav;." --add-data "tracking.ico;." main.py
+
+#### Если нужно запускать линтер при коммитах, то вставляем себе pre-commmit хук в .git с текстом:
+
+    #!/bin/bash
+    
+    export PYTHONIOENCODING="utf-8"
+    
+    VENV_PYTHON="./venv_python.sh"
+    
+    "$VENV_PYTHON" -m flake8 ./model ./common ./view
+    
+    if [[ $? -ne 0 ]]; then
+    
+        exit 1
+    
+    fi 
+
+### Важные архитектурные особенности
+#### Программа построена на архитектуре MVVM. В основе лежит python 3.8
+> Главный исполняемый файл - ***main.py*** в корне проекта.
+***conftest.py*** - файл с предварительными настройками для pytest
