@@ -32,7 +32,7 @@ def show_error(message: str, title: str = 'Ошибка'):
 
 def show_fatal(e):
     show_error(title='Ошибка',
-               message=f'Фатальная ошибка.\n{e} \nРабота программы будет продолжена, но может стать нестабильной')
+               message=f'Фатальная ошибка.\n{e}')
     logger.fatal(e)
 
 

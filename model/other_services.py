@@ -24,8 +24,9 @@ class OnScreenService:
         self.on_screen_selectors[name] = selector
 
     def remove_selector(self, name):
-        if name in self.on_screen_selectors:
-            del self.on_screen_selectors[name]
+        if name not in self.on_screen_selectors:
+            return
+        del self.on_screen_selectors[name]
         self._model.state_control.change_state(f'{name} selected', happened=False)
         if OBJECT in name:
             self._model.tracker.cancel()
@@ -164,7 +165,7 @@ class StateMachine:
         self._all_events = (
             EventCheck('enter pressed', True, 'Выделите объект, отрегулируйте стрелками положение и нажмите Enter'
                                                '\n для подтверждения выделения'),
-            EventCheck('calibrating', True, 'Происходит процесс калибровки'),
+            EventCheck('calibrating finished', True, 'Происходит процесс калибровки'),
             EventCheck('camera connected', False, 'Подключите камеру'),
             EventCheck('laser connected', False, 'Подключите контроллер лазера'),
             EventCheck('laser calibrated', False, 'Откалибруйте лазер'),
@@ -242,6 +243,7 @@ class NoiseThresholdCalibrator(ProcessBased, Cancellable, Calibrator):
 
     @threaded
     def calibrate(self):
+        self._model.state_control.change_state('calibrating finished', happened=False)
         settings.NOISE_THRESHOLD_PERCENT = 0.0
         object = self._model.screen.get_selector(OBJECT)
         while True:
@@ -258,16 +260,16 @@ class NoiseThresholdCalibrator(ProcessBased, Cancellable, Calibrator):
         self._model.try_restore_previous_area()
         settings.NOISE_THRESHOLD_PERCENT = round(settings.NOISE_THRESHOLD_PERCENT, 5)
         self._model.state_control.change_state('noise threshold calibrated')
-        self._model.state_control.change_state('object selected', happened=False)
+        #self._model.state_control.change_state('object selected', happened=False)
         view_output.show_message('Калибровка шумоподавления успешно завершена.')
-        self._model.state_control.change_state('calibrating')
+        self._model.state_control.change_state('calibrating finished')
         self._view_model.set_menu_state('all', 'normal')
         self.finish()
 
     def cancel(self):
         super().cancel()
         settings.NOISE_THRESHOLD_PERCENT = 0.0
-        self._model.state_control.change_state('calibrating')
+        self._model.state_control.change_state('calibrating finished')
         self._view_model.set_menu_state('all', 'normal')
 
 
@@ -282,6 +284,7 @@ class CoordinateSystemCalibrator(ProcessBased, Calibrator):
 
     @threaded
     def calibrate(self):
+        self._model.state_control.change_state('calibrating finished', happened=False)
         object = self._model.screen.get_selector(OBJECT)
         area = self._model.selecting.create_selector(AREA)
         progress = 0
@@ -309,7 +312,7 @@ class CoordinateSystemCalibrator(ProcessBased, Calibrator):
 
         self._view_model.set_progress(0)
         self._view_model.progress_bar_set_visibility(False)
-        self._model.state_control.change_state('calibrating')
+        self._model.state_control.change_state('calibrating finished')
         self._view_model.set_menu_state('all', 'normal')
         self._model.state_control.change_state('object selected', happened=False)
         if self._area.is_empty:
@@ -325,5 +328,5 @@ class CoordinateSystemCalibrator(ProcessBased, Calibrator):
 
     def cancel(self):
         super().cancel()
-        self._model.state_control.change_state('calibrating')
+        self._model.state_control.change_state('calibrating finished')
         self._view_model.set_menu_state('all', 'normal')

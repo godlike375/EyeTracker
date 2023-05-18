@@ -66,7 +66,7 @@ class CameraService(Initializable):
     def extract_frame(self):
         _, frame = self._camera.read()
         if frame is None:
-            raise NoneFrameException('extracted frame is None with no reason')
+            raise NoneFrameException('Не удалось получить кадр с камеры')
         rotated = self.rotate_frame(frame)
         flipped = self.flip_frame(rotated)
         # TODO: код ниже возможно мёртвый

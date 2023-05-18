@@ -6,7 +6,7 @@ from model.common.program import exit_program
 from model.common.settings import settings, OBJECT, AREA, private_settings
 from model.common.thread_helpers import ThreadLoopable, MutableValue
 from model.area_controller import AreaController
-from model.camera_extractor import CameraService
+from model.camera_extractor import CameraService, NoneFrameException
 from model.frame_processing import Tracker
 from model.move_controller import MoveController
 from model.other_services import SelectingService, StateMachine, OnScreenService, \
@@ -23,11 +23,49 @@ RESTART_IN_TIME_SEC = 10
 #  И запускать из цикла отрисовки вьюхи тоже смысла нет, т.к. это асинхронный цикл и будет всё тормозить
 
 
+class ErrorHandler:
+    def __init__(self, view_model):
+        self._fatal_error_count_repeatedly = 0
+        self._view_model = view_model
+
+    def _handle_fatal_error(self, error):
+        self._fatal_error_count_repeatedly += 1
+        if self._fatal_error_count_repeatedly > 2:
+            view_output.show_error(f'В связи с множественными внутренними ошибками вида:\n\n'
+                                   f'[ {error} ] работа программы не может быть продолжена.\n\n'
+                                   f'Программа перезапустится автоматически через {RESTART_IN_TIME_SEC} секунд.')
+            for i in range(RESTART_IN_TIME_SEC, 0, -1):
+                sleep(1)
+                self._view_model.set_tip(f'Перезапуск программы будет произведён через {i} секунд')
+            self._view_model.execute_command(sys.exit)
+            exit_program(self, restart=True)
+
+    def handle_exceptions(self, func):
+        def wrapper(*args, **kwargs):
+            try:
+                func(*args, **kwargs)
+            except RuntimeError as e:
+                if 'dictionary changed size during iteration' in str(e):
+                    return
+                if 'dictionary keys changed during iteration' in str(e):
+                    return
+                self._handle_fatal_error(e)
+            except Exception as e:
+                self._handle_fatal_error(e)
+                logger.exception('Unexpected exception:')
+            else:
+                self._fatal_error_count_repeatedly = 0
+        return wrapper
+
+
 class Orchestrator(ThreadLoopable):
 
     def __init__(self, view_model: ViewModel, run_immediately: bool = True, area: tuple = None, debug_on=False,
                  camera=None, laser=None):
         self._view_model = view_model
+        self._error_handler = ErrorHandler(view_model)
+        self._processing_loop = self._error_handler.handle_exceptions(self._processing_loop) # manual decoration
+
         self.camera = camera or CameraService(settings.CAMERA_ID)
         self.area_controller = AreaController(min_xy=-settings.MAX_LASER_RANGE_PLUS_MINUS,
                                               max_xy=settings.MAX_LASER_RANGE_PLUS_MINUS)
@@ -46,9 +84,10 @@ class Orchestrator(ThreadLoopable):
         self.previous_area = None
         self._throttle_to_fps_viewed = time()
         self._frame_interval = MutableValue(1 / settings.FPS_VIEWED)
-        self._fatal_error_count_repeatedly = 0
+
         self.rotate_image(private_settings.ROTATION_ANGLE, user_action=False)
         self.flip_image(private_settings.FLIP_SIDE, user_action=False)
+        self._view_model.set_menu_state('all', 'normal')
         if self.camera.initialized:
             self.state_control.change_state('camera connected')
         if self.laser.initialized:
@@ -56,50 +95,24 @@ class Orchestrator(ThreadLoopable):
         if area is not None:
             self.selecting.load_selected_area(area)
 
-        # self.calibrate_laser()
+        self.calibrate_laser()
         # TODO: FIXME почему-то вызывается, но калибровки не происходит
 
         super().__init__(self._processing_loop, self._frame_interval, run_immediately)
 
     def _processing_loop(self):
-        try:
-            frame = self.camera.extract_frame()
-            if self.selecting.selecting_in_progress(OBJECT) \
-                    or not Processor.frames_are_same(frame, self._current_frame):
-                if self.tracker.in_progress:
-                    self._tracking(frame)
-                    if time() - self._throttle_to_fps_viewed < 1 / settings.FPS_VIEWED:
-                        return
-                    else:
-                        self._throttle_to_fps_viewed = time()
-                processed_image = self.screen.prepare_image(frame)
-                self._view_model.on_image_ready(processed_image)
-            self._current_frame = frame
-
-        except RuntimeError as re:
-            if 'dictionary changed size during iteration' in str(re):
-                return
-            if 'dictionary keys changed during iteration' in str(re):
-                return
-            view_output.show_fatal(re)
-        except Exception as e:
-            self._handle_fatal_error()
-            view_output.show_fatal(e)
-            logger.exception('Unexpected exception:')
-        else:
-            self._fatal_error_count_repeatedly = 0
-
-    def _handle_fatal_error(self):
-        self._fatal_error_count_repeatedly += 1
-        if self._fatal_error_count_repeatedly > 2:
-            view_output.show_error(f'В связи с множественными внутренними ошибками подключения и синхронизации '
-                                   f' работа программы не может быть продолжена.'
-                                   f' Программа перезапустится автоматически через {RESTART_IN_TIME_SEC} секунд')
-            for i in range(RESTART_IN_TIME_SEC, 0, -1):
-                sleep(1)
-                self._view_model.set_tip(f'Перезапуск программы будет произведён через {i} секунд')
-            self._view_model.execute_command(sys.exit)
-            exit_program(self, restart=True)
+        frame = self.camera.extract_frame()
+        if self.selecting.selecting_in_progress(OBJECT) \
+                or not Processor.frames_are_same(frame, self._current_frame):
+            if self.tracker.in_progress:
+                self._tracking(frame)
+                if time() - self._throttle_to_fps_viewed < 1 / settings.FPS_VIEWED:
+                    return
+                else:
+                    self._throttle_to_fps_viewed = time()
+            processed_image = self.screen.prepare_image(frame)
+            self._view_model.on_image_ready(processed_image)
+        self._current_frame = frame
 
     def _calibrating_in_progress(self):
         return any([i.in_progress for i in self.calibrators.values()])
@@ -109,9 +122,9 @@ class Orchestrator(ThreadLoopable):
         if self._calibrating_in_progress():
             return
         object_relative_coords = self._move_to_relative_cords(center)
-        if object_relative_coords is not None:
-            self._view_model.set_tip(f'Текущие координаты объекта: '
-                                     f'{object_relative_coords.x, object_relative_coords.y}')
+        #if object_relative_coords is not None:
+        self._view_model.set_tip(f'Текущие координаты объекта: '
+                                 f'{object_relative_coords.x, object_relative_coords.y}')
 
     def try_restore_previous_area(self):
         if self.previous_area is not None:
@@ -126,6 +139,7 @@ class Orchestrator(ThreadLoopable):
 
         relative_coords = self.area_controller.calc_laser_coords(center)
         self.laser.set_new_position(relative_coords)
+        return relative_coords
 
     def _on_laser_error(self):
         self.cancel_active_process(need_confirm=False)
@@ -239,7 +253,8 @@ class Orchestrator(ThreadLoopable):
         else:
             self._view_model.setup_window_geometry(reverse=False)
         self._view_model.set_rotate_angle(degree)
-        self.state_control.change_state('coordinate system changed')
+        if user_action:
+            self.state_control.change_state('coordinate system changed')
 
     def flip_image(self, side, user_action=True):
         if private_settings.FLIP_SIDE == side and user_action:
@@ -255,7 +270,8 @@ class Orchestrator(ThreadLoopable):
         self.previous_area = None
         self.camera.set_frame_flip(side)
         self._view_model.set_flip_side(side)
-        self.state_control.change_state('coordinate system changed')
+        if user_action:
+            self.state_control.change_state('coordinate system changed')
 
     def stop_thread(self):
         cancel_all_calibrators = [i.cancel() for i in self.calibrators.values()]

@@ -1,21 +1,13 @@
 from unittest.mock import Mock, patch
 
-import pytest
-
-from model.domain_services import Orchestrator
 from model.common.settings import AREA, OBJECT
+
 from tests.test_selector import test_object_selector, selected_object_points
-from tests.test_camera_extractor import mocked_source_camera
+from tests.test_domain_services import fake_model, mocked_source_camera, fake_view_model
 
 
-@pytest.fixture
-def get_model(mocked_source_camera):
-    return Orchestrator(view_model=Mock(), area=None, debug_on=True, run_immediately=False, camera=mocked_source_camera,
-                        laser=Mock())
-
-
-def test_model_select(get_model, selected_object_points):
-    model = get_model
+def test_model_select(fake_model, selected_object_points):
+    model = fake_model
 
     object = model.selecting.try_create_selector(OBJECT, reselect_while_calibrating=False, additional_callback=None)
     object._after_selection = Mock()

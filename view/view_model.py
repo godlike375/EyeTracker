@@ -77,7 +77,6 @@ class ViewModel:
         elif event.keysym == 'Return':  # (enter)
             object_selector.finish_selecting()
             self._model.state_control.change_state('enter pressed')
-            self._model.state_control.change_state('calibrating', happened=False)
 
     def new_selection(self, name, reselect_while_calibrating=False, additional_callback=None, selector=None):
         # TODO: кроме name параметры нужны только чтобы передать их в new_selection модели
