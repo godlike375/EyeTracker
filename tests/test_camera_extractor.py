@@ -2,7 +2,6 @@ from unittest.mock import Mock, patch
 import pytest
 from eye_tracker.common.settings import FLIP_SIDE_NONE, FLIP_SIDE_HORIZONTAL, FLIP_SIDE_VERTICAL
 from eye_tracker.model import camera_extractor
-from tests.fixtures import mocked_source_camera, black_frame
 
 
 def patch_extractor(extractor, frame=None):

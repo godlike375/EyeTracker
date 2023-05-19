@@ -2,8 +2,6 @@ from itertools import repeat
 from eye_tracker.common.coordinates import Point
 from unittest.mock import Mock
 from eye_tracker.model.selector import ObjectSelector, AreaSelector, MIN_DISTANCE_BETWEEN_POINTS
-import pytest
-from tests.fixtures import selected_object_points
 
 
 def test_object_selector(selected_object_points, created_selector=None):
@@ -24,13 +22,6 @@ def test_object_selector_swap_coordinates(selected_object_points):
     test_object_selector(selected_object_points[::-1])
 
 
-@pytest.fixture
-def selected_area_points():
-    return [Point(0, 0), Point(MIN_DISTANCE_BETWEEN_POINTS, 0),
-            Point(MIN_DISTANCE_BETWEEN_POINTS, MIN_DISTANCE_BETWEEN_POINTS),
-            Point(0, MIN_DISTANCE_BETWEEN_POINTS)]
-
-
 def test_area_selector(selected_area_points, created_selector=None):
     callback = Mock(return_value=None)
     selector = created_selector or AreaSelector('test_selector', callback)
@@ -41,3 +32,7 @@ def test_area_selector(selected_area_points, created_selector=None):
     assert selector.is_done
     assert selector._points == selected_area_points
     return selector
+
+
+def test_area_selector_swap_coordinates(selected_area_points):
+    test_area_selector(selected_area_points[::-1])

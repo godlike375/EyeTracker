@@ -19,3 +19,13 @@ def test_thread_loopable():
     sleep(thread_loop_run_time)
     loopable.stop_thread()
     assert loopable.counter < 5
+
+
+def test_mutable_value():
+    test = MutableValue(1)
+
+    def mutate(val: MutableValue):
+        val.value *= 2
+
+    mutate(test)
+    assert test.value == 2

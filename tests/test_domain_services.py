@@ -1,10 +1,8 @@
 from unittest.mock import Mock
 
-from eye_tracker.common.settings import settings, OBJECT
+from eye_tracker.common.settings import settings, OBJECT, AREA
 from eye_tracker.view.view_model import SELECTION_MENU_NAME
 from eye_tracker.model.domain_services import ErrorHandler
-
-from tests.fixtures import mocked_source_camera, fake_model, fake_area
 
 
 def test_restart_after_multiple_errors(fake_model):
@@ -86,3 +84,12 @@ def test_correct_menu_items_hidden(fake_model, fake_area):
     fake_model._on_area_selected()
     assert view_model.menu_state == [('all', 'normal'), (SELECTION_MENU_NAME, 'disabled')]
     view_model.menu_state.clear()
+
+
+def test_cancel_active_process(fake_model):
+    area = fake_model.selecting.try_create_selector(AREA, reselect_while_calibrating=False, additional_callback=None)
+    area._after_selection = Mock()
+    area.start()
+    assert fake_model.screen.selector_exists(AREA)
+    fake_model.cancel_active_process(need_confirm=False)
+    assert not fake_model.screen.selector_exists(AREA)

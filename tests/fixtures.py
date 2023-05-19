@@ -54,3 +54,48 @@ def black_frame():
 @pytest.fixture
 def selected_object_points():
     return [Point(0, 0), Point(1, 1), Point(2, 2), Point(MIN_DISTANCE_BETWEEN_POINTS, MIN_DISTANCE_BETWEEN_POINTS)]
+
+
+@pytest.fixture
+def selected_area_points():
+    return [Point(0, 0), Point(MIN_DISTANCE_BETWEEN_POINTS, 0),
+            Point(MIN_DISTANCE_BETWEEN_POINTS, MIN_DISTANCE_BETWEEN_POINTS),
+            Point(0, MIN_DISTANCE_BETWEEN_POINTS)]
+
+
+@pytest.fixture
+def test_config_ini():
+    return """
+[settings]
+camera_id = 5
+camera_max_height_resolution = 640
+fps_viewed = 19
+fps_processed = 76
+serial_baud_rate = 115200
+serial_timeout = 0.01
+serial_port = 1
+mean_coordinates_frame_count = 2
+noise_threshold_percent = 0.0
+threshold_calibration_duration = 8
+stable_position_duration = 0.67
+max_laser_range_plus_minus = 6000
+downscale_factor = 0.25
+same_frames_threshold = 0.53
+        """
+
+
+@pytest.fixture
+def relative_coords():
+    return (
+        (Point(50, 50), Point(0, 0)),
+        (Point(0, 0), Point(-100, -100)),
+        (Point(100, 100), Point(100, 100)),
+    )
+
+
+@pytest.fixture
+def intersected_coords():
+    return (
+        (Point(-10, -10), True),
+        (Point(10, 10), False)
+    )

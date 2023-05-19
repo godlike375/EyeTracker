@@ -114,7 +114,7 @@ class SelectingService(Cancellable):
             if not confirm:
                 return False
 
-        return True
+        return self.selecting_is_done(AREA)
 
     def is_area_selection_allowed(self, dont_reselect_area):
         # TODO: поправить логику и сделать без костылей вроде этого
