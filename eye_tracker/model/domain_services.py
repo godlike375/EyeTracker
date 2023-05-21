@@ -24,15 +24,16 @@ from eye_tracker.view.view_model import ViewModel
 class ErrorHandler:
     RESTART_IN_TIME_SEC = 10
 
-    def __init__(self, view_model):
+    def __init__(self, view_model, model):
         self._fatal_error_count_repeatedly = 0
         self._view_model = view_model
+        self._model = model
 
     def _handle_fatal_error(self, error):
         self._fatal_error_count_repeatedly += 1
         if self._fatal_error_count_repeatedly > 2:
             view_output.show_error \
-                (
+                    (
                     f'В связи с множественными внутренними ошибками вида:\n\n'
                     f'[ {error} ] работа программы не может быть продолжена.\n\n'
                     f'Программа перезапустится автоматически через {ErrorHandler.RESTART_IN_TIME_SEC} секунд.'
@@ -42,7 +43,7 @@ class ErrorHandler:
                 self._view_model.set_tip(f'Перезапуск программы будет произведён через {i} секунд')
             self._view_model.execute_command(sys.exit)
             logger.debug('fatal error')
-            exit_program(self, restart=True)
+            exit_program(self._model, restart=True)
 
     def handle_exceptions(self, func):
         def wrapper(*args, **kwargs):
@@ -66,7 +67,7 @@ class Orchestrator(ThreadLoopable):
     def __init__(self, view_model: ViewModel, run_immediately: bool = True, area: tuple = None, debug_on=False,
                  camera=None, laser=None):
         self._view_model = view_model
-        self._error_handler = ErrorHandler(view_model)
+        self._error_handler = ErrorHandler(view_model, self)
         self._processing_loop = self._error_handler.handle_exceptions(self._processing_loop)  # manual decoration
 
         self.camera = camera or CameraService(settings.CAMERA_ID)
@@ -125,9 +126,9 @@ class Orchestrator(ThreadLoopable):
         if self._calibrating_in_progress():
             return
         object_relative_coords = self._move_to_relative_cords(center)
-        # if object_relative_coords is not None:
-        self._view_model.set_tip(f'Текущие координаты объекта: '
-                                 f'{object_relative_coords.x, object_relative_coords.y}')
+        if object_relative_coords is not None:
+            self._view_model.set_tip(f'Текущие координаты объекта: '
+                                     f'{object_relative_coords.x, object_relative_coords.y}')
 
     def try_restore_previous_area(self):
         if self.previous_area is not None:

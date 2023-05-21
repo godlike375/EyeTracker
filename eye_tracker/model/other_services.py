@@ -227,13 +227,13 @@ class NoiseThresholdCalibrator(ProcessBased, Cancellable, Calibrator):
             self._last_timestamp = time()
             return False
         elif time() - self._last_timestamp > settings.THRESHOLD_CALIBRATION_DURATION:
-            self.cancel()
+            self.finish()
             return True
 
     def _calibration_progress(self):
         return int(((time() - self._last_timestamp) / settings.THRESHOLD_CALIBRATION_DURATION) * PERCENT_FROM_DECIMAL)
 
-    def _threshold_calibrating(self, center):
+    def _calibrating_finish(self, center):
         if self._is_calibration_successful(center):
             return True
 
@@ -250,7 +250,7 @@ class NoiseThresholdCalibrator(ProcessBased, Cancellable, Calibrator):
             if not self.in_progress:
                 exit()
             sleep(self._delay_sec)
-            if self._threshold_calibrating(object.center):
+            if self._calibrating_finish(object.center):
                 break
         self._on_calibrated()
 
@@ -262,13 +262,15 @@ class NoiseThresholdCalibrator(ProcessBased, Cancellable, Calibrator):
         self._model.state_control.change_state('noise threshold calibrated')
         # self._model.state_control.change_state('object selected', happened=False)
         view_output.show_message('Калибровка шумоподавления успешно завершена.')
-        self._model.state_control.change_state('calibrating finished')
-        self._view_model.set_menu_state('all', 'normal')
-        self.finish()
 
     def cancel(self):
         super().cancel()
         settings.NOISE_THRESHOLD_PERCENT = 0.0
+        self._model.state_control.change_state('calibrating finished')
+        self._view_model.set_menu_state('all', 'normal')
+
+    def finish(self):
+        super().finish()
         self._model.state_control.change_state('calibrating finished')
         self._view_model.set_menu_state('all', 'normal')
 
@@ -292,6 +294,7 @@ class CoordinateSystemCalibrator(ProcessBased, Calibrator):
 
         for point in self._laser_borders:
             self._model.laser.set_new_position(point)
+            logger.debug(f'setting laser position {point.x, point.y}')
             self._wait_for_controller_ready()
 
             area.left_button_click(object.center)
@@ -312,8 +315,6 @@ class CoordinateSystemCalibrator(ProcessBased, Calibrator):
 
         self._view_model.set_progress(0)
         self._view_model.progress_bar_set_visibility(False)
-        self._model.state_control.change_state('calibrating finished')
-        self._view_model.set_menu_state('all', 'normal')
         self._model.state_control.change_state('object selected', happened=False)
         if self._area.is_empty:
             view_output.show_error('Необходимо повторить калибровку на более близком расстоянии '
@@ -328,5 +329,10 @@ class CoordinateSystemCalibrator(ProcessBased, Calibrator):
 
     def cancel(self):
         super().cancel()
+        self._model.state_control.change_state('calibrating finished')
+        self._view_model.set_menu_state('all', 'normal')
+
+    def finish(self):
+        super().finish()
         self._model.state_control.change_state('calibrating finished')
         self._view_model.set_menu_state('all', 'normal')

@@ -2,22 +2,22 @@ from unittest.mock import Mock, patch
 
 from eye_tracker.common.settings import AREA, OBJECT
 
-from tests.test_selector import test_object_selector, test_area_selector
+from tests.test_selector import select_object_emulate, select_area_emulate
 
 
-def test_model_select(fake_model, selected_object_points, selected_area_points):
+def test_select_area_and_object(fake_model, selected_object_points, selected_area_points):
     model = fake_model
 
     area = model.selecting.try_create_selector(AREA, reselect_while_calibrating=False, additional_callback=None)
     area._after_selection = Mock()
-    test_area_selector(selected_area_points, created_selector=area)
+    select_area_emulate(selected_area_points, created_selector=area)
     assert area is not None
     selected, _ = fake_model.selecting.check_selected_correctly(AREA)
     assert selected
 
     object = model.selecting.try_create_selector(OBJECT, reselect_while_calibrating=False, additional_callback=None)
     object._after_selection = Mock()
-    test_object_selector(selected_object_points, created_selector=object)
+    select_object_emulate(selected_object_points, created_selector=object)
     assert object is not None
     selected, _ = fake_model.selecting.check_selected_correctly(OBJECT)
     assert selected
@@ -38,12 +38,12 @@ def test_not_selected(fake_model):
     screen = fake_model.screen
     selecting = fake_model.selecting
 
-    area = selecting.create_selector(AREA)
+    selecting.create_selector(AREA)
     assert screen.selector_exists(AREA)
     selected, _ = selecting.check_selected_correctly(AREA)
     assert not selected
 
-    object = selecting.create_selector(OBJECT)
+    selecting.create_selector(OBJECT)
     assert screen.selector_exists(OBJECT)
     selected, _ = selecting.check_selected_correctly(OBJECT)
     assert not selected

@@ -19,6 +19,6 @@ private_settings.save = Mock(return_value=None)
 private_settings.load = Mock(return_value=None)
 
 # https://stackoverflow.com/questions/33225086/how-often-does-python-switch-threads
-sys.setswitchinterval(0.0005)
+sys.setswitchinterval(0.00005)
 
 from tests.fixtures import *
