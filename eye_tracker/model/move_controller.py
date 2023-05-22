@@ -1,5 +1,4 @@
 from time import time
-from functools import partial
 
 from serial import Serial, SerialException
 from serial.tools import list_ports
@@ -8,9 +7,8 @@ from eye_tracker.common.abstractions import Initializable
 from eye_tracker.common.coordinates import Point
 from eye_tracker.common.logger import logger
 from eye_tracker.common.settings import settings, CALIBRATE_LASER_COMMAND_ID
-from eye_tracker.view import view_output
 from eye_tracker.common.thread_helpers import ThreadLoopable, MutableValue
-from eye_tracker.model.command_processor import CommandExecutor
+from eye_tracker.view import view_output
 
 READY = 'ready'
 ERRORED = 'error'
@@ -32,7 +30,7 @@ class MoveController(Initializable, ThreadLoopable):
         self._current_line = ''
         self._serial = SerialStub()
         self._on_laser_error = on_laser_error
-        self._pool_interval = MutableValue(1 / int(settings.FPS_PROCESSED * 0.5) )
+        self._pool_interval = MutableValue(1 / int(settings.FPS_PROCESSED * 0.5))
         self._next_command_point = None
 
         MAX_LASER_RANGE = settings.MAX_LASER_RANGE_PLUS_MINUS
@@ -77,11 +75,10 @@ class MoveController(Initializable, ThreadLoopable):
         serial_data = self._serial.readline()
         new_errored = self._errored or ERRORED in str(serial_data)
 
-
         if new_errored and self._errored != new_errored:
             view_output.show_error('Контроллер лазера внезапно дошёл до предельных координат. \n'
-                               'Необходимо откалибровать контроллер лазера повторно. '
-                               'До этого момента слежение за объектом невозможно')
+                                   'Необходимо откалибровать контроллер лазера повторно. '
+                                   'До этого момента слежение за объектом невозможно')
             self._errored = new_errored
             self._on_laser_error()
             return
@@ -96,7 +93,6 @@ class MoveController(Initializable, ThreadLoopable):
             self._stable_position_timer = time()
             self._ready = False
             self._next_command_point = None
-
 
     @property
     def is_stable_position(self):
