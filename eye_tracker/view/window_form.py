@@ -14,11 +14,8 @@ from eye_tracker.common.settings import (
 )
 from eye_tracker.model.command_processor import CommandExecutor
 from eye_tracker.view.view_model import (
-    CALIBRATION_MENU_NAME,
-    SELECTION_MENU_NAME,
-    ROTATION_MENU_NAME,
-    FLIP_MENU_NAME,
-    MANUAL_MENU_NAME
+    CALIBRATION_MENU_NAME, SELECTION_MENU_NAME, ROTATION_MENU_NAME,
+    FLIP_MENU_NAME, MANUAL_MENU_NAME, ABORT_MENU_NAME
 )
 from eye_tracker.view.window_settings import WindowSettings
 from eye_tracker.common.settings import ASSETS_FOLDER
@@ -65,7 +62,7 @@ class View:
         object_callback = partial(self._view_model.new_selection, OBJECT)
         main_menu.add_command(label=SELECTION_MENU_NAME, command=object_callback)
 
-        main_menu.add_command(label='Прервать', command=self._view_model.cancel_active_process)
+        main_menu.add_command(label=ABORT_MENU_NAME, command=self._view_model.cancel_active_process)
 
         rotation_menu = self.setup_rotation_menu()
         main_menu.add_cascade(label=ROTATION_MENU_NAME, menu=rotation_menu)

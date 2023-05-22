@@ -13,6 +13,7 @@ SELECTION_MENU_NAME = 'Выделить объект'
 ROTATION_MENU_NAME = 'Повернуть'
 FLIP_MENU_NAME = 'Отразить'
 MANUAL_MENU_NAME = 'Ручное управление'
+ABORT_MENU_NAME = 'Прервать'
 SAME_RULES_CHANGEABLE = (CALIBRATION_MENU_NAME, ROTATION_MENU_NAME, FLIP_MENU_NAME, MANUAL_MENU_NAME)
 
 MOUSE_EVENTS = ('<Button-1>', '<B1-Motion>', '<ButtonRelease-1>', '<KeyPress>')
@@ -195,6 +196,9 @@ class ViewModel:
                 self.execute_command(partial(self._view._menu.entryconfig, i, state=state))
             if state == 'disabled':
                 self.set_menu_state(SELECTION_MENU_NAME, 'disabled')
+                self.set_menu_state(ABORT_MENU_NAME, 'normal')
+            elif state == 'normal':
+                self.set_menu_state(ABORT_MENU_NAME, 'disabled')
             return
 
         self.execute_command(partial(self._view._menu.entryconfig, label, state=state))

@@ -127,7 +127,10 @@ class Orchestrator(ThreadLoopable):
             return
         object_relative_coords = self._move_to_relative_cords(center)
         if object_relative_coords is not None:
-            self._view_model.set_tip(f'Текущие координаты объекта: '
+            if self.tracker.in_progress:
+                # вторая проверка нужна из-за многопоточности, чтобы лучше была синхронизация и меньше шанс,
+                # что координаты выведутся после прерывания процесса и собьют вывод подсказки
+                self._view_model.set_tip(f'Текущие координаты объекта: '
                                      f'{object_relative_coords.x, object_relative_coords.y}')
 
     def try_restore_previous_area(self):
@@ -238,6 +241,7 @@ class Orchestrator(ThreadLoopable):
         if is_calibrating:
             self.try_restore_previous_area()
         Processor.load_color()  # Если вышло за границу и отменили, то остаётся красный цвет
+        self._view_model.set_menu_state('all', 'normal')
 
     def rotate_image(self, degree, user_action=True):
         if private_settings.ROTATION_ANGLE == degree and user_action:

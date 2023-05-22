@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from functools import partial
 from time import time, sleep
 
-from eye_tracker.common.abstractions import Cancellable, ProcessBased, Calibrator
+from eye_tracker.common.abstractions import ProcessBased, Calibrator
 
 from eye_tracker.common.logger import logger
 from eye_tracker.common.settings import AREA, OBJECT, settings, MIN_THROTTLE_DIFFERENCE
@@ -48,7 +48,7 @@ class OnScreenService:
         return frame
 
 
-class SelectingService(Cancellable):
+class SelectingService(ProcessBased):
     def __init__(self, area_selected_callback, object_selected_callback, model, screen, view_model):
         self._on_area_selected = area_selected_callback
         self._on_object_selected = object_selected_callback
@@ -91,6 +91,7 @@ class SelectingService(Cancellable):
         return self._screen.selector_exists(name) and self._screen.get_selector(name).in_progress
 
     def cancel(self):
+        self._model.state_control.change_state('enter pressed')
         for name in (AREA, OBJECT):
             if not self._screen.selector_exists(name):
                 continue
@@ -203,7 +204,7 @@ class StateMachine:
                 return event
 
 
-class NoiseThresholdCalibrator(ProcessBased, Cancellable, Calibrator):
+class NoiseThresholdCalibrator(ProcessBased, Calibrator):
     CALIBRATION_THRESHOLD_STEP = 0.0025
 
     # В течение settings.THRESHOLD_CALIBRATION_DURATION секунд цель трекинга не должна двигаться
@@ -264,9 +265,10 @@ class NoiseThresholdCalibrator(ProcessBased, Cancellable, Calibrator):
         view_output.show_message('Калибровка шумоподавления успешно завершена.')
 
     def cancel(self):
+        if not self.in_progress:
+            return
         super().cancel()
         settings.NOISE_THRESHOLD_PERCENT = 0.0
-        self._model.state_control.change_state('calibrating finished')
         self._view_model.set_menu_state('all', 'normal')
 
     def finish(self):
@@ -328,8 +330,9 @@ class CoordinateSystemCalibrator(ProcessBased, Calibrator):
         self._model.center_laser()
 
     def cancel(self):
+        if not self.in_progress:
+            return
         super().cancel()
-        self._model.state_control.change_state('calibrating finished')
         self._view_model.set_menu_state('all', 'normal')
 
     def finish(self):

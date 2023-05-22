@@ -1,7 +1,7 @@
 from abc import ABC
 
 from eye_tracker.common.coordinates import Point
-from eye_tracker.common.abstractions import RectBased, Drawable, Cancellable, ProcessBased
+from eye_tracker.common.abstractions import RectBased, Drawable, ProcessBased
 from eye_tracker.common.logger import logger
 from eye_tracker.view.drawing import Processor
 
@@ -15,7 +15,7 @@ POINTS_ORIENTATION = ['TL', 'TR', 'BR', 'BL']
 CORRECTIVE_STEP_PIXELS = 1
 
 
-class Selector(Cancellable, ABC, ProcessBased):
+class Selector(ABC, ProcessBased):
     def __init__(self, name: str, callback, points: tuple = None):
         ProcessBased.__init__(self)
         self.name = name
@@ -24,7 +24,6 @@ class Selector(Cancellable, ABC, ProcessBased):
         self._unbindings = []
 
     def left_button_click(self, coordinates):
-        self.start()
         self._points.append(coordinates)
 
     def left_button_down_moved(self, event):
@@ -55,6 +54,7 @@ class Selector(Cancellable, ABC, ProcessBased):
         self._points = top_points + bottom_points
 
     def bind_events(self, events, unbindings):
+        self.start()
         self._unbindings = unbindings
 
     def finish_selecting(self):
@@ -67,10 +67,10 @@ class Selector(Cancellable, ABC, ProcessBased):
     def cancel(self):
         if not self.in_progress:
             return
-        super().cancel()
         self._points.clear()
         for unbind in self._unbindings:
             unbind[EVENT_NAME]()
+        ProcessBased.cancel(self)
 
 
 class ObjectSelector(RectBased, Drawable, Selector):

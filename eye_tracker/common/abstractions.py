@@ -4,13 +4,6 @@ from eye_tracker.common.coordinates import Point
 from eye_tracker.common.thread_helpers import threaded
 
 
-class Cancellable(ABC):
-
-    @abstractmethod
-    def cancel(self):
-        ...
-
-
 class ProcessBased:
 
     def __init__(self):

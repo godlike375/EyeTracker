@@ -3,14 +3,14 @@ from itertools import chain, repeat
 
 import dlib
 
-from eye_tracker.common.abstractions import ProcessBased, RectBased, Drawable, Cancellable
+from eye_tracker.common.abstractions import ProcessBased, RectBased, Drawable
 from eye_tracker.common.coordinates import Point, calc_center
 from eye_tracker.common.logger import logger
 from eye_tracker.common.settings import settings
 from eye_tracker.view.drawing import Processor
 
 
-class Tracker(RectBased, Drawable, ProcessBased, Cancellable):
+class Tracker(RectBased, Drawable, ProcessBased):
     def __init__(self, mean_count=settings.MEAN_COORDINATES_FRAME_COUNT):
         ProcessBased.__init__(self)
         self._mean_count = mean_count
