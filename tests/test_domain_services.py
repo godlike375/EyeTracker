@@ -7,6 +7,7 @@ from eye_tracker.model.domain_services import ErrorHandler
 from eye_tracker.common.settings import FLIP_SIDE_NONE, FLIP_SIDE_VERTICAL
 from eye_tracker.common.coordinates import Point
 from eye_tracker.model.move_controller import MoveController, SerialStub
+from eye_tracker.model.frame_processing import Tracker
 
 from tests.test_selector import select_area_emulate, select_object_emulate
 
@@ -146,28 +147,35 @@ def test_noise_calibrate(fake_model, selected_object_points, black_frame):
 
 def test_coordinates_calibrate(fake_model, selected_object_points, black_frame, selected_area_points):
     fake_model._current_frame = black_frame
-    fake_model.laser = MoveController(Mock())
-    SerialStub.READY_INTERVAL = 1.1
-    coordinate_calibrator = fake_model.calibrators['coordinate system']
-    fake_model.calibrate_coordinate_system()
-    fake_model.selecting.try_create_selector(name=OBJECT, reselect_while_calibrating=True,
-                                             additional_callback=coordinate_calibrator.calibrate)
-    assert fake_model.screen.selector_exists(OBJECT)
-    object = fake_model.screen.get_selector(OBJECT)
-
-    MAX_LASER_RANGE = settings.MAX_LASER_RANGE_PLUS_MINUS
-    left_top = Point(-MAX_LASER_RANGE, -MAX_LASER_RANGE)
-    right_top = Point(MAX_LASER_RANGE, -MAX_LASER_RANGE)
-    right_bottom = Point(MAX_LASER_RANGE, MAX_LASER_RANGE)
-    left_bottom = Point(-MAX_LASER_RANGE, MAX_LASER_RANGE)
-    coordinate_calibrator._laser_borders = [left_top, right_top, right_bottom, left_bottom]
-
-    select_object_emulate(selected_object_points, object)
-    sleep(0.15)
     current_point = iter(selected_area_points)
-    while coordinate_calibrator.in_progress:
-        sleep(1)
-        if fake_model.screen.selector_exists(OBJECT):
-            fake_model.screen.get_selector(OBJECT)._center = next(current_point)
-    assert fake_model.screen.selector_exists(AREA)
-    fake_model.laser.stop_thread()
+
+    def fake_object_center(_):
+        return next(current_point)
+
+    fake_model.laser = MoveController(Mock(), run_immediately=False)
+    with fake_model.laser as laser:
+        SerialStub.READY_INTERVAL = 0.1
+        coordinate_calibrator = fake_model.calibrators['coordinate system']
+
+
+        coordinate_calibrator.get_object_center = fake_object_center
+
+        fake_model.calibrate_coordinate_system()
+        fake_model.selecting.try_create_selector(name=OBJECT, reselect_while_calibrating=True,
+                                                 additional_callback=coordinate_calibrator.calibrate)
+        assert fake_model.screen.selector_exists(OBJECT)
+        object = fake_model.screen.get_selector(OBJECT)
+
+        MAX_LASER_RANGE = settings.MAX_LASER_RANGE_PLUS_MINUS
+        left_top = Point(-MAX_LASER_RANGE, -MAX_LASER_RANGE)
+        right_top = Point(MAX_LASER_RANGE, -MAX_LASER_RANGE)
+        right_bottom = Point(MAX_LASER_RANGE, MAX_LASER_RANGE)
+        left_bottom = Point(-MAX_LASER_RANGE, MAX_LASER_RANGE)
+        coordinate_calibrator._laser_borders = [left_top, right_top, right_bottom, left_bottom]
+
+        select_object_emulate(selected_object_points, object)
+        sleep(3.5)
+        assert fake_model.screen.selector_exists(AREA)
+        result, _ = fake_model.selecting.check_selected_correctly(AREA)
+        laser.stop_thread()
+        assert result

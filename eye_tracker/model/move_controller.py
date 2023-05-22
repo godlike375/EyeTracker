@@ -15,6 +15,7 @@ from eye_tracker.model.command_processor import CommandExecutor
 READY = 'ready'
 ERRORED = 'error'
 LASER_DEVICE_NAME = 'usb-serial ch340'
+COMMAND_MOVE = 1
 
 
 class MoveController(Initializable, ThreadLoopable):
@@ -26,13 +27,13 @@ class MoveController(Initializable, ThreadLoopable):
         baud_rate = baud_rate or settings.SERIAL_BAUD_RATE
         self._stable_position_timer = 0
         self._current_position = Point(0, 0)
-        self._ready = True
+        self._ready = False
         self._errored = False
         self._current_line = ''
         self._serial = SerialStub()
         self._on_laser_error = on_laser_error
         self._pool_interval = MutableValue(1 / int(settings.FPS_PROCESSED * 0.5) )
-        self._commands = CommandExecutor()
+        self._next_command_point = None
 
         MAX_LASER_RANGE = settings.MAX_LASER_RANGE_PLUS_MINUS
         left_top = Point(-MAX_LASER_RANGE, -MAX_LASER_RANGE)
@@ -77,12 +78,11 @@ class MoveController(Initializable, ThreadLoopable):
         new_errored = self._errored or ERRORED in str(serial_data)
 
 
-        if self.is_errored:
-            if new_errored and self._errored != new_errored:
-                view_output.show_error('Контроллер лазера внезапно дошёл до предельных координат. \n'
-                                   'Необходимо откалибровать контроллер лазера повторно. '
-                                   'До этого момента слежение за объектом невозможно')
-                self._errored = new_errored
+        if new_errored and self._errored != new_errored:
+            view_output.show_error('Контроллер лазера внезапно дошёл до предельных координат. \n'
+                               'Необходимо откалибровать контроллер лазера повторно. '
+                               'До этого момента слежение за объектом невозможно')
+            self._errored = new_errored
             self._on_laser_error()
             return
 
@@ -90,9 +90,12 @@ class MoveController(Initializable, ThreadLoopable):
             return
 
         self._ready = self._ready or READY in str(serial_data)
-        if self._ready and self._commands.exec_latest_command():
+
+        if self._ready and self._next_command_point is not None:
+            self._move_laser(*self._next_command_point)
             self._stable_position_timer = time()
             self._ready = False
+            self._next_command_point = None
 
 
     @property
@@ -109,7 +112,7 @@ class MoveController(Initializable, ThreadLoopable):
     def is_errored(self):
         return self._errored
 
-    def _move_laser(self, position: Point, command=1):
+    def _move_laser(self, position: Point, command=COMMAND_MOVE):
         message = (f'{position.x};{position.y};{command}\n').encode('ascii', 'ignore')
         self._serial.write(message)
 
@@ -130,7 +133,7 @@ class MoveController(Initializable, ThreadLoopable):
 
         self._stable_position_timer = time()
         self._current_position = position
-        self._commands.queue_command(partial(self._move_laser, position))
+        self._next_command_point = (position, COMMAND_MOVE)
 
     def calibrate_laser(self):
         logger.debug('laser calibrated')
@@ -141,13 +144,13 @@ class MoveController(Initializable, ThreadLoopable):
         logger.debug('laser centered')
         self.move_laser(0, 0)
 
-    def move_laser(self, x, y, command=1):
+    def move_laser(self, x, y, command=COMMAND_MOVE):
         logger.debug(f'laser moved to {x, y}')
 
         if self.is_errored:
             return
 
-        self._commands.queue_command(partial(self._move_laser, Point(x, y), command))
+        self._next_command_point = (Point(x, y), command)
 
     def controller_is_ready(self):
         return self.is_stable_position and self.is_ready
@@ -158,12 +161,19 @@ class SerialStub(Serial):
 
     def __init__(self):
         self._ready_timer = time()
+        self._errored = False
+
+    def generate_error(self):
+        self._errored = True
 
     @property
     def _is_ready(self):
         return time() - self._ready_timer >= SerialStub.READY_INTERVAL
 
     def readline(self, **kwargs):
+        if self._errored:
+            self._errored = False
+            return 'error'
         if self._is_ready:
             return 'ready'
         return ''

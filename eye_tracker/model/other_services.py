@@ -286,6 +286,9 @@ class CoordinateSystemCalibrator(ProcessBased, Calibrator):
         self._delay_sec = 1 / settings.FPS_VIEWED
         self._area = None
 
+    def get_object_center(self, object):
+        return object.center
+
     @threaded
     def calibrate(self):
         self._model.state_control.change_state('calibrating finished', happened=False)
@@ -298,8 +301,8 @@ class CoordinateSystemCalibrator(ProcessBased, Calibrator):
             self._model.laser.set_new_position(point)
             logger.debug(f'setting laser position {point.x, point.y}')
             self._wait_for_controller_ready()
-
-            area.left_button_click(object.center)
+            area_point = self.get_object_center(object)
+            area.left_button_click(area_point)
             progress += 25
             self._view_model.set_progress(progress)
 

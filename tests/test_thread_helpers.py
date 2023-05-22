@@ -4,7 +4,7 @@ from time import sleep
 
 def test_thread_loopable():
     thread_loop_interval = MutableValue(0.000001)
-    thread_loop_run_time = 0.45
+    thread_loop_run_time = 0.47
 
     class Loopable(ThreadLoopable):
         def __init__(self):
