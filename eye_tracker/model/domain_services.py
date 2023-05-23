@@ -126,12 +126,14 @@ class Orchestrator(ThreadLoopable):
         if self._calibrating_in_progress():
             return
         object_relative_coords = self._move_to_relative_cords(center)
-        if object_relative_coords is not None:
-            if self.tracker.in_progress:
-                # вторая проверка нужна из-за многопоточности, чтобы лучше была синхронизация и меньше шанс,
-                # что координаты выведутся после прерывания процесса и собьют вывод подсказки
+        if self.tracker.in_progress:
+        # проверка нужна из-за многопоточности, чтобы лучше была синхронизация и меньше шанс,
+        # что координаты выведутся после прерывания процесса и собьют вывод подсказки
+            if object_relative_coords is not None:
                 self._view_model.set_tip(f'Текущие координаты объекта: '
                                      f'{object_relative_coords.x, object_relative_coords.y}')
+            else:
+                self._view_model.set_tip(f'Объект вышел за границы допустимой области движения лазера')
 
     def try_restore_previous_area(self):
         if self.previous_area is not None:

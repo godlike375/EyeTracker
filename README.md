@@ -62,6 +62,7 @@
 ### Компиляция приложения под Windows:
 
     venv_python -m pip install pyinstaller
+    venv_python -m pytest tests
     pyinstaller --noconsole --onefile --name eye_tracker --icon assets/tracking.ico --add-data "assets/alert.wav;assets" --add-data "assets/tracking.ico;assets" main.py
 
 #### Если нужно запускать линтер при коммитах, то вставляем себе pre-commmit хук в .git с текстом:
