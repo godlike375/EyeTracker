@@ -24,7 +24,12 @@ def main(args):
         eye_tracker.common.settings.ROOT_DIR = args.root_dir
     root = Tk()
     model_core = None
+    view_model = None
     try:
+        view_model = ViewModel(root)
+        form = View(root, view_model)
+        view_output._view = form
+        view_model.set_view(form)
         settings.load()
         private_settings.load()
         Processor.load_color()
@@ -43,10 +48,6 @@ def main(args):
         SelectedArea.remove()
     logger.debug('settings loaded')
     try:
-        view_model = ViewModel(root)
-        form = View(root, view_model)
-        view_output._view = form
-        view_model.set_view(form)
         model_core = Orchestrator(view_model, area=area, debug_on=args.debug)
         view_model.set_model(model_core)
         logger.debug('mainloop started')

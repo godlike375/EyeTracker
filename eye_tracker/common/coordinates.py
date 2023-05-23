@@ -61,10 +61,21 @@ class Point:
         return Point(abs(self.x), abs(self.y))
 
     def __ge__(self, other):
-        return self.x >= other.x or self.y >= other.y
+        if type(other) is Point:
+            return self.x >= other.x or self.y >= other.y
+            # or сделано для триггера на две оси перемещения в трекере
+        elif type(other) is float or type(other) is int:
+            return self.x >= other or self.y >= other
+        else:
+            raise ValueError('incorrect right operand')
 
     def __lt__(self, other):
-        return self.x < other.x or self.y < other.y
+        if type(other) is Point:
+            return self.x < other.x or self.y < other.y
+        elif type(other) is float or type(other) is int:
+            return self.x < other or self.y < other
+        else:
+            raise ValueError('incorrect right operand')
 
     def to_int(self):
         return Point(int(self.x), int(self.y))

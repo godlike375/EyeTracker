@@ -92,8 +92,8 @@ LIMITATIONS = {
     'SERIAL_TIMEOUT': Range(0.01, INFINITE),
     'SERIAL_PORT': Range(0, INFINITE),
     'MEAN_COORDINATES_FRAME_COUNT': Range(1, 5),
-    'NOISE_THRESHOLD_PERCENT': Range(0.0, 1.0),
-    'THRESHOLD_CALIBRATION_DURATION': Range(4, 20),
+    'NOISE_THRESHOLD_RANGE': Range(0.0, INFINITE),
+    'THRESHOLD_CALIBRATION_DURATION': Range(4, 16),
     'STABLE_POSITION_DURATION': Range(0.5, 1.0),
     'MAX_LASER_RANGE_PLUS_MINUS': Range(1, INFINITE),
     'DOWNSCALE_FACTOR': Range(0.05, 0.5),
@@ -116,9 +116,9 @@ class Settings:
         self.SERIAL_BAUD_RATE = 115200
         self.SERIAL_TIMEOUT = 0.01
         self.SERIAL_PORT = 1
-        self.MEAN_COORDINATES_FRAME_COUNT = 2
-        self.NOISE_THRESHOLD_PERCENT = 0.0
-        self.THRESHOLD_CALIBRATION_DURATION = 8  # в секундах
+        self.MEAN_COORDINATES_FRAME_COUNT = 3
+        self.NOISE_THRESHOLD_RANGE = 0.0
+        self.THRESHOLD_CALIBRATION_DURATION = 4  # в секундах
         self.STABLE_POSITION_DURATION = 0.67
         self.MAX_LASER_RANGE_PLUS_MINUS = 6000  # меняется в согласовании с аппаратной частью
         self.DOWNSCALE_FACTOR = 0.25  # чем ниже значение, тем выше производительность, но ниже точность трекинга

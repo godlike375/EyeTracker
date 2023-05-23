@@ -205,7 +205,7 @@ class StateMachine:
 
 
 class NoiseThresholdCalibrator(ProcessBased, Calibrator):
-    CALIBRATION_THRESHOLD_STEP = 0.0025
+    CALIBRATION_THRESHOLD_STEP = 0.25
 
     # В течение settings.THRESHOLD_CALIBRATION_DURATION секунд цель трекинга не должна двигаться
     def __init__(self, model, view_model):
@@ -223,7 +223,7 @@ class NoiseThresholdCalibrator(ProcessBased, Calibrator):
             self._last_timestamp = time()
             return False
         if not (center == self._last_position):
-            settings.NOISE_THRESHOLD_PERCENT += NoiseThresholdCalibrator.CALIBRATION_THRESHOLD_STEP
+            settings.NOISE_THRESHOLD_RANGE += NoiseThresholdCalibrator.CALIBRATION_THRESHOLD_STEP
             self._last_position = center
             self._last_timestamp = time()
             return False
@@ -245,7 +245,7 @@ class NoiseThresholdCalibrator(ProcessBased, Calibrator):
     @threaded
     def calibrate(self):
         self._model.state_control.change_state('calibrating finished', happened=False)
-        settings.NOISE_THRESHOLD_PERCENT = 0.0
+        settings.NOISE_THRESHOLD_RANGE = 0.0
         object = self._model.screen.get_selector(OBJECT)
         while True:
             if not self.in_progress:
@@ -259,16 +259,15 @@ class NoiseThresholdCalibrator(ProcessBased, Calibrator):
         self._model.tracker.cancel()
         self._model.screen.remove_selector(OBJECT)
         self._model.try_restore_previous_area()
-        settings.NOISE_THRESHOLD_PERCENT = round(settings.NOISE_THRESHOLD_PERCENT, 5)
         self._model.state_control.change_state('noise threshold calibrated')
-        # self._model.state_control.change_state('object selected', happened=False)
+        settings.NOISE_THRESHOLD_RANGE = round(settings.NOISE_THRESHOLD_RANGE, 3)
         view_output.show_message('Калибровка шумоподавления успешно завершена.')
 
     def cancel(self):
         if not self.in_progress:
             return
         super().cancel()
-        settings.NOISE_THRESHOLD_PERCENT = 0.0
+        settings.NOISE_THRESHOLD_RANGE = 0.0
         self._view_model.set_menu_state('all', 'normal')
 
     def finish(self):

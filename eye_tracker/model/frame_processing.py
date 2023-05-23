@@ -35,7 +35,7 @@ class Tracker(RectBased, Drawable, ProcessBased):
         left_cur_pos = Point(int(self._denoisers[0].get()), int(self._denoisers[1].get()))
         right_cur_pos = Point(int(self._denoisers[2].get()), int(self._denoisers[3].get()))
         center = calc_center(left_cur_pos, right_cur_pos)
-        if abs(self.center - center) >= self._object_length_xy * settings.NOISE_THRESHOLD_PERCENT:
+        if abs(self.center - center) >= settings.NOISE_THRESHOLD_RANGE:
             self._center = center
 
     def start_tracking(self, frame, left_top, right_bottom):

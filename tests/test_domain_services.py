@@ -142,7 +142,7 @@ def test_noise_calibrate(fake_model, selected_object_points, black_frame):
     fake_model.screen.get_selector(OBJECT)._center += Point(1, 1)
     while thresh_calibrator.in_progress:
         sleep(0.1)
-    assert settings.NOISE_THRESHOLD_PERCENT == 0.0025
+    assert settings.NOISE_THRESHOLD_RANGE == 0.25
 
 
 def test_coordinates_calibrate(fake_model, selected_object_points, black_frame, selected_area_points):
