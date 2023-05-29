@@ -1,33 +1,44 @@
 from functools import partial
-from tkinter import messagebox
+from tkinter import messagebox, Tk
 
 from eye_tracker.common.logger import logger
 
 _view = None
+DEFAULT_TIMEOUT_MS = 8500
 
 
-def show_message(message: str, title: str = ''):
+def create_temp_messagebox(title, message, timeout, show_function):
+    root = Tk()
+    root.withdraw()
+    root._planned_task_id = None
+    _view._visible_messageboxes.append(root)
+
+    def correctly_destroy_window():
+        if not root in _view._visible_messageboxes:
+            return
+        root.after_cancel(root._planned_task_id)
+        root.destroy()
+        _view._visible_messageboxes.remove(root)
+
+    root.protocol("WM_DELETE_WINDOW", correctly_destroy_window)
+
+    root._planned_task_id = root.after(timeout, correctly_destroy_window)
+    show_function(title, message, master=root)
+
+
+def show_message(message: str, title: str = '', timeout=DEFAULT_TIMEOUT_MS):
     logger.debug(message)
-    if _view is not None:
-        _view.queue_command(partial(messagebox.showinfo, title, message))
-    else:
-        messagebox.showinfo(title, message)
+    _view.queue_command(partial(create_temp_messagebox, title, message, timeout, messagebox.showinfo))
 
 
-def show_warning(message: str, title: str = 'Предупреждение'):
+def show_warning(message: str, title: str = 'Предупреждение', timeout=DEFAULT_TIMEOUT_MS):
     logger.warning(message)
-    if _view is not None:
-        _view.queue_command(partial(messagebox.showwarning, title, message))
-    else:
-        messagebox.showwarning(title, message)
+    _view.queue_command(partial(create_temp_messagebox, title, message, timeout, messagebox.showwarning))
 
 
-def show_error(message: str, title: str = 'Ошибка'):
+def show_error(message: str, title: str = 'Ошибка', timeout=DEFAULT_TIMEOUT_MS):
     logger.error(message)
-    if _view is not None:
-        _view.queue_command(partial(messagebox.showerror, title, message))
-    else:
-        messagebox.showerror(title, message)
+    _view.queue_command(partial(create_temp_messagebox, title, message, timeout, messagebox.showerror))
 
 
 def show_fatal(e):

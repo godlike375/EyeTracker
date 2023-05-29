@@ -131,6 +131,7 @@ class SelectingService(ProcessBased):
             if not confirm:
                 return False
         self._screen.remove_selector(OBJECT)
+        self._model.state_control.change_state('coordinate system calibrated', happened=False)
         return True
 
     def try_create_selector(self, name, reselect_while_calibrating=False, additional_callback=None):

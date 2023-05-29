@@ -3,7 +3,7 @@ from time import time, sleep
 
 from eye_tracker.common.logger import logger
 from eye_tracker.common.program import exit_program
-from eye_tracker.common.settings import settings, OBJECT, AREA, private_settings
+from eye_tracker.common.settings import settings, OBJECT, AREA, private_settings, MAX_LASER_RANGE
 from eye_tracker.common.thread_helpers import ThreadLoopable, MutableValue
 from eye_tracker.model.area_controller import AreaController
 from eye_tracker.model.camera_extractor import CameraService
@@ -36,7 +36,8 @@ class ErrorHandler:
                     (
                     f'В связи с множественными внутренними ошибками вида:\n\n'
                     f'[ {error} ] работа программы не может быть продолжена.\n\n'
-                    f'Программа перезапустится автоматически через {ErrorHandler.RESTART_IN_TIME_SEC} секунд.'
+                    f'Программа перезапустится автоматически через {ErrorHandler.RESTART_IN_TIME_SEC} секунд.',
+                    timeout=10500
                 )
             for i in range(ErrorHandler.RESTART_IN_TIME_SEC, 0, -1):
                 sleep(1)
@@ -71,8 +72,8 @@ class Orchestrator(ThreadLoopable):
         self._processing_loop = self._error_handler.handle_exceptions(self._processing_loop)  # manual decoration
 
         self.camera = camera or CameraService(settings.CAMERA_ID)
-        self.area_controller = AreaController(min_xy=-settings.MAX_LASER_RANGE_PLUS_MINUS,
-                                              max_xy=settings.MAX_LASER_RANGE_PLUS_MINUS)
+        self.area_controller = AreaController(min_xy=-MAX_LASER_RANGE,
+                                              max_xy=MAX_LASER_RANGE)
         self.tracker = Tracker(settings.MEAN_COORDINATES_FRAME_COUNT)
         self.state_control = StateMachine(self._view_model)
         self.screen = OnScreenService(self)
@@ -100,7 +101,6 @@ class Orchestrator(ThreadLoopable):
             self.selecting.load_selected_area(area)
 
         self.calibrate_laser()
-        # TODO: FIXME почему-то вызывается, но калибровки не происходит
 
         super().__init__(self._processing_loop, self._frame_interval, run_immediately)
 
@@ -159,6 +159,7 @@ class Orchestrator(ThreadLoopable):
         if not selected:
             # TODO: если не выделялась вручную, то retry не нужен. Калибровку надо перезапускать
             self._view_model.new_selection(AREA, reselect_while_calibrating=True)
+            self._view_model.set_menu_state('all', 'normal')
             return
         self._view_model.set_menu_state('all', 'normal')
         self.previous_area = area

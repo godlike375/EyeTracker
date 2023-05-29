@@ -51,6 +51,13 @@ def main(args):
         model_core = Orchestrator(view_model, area=area, debug_on=args.debug)
         view_model.set_model(model_core)
         logger.debug('mainloop started')
+        def correctly_destroy_window():
+            root.after_cancel(form._planned_task_id)
+            root.destroy()
+            for mb in form._visible_messageboxes:
+                mb.after_cancel(mb._planned_task_id)
+                mb.destroy()
+        root.protocol("WM_DELETE_WINDOW", correctly_destroy_window)
         root.mainloop()
     except Exception as e:
         view_output.show_fatal(f'Произошла фатальная ошибка.\n'

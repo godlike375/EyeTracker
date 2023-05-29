@@ -15,7 +15,6 @@ def test_load_valid_settings(test_config_ini):
     load_mock_config(test_config_ini)
     loaded = extract_upper_fields(vars(settings))
     assert default != loaded
-    assert loaded['MAX_LASER_RANGE_PLUS_MINUS'] == 6000
     assert loaded['SAME_FRAMES_THRESHOLD'] == 0.53
     assert loaded['CAMERA_ID'] == 5
 

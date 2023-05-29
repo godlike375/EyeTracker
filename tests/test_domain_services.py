@@ -1,13 +1,12 @@
 from unittest.mock import Mock
 from time import sleep
 
-from eye_tracker.common.settings import settings, OBJECT, AREA
+from eye_tracker.common.settings import settings, OBJECT, AREA, MAX_LASER_RANGE
 from eye_tracker.view.view_model import SELECTION_MENU_NAME
 from eye_tracker.model.domain_services import ErrorHandler
 from eye_tracker.common.settings import FLIP_SIDE_NONE, FLIP_SIDE_VERTICAL
 from eye_tracker.common.coordinates import Point
 from eye_tracker.model.move_controller import MoveController, SerialStub
-from eye_tracker.model.frame_processing import Tracker
 
 from tests.test_selector import select_area_emulate, select_object_emulate
 
@@ -166,7 +165,6 @@ def test_coordinates_calibrate(fake_model, selected_object_points, black_frame, 
         assert fake_model.screen.selector_exists(OBJECT)
         object = fake_model.screen.get_selector(OBJECT)
 
-        MAX_LASER_RANGE = settings.MAX_LASER_RANGE_PLUS_MINUS
         left_top = Point(-MAX_LASER_RANGE, -MAX_LASER_RANGE)
         right_top = Point(MAX_LASER_RANGE, -MAX_LASER_RANGE)
         right_bottom = Point(MAX_LASER_RANGE, MAX_LASER_RANGE)

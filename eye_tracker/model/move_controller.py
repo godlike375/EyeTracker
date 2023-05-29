@@ -6,7 +6,7 @@ from serial.tools import list_ports
 from eye_tracker.common.abstractions import Initializable
 from eye_tracker.common.coordinates import Point
 from eye_tracker.common.logger import logger
-from eye_tracker.common.settings import settings, CALIBRATE_LASER_COMMAND_ID
+from eye_tracker.common.settings import settings, CALIBRATE_LASER_COMMAND, MAX_LASER_RANGE
 from eye_tracker.common.thread_helpers import ThreadLoopable, MutableValue
 from eye_tracker.view import view_output
 
@@ -14,6 +14,8 @@ READY = 'ready'
 ERRORED = 'error'
 LASER_DEVICE_NAME = 'usb-serial ch340'
 COMMAND_MOVE = 1
+DEFAULT_BAUD_RATE = 115200
+SERIAL_TIMEOUT = 0.1
 
 
 class MoveController(Initializable, ThreadLoopable):
@@ -22,7 +24,7 @@ class MoveController(Initializable, ThreadLoopable):
         Initializable.__init__(self, initialized=True)
 
         manual_port = manual_port or f'COM{settings.SERIAL_PORT}'
-        baud_rate = baud_rate or settings.SERIAL_BAUD_RATE
+        baud_rate = baud_rate or DEFAULT_BAUD_RATE
         self._stable_position_timer = 0
         self._current_position = Point(0, 0)
         self._ready = False
@@ -33,7 +35,6 @@ class MoveController(Initializable, ThreadLoopable):
         self._pool_interval = MutableValue(1 / int(settings.FPS_PROCESSED * 0.5))
         self._next_command_point = None
 
-        MAX_LASER_RANGE = settings.MAX_LASER_RANGE_PLUS_MINUS
         left_top = Point(-MAX_LASER_RANGE, -MAX_LASER_RANGE)
         right_top = Point(MAX_LASER_RANGE, -MAX_LASER_RANGE)
         right_bottom = Point(MAX_LASER_RANGE, MAX_LASER_RANGE)
@@ -63,7 +64,7 @@ class MoveController(Initializable, ThreadLoopable):
                 for description in ports_descriptions:
                     if LASER_DEVICE_NAME in description:
                         manual_port = ports_descriptions[description]
-            serial = Serial(manual_port, baud_rate, timeout=settings.SERIAL_TIMEOUT)
+            serial = Serial(manual_port, baud_rate, timeout=SERIAL_TIMEOUT)
         except SerialException:
             logger.exception('Cannot open the proper serial port')
         else:
@@ -88,7 +89,11 @@ class MoveController(Initializable, ThreadLoopable):
 
         self._ready = self._ready or READY in str(serial_data)
 
-        if self._ready and self._next_command_point is not None:
+        if not self.is_ready or self._next_command_point is None:
+            return
+
+        if self._next_command_point[1] == CALIBRATE_LASER_COMMAND or \
+                self.is_stable_position:
             self._move_laser(*self._next_command_point)
             self._stable_position_timer = time()
             self._ready = False
@@ -122,8 +127,8 @@ class MoveController(Initializable, ThreadLoopable):
         if not self.is_stable_position:
             return
 
-        if abs(position.x) > settings.MAX_LASER_RANGE_PLUS_MINUS or \
-                abs(position.y) > settings.MAX_LASER_RANGE_PLUS_MINUS:
+        if abs(position.x) > MAX_LASER_RANGE or \
+                abs(position.y) > MAX_LASER_RANGE:
             logger.debug('can\'t set out of laser range position')
             return
 
@@ -134,7 +139,7 @@ class MoveController(Initializable, ThreadLoopable):
     def calibrate_laser(self):
         logger.debug('laser calibrated')
         self._errored = False
-        self.move_laser(0, 0, command=CALIBRATE_LASER_COMMAND_ID)
+        self.move_laser(0, 0, command=CALIBRATE_LASER_COMMAND)
 
     def center_laser(self):
         logger.debug('laser centered')

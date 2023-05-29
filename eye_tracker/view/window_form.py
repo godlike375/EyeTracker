@@ -18,7 +18,7 @@ from eye_tracker.view.view_model import (
     FLIP_MENU_NAME, MANUAL_MENU_NAME, ABORT_MENU_NAME
 )
 from eye_tracker.view.window_settings import WindowSettings
-from eye_tracker.common.settings import ASSETS_FOLDER
+from eye_tracker.common.settings import ASSETS_FOLDER, MAX_LASER_RANGE
 
 SECOND_LENGTH = 1000
 INDICATORS_HEIGHT_ADDITION = 45
@@ -47,6 +47,8 @@ class View:
         self._rotate_var = IntVar()
         self._flip_var = IntVar()
         self._menu = None
+        self._planned_task_id = None
+        self._visible_messageboxes = []
 
         self.setup_menus()
         self.setup_layout()
@@ -122,7 +124,6 @@ class View:
     def setup_position_menu(self):
         position_menu = Menu(tearoff=False)
 
-        MAX_LASER_RANGE = settings.MAX_LASER_RANGE_PLUS_MINUS
         move_left_top = partial(self._view_model.move_laser, -MAX_LASER_RANGE, -MAX_LASER_RANGE)
         move_right_top = partial(self._view_model.move_laser, MAX_LASER_RANGE, -MAX_LASER_RANGE)
         move_left_bottom = partial(self._view_model.move_laser, -MAX_LASER_RANGE, MAX_LASER_RANGE)
@@ -168,7 +169,7 @@ class View:
         logger.debug(f'window size = {window_size}')
 
     def _processing_loop(self):
-        self._root.after(self._interval_ms, self._processing_loop)
+        self._planned_task_id = self._root.after(self._interval_ms, self._processing_loop)
         self.check_show_image(self._current_image)
         self._commands.exec_queued_commands()
 

@@ -26,8 +26,8 @@ class CameraService(Initializable):
 
     def try_set_camera(self, camera_id):
         self._camera = cv2.VideoCapture(camera_id)
-        self._camera.set(cv2.CAP_PROP_FRAME_WIDTH, settings.CAMERA_MAX_HEIGHT_RESOLUTION)
-        self._camera.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.CAMERA_MAX_HEIGHT_RESOLUTION)
+        self._camera.set(cv2.CAP_PROP_FRAME_WIDTH, settings.CAMERA_MAX_RESOLUTION)
+        self._camera.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.CAMERA_MAX_RESOLUTION)
         self._camera.set(cv2.CAP_PROP_FPS, settings.FPS_PROCESSED)
         self._camera.set(cv2.CAP_PROP_BUFFERSIZE, 0)
         return self._camera.isOpened()
