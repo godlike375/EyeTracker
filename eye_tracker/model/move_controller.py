@@ -154,7 +154,7 @@ class MoveController(Initializable, ThreadLoopable):
         self._next_command_point = (Point(x, y), command)
 
     def controller_is_ready(self):
-        return self.is_stable_position and self.is_ready
+        return self.is_stable_position and self.is_ready and self._next_command_point is None
 
 
 class SerialStub(Serial):
