@@ -1,21 +1,20 @@
 import pickle
+import sys
 from abc import ABC, abstractmethod
 from configparser import ConfigParser
 from os import remove
 from os.path import exists
 from pathlib import Path
 from sys import maxsize
-import sys
 
-from common.logger import logger
-from view import view_output
+from eye_tracker.view import view_output
 
 RESOLUTIONS = {1280: 720, 800: 600, 640: 480}
-DOWNSCALED_HEIGHT = 640
+DOWNSCALED_WIDTH = 640
 
+ASSETS_FOLDER = 'assets'
 AREA = 'area'
 OBJECT = 'object'
-TRACKER = 'tracker'
 FOLDER = 'config'
 FILE = 'eyetracker_settings.ini'
 PRIVATE_FILE = 'private_settings.ini'
@@ -26,6 +25,7 @@ INFINITE = maxsize
 FLIP_SIDE_NONE = -1
 FLIP_SIDE_VERTICAL = 0
 FLIP_SIDE_HORIZONTAL = 1
+MAX_LASER_RANGE = 6000
 
 INTERGER_TYPE_ERROR = 'The value should be integer'
 PARAMETER_NOT_APPLIED = 'Параметр не будет применён.'
@@ -86,19 +86,17 @@ class Range(Limitation):
 
 LIMITATIONS = {
     'CAMERA_ID': Range(0, INFINITE),
-    'CAMERA_MAX_HEIGHT_RESOLUTION': OptionList(640, 800, 1280),
+    'CAMERA_MAX_RESOLUTION': OptionList(640, 800, 1280),
     'FPS_VIEWED': Range(8, INFINITE),
     'FPS_PROCESSED': Range(32, INFINITE),
-    'SERIAL_BAUD_RATE': OptionList(110, 300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200),
-    'SERIAL_TIMEOUT': Range(0.01, INFINITE),
     'SERIAL_PORT': Range(0, INFINITE),
-    'TRACKING_FRAMES_MEAN_NUMBER': Range(1, 5),
-    'NOISE_THRESHOLD_PERCENT': Range(0.0, 1.0),
-    'OBJECT_NOT_MOVING_DURATION': Range(4, 20),
+    'MEAN_COORDINATES_FRAME_COUNT': Range(1, 5),
+    'NOISE_THRESHOLD_RANGE': Range(0.0, INFINITE),
+    'THRESHOLD_CALIBRATION_DURATION': Range(4, 16),
     'STABLE_POSITION_DURATION': Range(0.5, 1.0),
-    'MAX_LASER_RANGE_PLUS_MINUS': Range(1, INFINITE),
     'DOWNSCALE_FACTOR': Range(0.05, 0.5),
     'SAME_FRAMES_THRESHOLD': Range(0.01, 0.99),
+
     'ROTATION_ANGLE': OptionList(0, 90, 180, 270),
     'FLIP_SIDE': OptionList(FLIP_SIDE_NONE, FLIP_SIDE_HORIZONTAL, FLIP_SIDE_VERTICAL),
     'PAINT_COLOR_R': Range(0, 255),
@@ -111,17 +109,14 @@ class Settings:
 
     def __init__(self):
         self.CAMERA_ID = 0
-        self.CAMERA_MAX_HEIGHT_RESOLUTION = 640
+        self.CAMERA_MAX_RESOLUTION = 640
         self.FPS_VIEWED = 19
         self.FPS_PROCESSED = 76
-        self.SERIAL_BAUD_RATE = 115200
-        self.SERIAL_TIMEOUT = 0.01
         self.SERIAL_PORT = 1
-        self.TRACKING_FRAMES_MEAN_NUMBER = 2
-        self.NOISE_THRESHOLD_PERCENT = 0.0
-        self.OBJECT_NOT_MOVING_DURATION = 8  # в секундах
+        self.MEAN_COORDINATES_FRAME_COUNT = 3
+        self.NOISE_THRESHOLD_RANGE = 0.0
+        self.THRESHOLD_CALIBRATION_DURATION = 4  # в секундах
         self.STABLE_POSITION_DURATION = 0.67
-        self.MAX_LASER_RANGE_PLUS_MINUS = 6000  # меняется в согласовании с аппаратной частью
         self.DOWNSCALE_FACTOR = 0.25  # чем ниже значение, тем выше производительность, но ниже точность трекинга
         self.SAME_FRAMES_THRESHOLD = 0.53  # в полной темноте начиная с такого значения обновляется картинка
 
@@ -140,11 +135,13 @@ class Settings:
 
             super().__setattr__(key, value)
         except Exception as e:
-            view_output.show_warning(e)
+            view_output.show_error(e)
             return False
         else:
             return True
 
+    def _set_attr_force(self, key, value):
+        super().__setattr__(key, value)
 
     def load(self, folder: str = FOLDER, file: str = FILE):
         base_path = get_repo_path()
@@ -218,3 +215,7 @@ class SelectedArea:
         path = base_path / folder / file
         if exists(path):
             remove(path)
+
+
+MIN_THROTTLE_DIFFERENCE = 2
+CALIBRATE_LASER_COMMAND = 2

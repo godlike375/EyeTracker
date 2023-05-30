@@ -1,13 +1,10 @@
-from typing import List
-
 import cv2
 import numpy as np
 from PIL import Image
 
-from common.abstractions import Drawable
-from common.coordinates import Point
-from common.logger import logger
-from common.settings import settings, private_settings
+from eye_tracker.common.coordinates import Point
+from eye_tracker.common.logger import logger
+from eye_tracker.common.settings import settings, private_settings, RESOLUTIONS, DOWNSCALED_WIDTH
 
 SPLIT_PARTS = 4
 # другие значения не работают с 90 градусов поворотом при разрешениях кроме 640
@@ -15,10 +12,10 @@ SPLIT_PARTS = 4
 
 class Processor:
     # white
-    COLOR_GREEN = (private_settings.PAINT_COLOR_R, private_settings.PAINT_COLOR_G, private_settings.PAINT_COLOR_B)
-    COLOR_RED = (0, 0, 255)
+    COLOR_NORMAL = (private_settings.PAINT_COLOR_R, private_settings.PAINT_COLOR_G, private_settings.PAINT_COLOR_B)
+    COLOR_CAUTION = (0, 0, 255)
     THICKNESS = 2
-    CURRENT_COLOR = COLOR_GREEN
+    CURRENT_COLOR = COLOR_NORMAL
     FONT_SCALE = 0.8
 
     @staticmethod
@@ -56,12 +53,6 @@ class Processor:
         return cv2.putText(frame, text, (coords.x, coords.y), font,
                            cls.FONT_SCALE, Processor.CURRENT_COLOR, cls.THICKNESS, cv2.LINE_AA)
 
-    @classmethod
-    def draw_active_objects(cls, frame, active_objects: List[Drawable]):
-        for obj in active_objects:
-            frame = obj.draw_on_frame(frame)
-        return frame
-
     @staticmethod
     def resize_frame_relative(frame, percent):
         width = int(frame.shape[1] * percent)
@@ -70,6 +61,18 @@ class Processor:
 
     def resize_frame_absolute(frame, new_height, new_width):
         return cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_AREA)
+
+    @classmethod
+    def resize_to_minimum(cls, frame):
+        frame_width = frame.shape[0]
+        frame_height = frame.shape[1]
+        if frame_height == DOWNSCALED_WIDTH or frame_width == DOWNSCALED_WIDTH:
+            return frame
+        reversed = frame_height < frame_width
+        down_width = RESOLUTIONS[DOWNSCALED_WIDTH]
+        if reversed:
+            return cls.resize_frame_absolute(frame, DOWNSCALED_WIDTH, down_width)
+        return cls.resize_frame_absolute(frame, down_width, DOWNSCALED_WIDTH)
 
     @classmethod
     def frames_are_same(cls, one, another):
@@ -86,5 +89,5 @@ class Processor:
         # TODO: возможно еще добавить выбор цвета предупреждения
         ps = private_settings
         color = (ps.PAINT_COLOR_B, ps.PAINT_COLOR_G, ps.PAINT_COLOR_R)
-        cls.COLOR_GREEN = color
+        cls.COLOR_NORMAL = color
         cls.CURRENT_COLOR = color

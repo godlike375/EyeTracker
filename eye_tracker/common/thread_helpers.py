@@ -17,6 +17,7 @@ class StoppableThread(Thread):
     def stop(self):
         self._stop_event.set()
 
+    @property
     def is_stopped(self):
         return self._stop_event.is_set()
 
@@ -33,7 +34,7 @@ def threaded(fn):
 
 @dataclass
 class MutableValue:
-    __slots__ = ["value"]
+    __slots__ = ['value']
     value: object
 
 
@@ -43,13 +44,15 @@ def thread_loop_runner(func, interval: MutableValue = None):
         interval = MutableValue(0.05)
     while True:
         sleep(interval.value)
-        if current_thread().is_stopped():
-            exit(0)
+        if current_thread().is_stopped:
+            exit()
         func()
 
 
 class ThreadLoopable:
     def __init__(self, loop_func, interval: MutableValue, run_immediately: bool = True):
+        self._loop_func = loop_func
+        self._interval = interval
         if run_immediately:
             self.start_thread(loop_func, interval)
 
@@ -59,3 +62,12 @@ class ThreadLoopable:
 
     def stop_thread(self):
         self._thread_loop.stop()
+
+    def __enter__(self):
+        self.start_thread(self._loop_func, self._interval)
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        self.stop_thread()
+        if exc_value:
+            raise exc_value

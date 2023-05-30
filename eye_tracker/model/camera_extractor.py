@@ -1,10 +1,9 @@
 import cv2
 import numpy as np
 
-from common.settings import settings, private_settings, FLIP_SIDE_NONE
-from common.abstractions import Initializable
-from view import view_output
-
+from eye_tracker.common.abstractions import Initializable
+from eye_tracker.common.settings import settings, private_settings, FLIP_SIDE_NONE
+from eye_tracker.view import view_output
 
 DEGREE_TO_CV2_MAP = {90: cv2.ROTATE_90_CLOCKWISE,
                      180: cv2.ROTATE_180,
@@ -13,17 +12,22 @@ DEGREE_TO_CV2_MAP = {90: cv2.ROTATE_90_CLOCKWISE,
 DEFAULT_CAMERA_ID = 0
 
 
-class FrameExtractor(Initializable):
-    def __init__(self, source: int = settings.CAMERA_ID):
+class NoneFrameException(Exception):
+    ...
+
+
+class CameraService(Initializable):
+    def __init__(self, camera_id: int = settings.CAMERA_ID, auto_set=True):
         super().__init__(initialized=True)
         self._frame_rotate_degree = private_settings.ROTATION_ANGLE
         self._frame_flip_side = private_settings.FLIP_SIDE
-        self.set_source(source)
+        if auto_set:
+            self.set_source(camera_id)
 
     def try_set_camera(self, camera_id):
         self._camera = cv2.VideoCapture(camera_id)
-        self._camera.set(cv2.CAP_PROP_FRAME_WIDTH, settings.CAMERA_MAX_HEIGHT_RESOLUTION)
-        self._camera.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.CAMERA_MAX_HEIGHT_RESOLUTION)
+        self._camera.set(cv2.CAP_PROP_FRAME_WIDTH, settings.CAMERA_MAX_RESOLUTION)
+        self._camera.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.CAMERA_MAX_RESOLUTION)
         self._camera.set(cv2.CAP_PROP_FPS, settings.FPS_PROCESSED)
         self._camera.set(cv2.CAP_PROP_BUFFERSIZE, 0)
         return self._camera.isOpened()
@@ -32,7 +36,7 @@ class FrameExtractor(Initializable):
         if not self.try_set_camera(source):
             if not self.try_set_camera(DEFAULT_CAMERA_ID):
                 self.init_error()
-                view_output.show_warning(
+                view_output.show_error(
                     f'Не удалось открыть заданную настройкой CAMERA_ID камеру '
                     f'{source}, а так же не удалось определить подходящую камеру автоматически. '
                     f'Программа продолжит работать без контроллера камеры.'
@@ -61,8 +65,13 @@ class FrameExtractor(Initializable):
 
     def extract_frame(self):
         _, frame = self._camera.read()
+        if frame is None:
+            raise NoneFrameException('Не удалось получить кадр с камеры')
         rotated = self.rotate_frame(frame)
         flipped = self.flip_frame(rotated)
+        # TODO: код ниже возможно мёртвый
+        if flipped is None:
+            raise NoneFrameException('extracted frame is None after transformations')
         return flipped
 
 
