@@ -14,7 +14,7 @@ READY = 'ready'
 ERRORED = 'error'
 LASER_DEVICE_NAME = 'usb-serial ch340'
 COMMAND_MOVE = 1
-DEFAULT_BAUD_RATE = 115200
+DEFAULT_BAUD_RATE = 19200
 SERIAL_TIMEOUT = 0.1
 
 
@@ -75,6 +75,7 @@ class MoveController(Initializable, ThreadLoopable):
     def _processing_loop(self):
         serial_data = self._serial.readline()
         new_errored = self._errored or ERRORED in str(serial_data)
+        self._ready = self._ready or READY in str(serial_data)
 
         if new_errored and self._errored != new_errored:
             view_output.show_error('Контроллер лазера внезапно дошёл до предельных координат. \n'
@@ -84,20 +85,22 @@ class MoveController(Initializable, ThreadLoopable):
             self._on_laser_error()
             return
 
-        if self.is_errored:
+        if self._next_command_point is None:
             return
 
-        self._ready = self._ready or READY in str(serial_data)
-
-        if not self.is_ready or self._next_command_point is None:
+        if self.is_errored and self._next_command_point[1] != CALIBRATE_LASER_COMMAND:
             return
 
-        if self._next_command_point[1] == CALIBRATE_LASER_COMMAND or \
-                self.is_stable_position:
-            self._move_laser(*self._next_command_point)
-            self._stable_position_timer = time()
-            self._ready = False
-            self._next_command_point = None
+        if not self.is_ready:
+            return
+
+        if not self.is_stable_position:
+            return
+        
+        self._move_laser(*self._next_command_point)
+        self._stable_position_timer = time()
+        self._ready = False
+        self._next_command_point = None
 
     @property
     def is_stable_position(self):
