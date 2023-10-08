@@ -85,6 +85,56 @@ class Processor:
         return all(i.mean() > settings.SAME_FRAMES_THRESHOLD for i in np.split((one == another), SPLIT_PARTS))
 
     @classmethod
+    def detect_color_range(cls, image, percent=25):
+        hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+        # Создаем гистограмму значений оттенка
+        hist = cv2.calcHist([hsv_image], [0], None, [180], [0, 180])
+
+        # Определяем количество доминирующих пикселей на основе заданного процента
+        total_pixels = hsv_image.shape[0] * hsv_image.shape[1]
+        dominant_pixels = percent * total_pixels / 100
+
+        # Индекс максимального значения в гистограмме
+        max_index = np.argmax(hist)
+
+        # Находим верхний диапазон цвета
+        upper_color_range = max_index + 1
+
+        # Подсчитываем количество пикселей, превышающих пороговый процент
+        accumulated_pixels = hist[max_index]
+        for i in range(max_index + 1, len(hist)):
+            accumulated_pixels += hist[i]
+
+            # Если достигнуто заданное количество доминирующих пикселей, останавливаемся
+            if accumulated_pixels >= dominant_pixels:
+                break
+
+            # Обновляем верхний диапазон цвета
+            upper_color_range = i + 1
+
+        # Находим нижний диапазон цвета
+        lower_color_range = max_index - 1
+
+        # Подсчитываем количество пикселей, превышающих пороговый процент
+        accumulated_pixels = hist[max_index]
+        for i in range(max_index - 1, -1, -1):
+            accumulated_pixels += hist[i]
+
+            # Если достигнуто заданное количество доминирующих пикселей, останавливаемся
+            if accumulated_pixels >= dominant_pixels:
+                break
+
+            # Обновляем нижний диапазон цвета
+            lower_color_range = i - 1
+
+        # Создаем массивы для нижней и верхней границ цвета
+        lower_color_range = np.array([lower_color_range, 50, 50])
+        upper_color_range = np.array([upper_color_range, 255, 255])
+
+        return lower_color_range, upper_color_range
+
+    @classmethod
     def load_color(cls):
         # TODO: возможно еще добавить выбор цвета предупреждения
         ps = private_settings

@@ -302,6 +302,7 @@ class CoordinateSystemCalibrator(ProcessBased, Calibrator):
             logger.debug(f'setting laser position {point.x, point.y}')
             self._wait_for_controller_ready()
             area_point = self.get_object_center(object)
+            print(Processor.detect_color_range(self._model._current_frame, percent=35))
             area.left_button_click(area_point)
             progress += 25
             self._view_model.set_progress(progress)
