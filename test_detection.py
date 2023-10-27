@@ -45,7 +45,8 @@ def get_color_ranges(mask: np.ndarray):
         min_value = np.min(channel[channel != 0], axis=0)
         max_value = np.max(channel[channel != 0], axis=0)
         color_min_max.append((min_value, max_value,))
-    return color_min_max
+    lower, upper = [i for i in np.array(color_min_max).transpose()]
+    return lower, upper
 
 # Загрузка изображения
 image = cv2.imread('example_image.jpg')
@@ -54,9 +55,7 @@ image = cv2.imread('example_image.jpg')
 num_clusters = 2
 masks = cluster_pixels(image, num_clusters)
 mask = get_biggest_mask(masks)
-ranges = get_color_ranges(mask)
-lower, upper = [i for i in np.array(ranges).transpose()]
-
+lower, upper = get_color_ranges(mask)
 masked_image = cv2.bitwise_not(cv2.inRange(image, lower, upper))
 
 # Применяем маску к изображению

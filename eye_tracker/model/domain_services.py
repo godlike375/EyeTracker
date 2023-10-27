@@ -82,6 +82,7 @@ class Orchestrator(ThreadLoopable):
         self.laser = laser or MoveController(self._on_laser_error, debug_on=debug_on)
 
         self._current_frame = None
+        self.filtered_ranges = None
 
         self.calibrators = {'noise threshold': NoiseThresholdCalibrator(self, self._view_model),
                             'coordinate system': CoordinateSystemCalibrator(self, self._view_model)}
@@ -106,6 +107,10 @@ class Orchestrator(ThreadLoopable):
 
     def _processing_loop(self):
         frame = self.camera.extract_frame()
+        if self.filtered_ranges is not None:
+            lower, upper = self.filtered_ranges
+            frame = Processor.paint_laser_black(frame, lower, upper)
+            #frame = Processor.blur_image(frame)
         if self.selecting.selecting_in_progress(OBJECT) \
                 or not Processor.frames_are_same(frame, self._current_frame):
             if self.tracker.in_progress:

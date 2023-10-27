@@ -1,12 +1,16 @@
+from typing import List, Tuple
+
 import cv2
 import numpy as np
 from PIL import Image
+from sklearn.cluster import KMeans
 
 from eye_tracker.common.coordinates import Point
 from eye_tracker.common.logger import logger
 from eye_tracker.common.settings import settings, private_settings, RESOLUTIONS, DOWNSCALED_WIDTH
 
 SPLIT_PARTS = 4
+BLUR_OPTIMAL_COEFFICIENT = 7
 # другие значения не работают с 90 градусов поворотом при разрешениях кроме 640
 
 
@@ -85,59 +89,67 @@ class Processor:
         return all(i.mean() > settings.SAME_FRAMES_THRESHOLD for i in np.split((one == another), SPLIT_PARTS))
 
     @classmethod
-    def detect_color_range(cls, image, percent=25):
-        hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-
-        # Создаем гистограмму значений оттенка
-        hist = cv2.calcHist([hsv_image], [0], None, [180], [0, 180])
-
-        # Определяем количество доминирующих пикселей на основе заданного процента
-        total_pixels = hsv_image.shape[0] * hsv_image.shape[1]
-        dominant_pixels = percent * total_pixels / 100
-
-        # Индекс максимального значения в гистограмме
-        max_index = np.argmax(hist)
-
-        # Находим верхний диапазон цвета
-        upper_color_range = max_index + 1
-
-        # Подсчитываем количество пикселей, превышающих пороговый процент
-        accumulated_pixels = hist[max_index]
-        for i in range(max_index + 1, len(hist)):
-            accumulated_pixels += hist[i]
-
-            # Если достигнуто заданное количество доминирующих пикселей, останавливаемся
-            if accumulated_pixels >= dominant_pixels:
-                break
-
-            # Обновляем верхний диапазон цвета
-            upper_color_range = i + 1
-
-        # Находим нижний диапазон цвета
-        lower_color_range = max_index - 1
-
-        # Подсчитываем количество пикселей, превышающих пороговый процент
-        accumulated_pixels = hist[max_index]
-        for i in range(max_index - 1, -1, -1):
-            accumulated_pixels += hist[i]
-
-            # Если достигнуто заданное количество доминирующих пикселей, останавливаемся
-            if accumulated_pixels >= dominant_pixels:
-                break
-
-            # Обновляем нижний диапазон цвета
-            lower_color_range = i - 1
-
-        # Создаем массивы для нижней и верхней границ цвета
-        lower_color_range = np.array([lower_color_range, 50, 50])
-        upper_color_range = np.array([upper_color_range, 255, 255])
-
-        return lower_color_range, upper_color_range
-
-    @classmethod
     def load_color(cls):
         # TODO: возможно еще добавить выбор цвета предупреждения
         ps = private_settings
         color = (ps.PAINT_COLOR_B, ps.PAINT_COLOR_G, ps.PAINT_COLOR_R)
         cls.COLOR_NORMAL = color
         cls.CURRENT_COLOR = color
+
+    @staticmethod
+    def cluster_pixels(image, num_clusters=2):
+        # Преобразование изображения в двумерный массив пикселей
+        pixels = np.reshape(image, (-1, 3))
+
+        # Кластеризация пикселей по цвету
+        kmeans = KMeans(n_clusters=num_clusters)
+        kmeans.fit(pixels)
+        labels = kmeans.predict(pixels)
+
+        # Создание маски для каждого кластера
+        masks = []
+        labels = np.reshape(labels, (image.shape[0], image.shape[1]))
+        labels = np.stack([labels, labels, labels], axis=2)
+        for i in range(num_clusters):
+            mask = np.zeros_like(image)
+            mask[np.where(labels == i)] = image[np.where(labels == i)]
+            masks.append(mask)
+
+        return masks
+
+    @staticmethod
+    def get_biggest_mask(masks: List[np.ndarray]):
+        biggest_mask = masks[0]
+        biggest_size = 0
+        for mask in masks:
+            current = np.concatenate(mask).sum()
+            if current > biggest_size:
+                biggest_mask = mask
+                biggest_size = current
+
+        return biggest_mask
+
+    @staticmethod
+    def get_color_ranges(mask: np.ndarray):
+        transposed = np.transpose(mask)
+        split_channels = [i for i in transposed]
+        color_min_max = []
+        for channel in split_channels:
+            min_value = np.min(channel[channel != 0], axis=0)
+            max_value = np.max(channel[channel != 0], axis=0)
+            color_min_max.append((min_value, max_value,))
+        lower, upper = [i for i in np.array(color_min_max).transpose()]
+        return lower, upper
+
+    @staticmethod
+    def blur_image(image):
+        return cv2.blur(image, (BLUR_OPTIMAL_COEFFICIENT, BLUR_OPTIMAL_COEFFICIENT))
+
+    @staticmethod
+    def paint_zero_pixels(image: np.ndarray, new_color: Tuple[int, int, int]):
+        image[np.where((image == [0, 0, 0]).all(axis=2))] = new_color
+
+    @staticmethod
+    def paint_laser_black(image: np.ndarray, lower, upper):
+        masked_image = cv2.bitwise_not(cv2.inRange(image, lower, upper))
+        return cv2.bitwise_and(image, image, mask=masked_image)

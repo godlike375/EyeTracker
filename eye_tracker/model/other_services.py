@@ -2,15 +2,16 @@ from dataclasses import dataclass
 from functools import partial
 from time import time, sleep
 
-from eye_tracker.common.abstractions import ProcessBased, Calibrator
+import numpy as np
 
+from eye_tracker.common.abstractions import ProcessBased, Calibrator
 from eye_tracker.common.logger import logger
 from eye_tracker.common.settings import AREA, OBJECT, settings, MIN_THROTTLE_DIFFERENCE
 from eye_tracker.common.thread_helpers import threaded
 from eye_tracker.model.selector import AreaSelector, ObjectSelector
 from eye_tracker.view import view_output
-from eye_tracker.view.view_model import SELECTION_MENU_NAME
 from eye_tracker.view.drawing import Processor
+from eye_tracker.view.view_model import SELECTION_MENU_NAME
 
 PERCENT_FROM_DECIMAL = 100
 
@@ -289,20 +290,50 @@ class CoordinateSystemCalibrator(ProcessBased, Calibrator):
     def get_object_center(self, object):
         return object.center
 
+    def limit_coordinate(self, coordinate, min, max):
+        return min if coordinate < min else max if coordinate > max else coordinate
+
+    def normalize_coordinates(self, object, frame_shape):
+        ltx, lty = object.left_top
+        rbx, rby = object.right_bottom
+        ltx = self.limit_coordinate(ltx, 0, frame_shape[1])
+        rbx = self.limit_coordinate(rbx, 0, frame_shape[1])
+        lty = self.limit_coordinate(lty, 0, frame_shape[0])
+        rby = self.limit_coordinate(rby, 0, frame_shape[0])
+        return ltx, rbx, lty, rby
+
     @threaded
     def calibrate(self):
         self._model.state_control.change_state('calibrating finished', happened=False)
-        object = self._model.screen.get_selector(OBJECT)
+        object: ObjectSelector = self._model.screen.get_selector(OBJECT)
         area = self._model.selecting.create_selector(AREA)
         progress = 0
         self._wait_for_controller_ready()
+        sleep(0.075)
+        # без засыпания в object попадают невалидные (видимо старые) данные
+        ltx, rbx, lty, rby = self.normalize_coordinates(object, self._model._current_frame.shape)
+        cropped_frame = self._model._current_frame[lty:rby, ltx:rbx]
+        blured = Processor.blur_image(cropped_frame)
+        masks = Processor.cluster_pixels(blured, num_clusters=4)
+        mask1 = Processor.get_biggest_mask(masks)
+        masks = [m for m in masks if id(m) != id(mask1)]
+        mask2 = Processor.get_biggest_mask(masks)
+        masks = [m for m in masks if id(m) != id(mask2)]
+        mask3 = Processor.get_biggest_mask(masks)
+        mask1_ranges = Processor.get_color_ranges(mask1)
+        mask2_ranges = Processor.get_color_ranges(mask2)
+        mask3_ranges = Processor.get_color_ranges(mask3)
+        united_ranges = (np.array([one if one < two else two for one, two in zip(mask1_ranges[0], mask2_ranges[0])]),
+                         np.array([one if one > two else two for one, two in zip(mask1_ranges[1], mask2_ranges[1])]))
+        united_ranges = (np.array([one if one < two else two for one, two in zip(united_ranges[0], mask3_ranges[0])]),
+                         np.array([one if one > two else two for one, two in zip(united_ranges[1], mask3_ranges[1])]))
+        self._model.filtered_ranges = united_ranges
 
         for point in self._laser_borders:
             self._model.laser.set_new_position(point)
             logger.debug(f'setting laser position {point.x, point.y}')
             self._wait_for_controller_ready()
             area_point = self.get_object_center(object)
-            print(Processor.detect_color_range(self._model._current_frame, percent=35))
             area.left_button_click(area_point)
             progress += 25
             self._view_model.set_progress(progress)
