@@ -109,7 +109,9 @@ class Orchestrator(ThreadLoopable):
         frame = self.camera.extract_frame()
         if self.filtered_ranges is not None:
             lower, upper = self.filtered_ranges
-            frame = Processor.paint_laser_black(frame, lower, upper)
+            #frame = Processor.bgr_to_hsv(frame)
+            #frame = Processor.replace_hsv_range(frame, int(lower[0]), int(upper[0]), 0)
+            #frame = Processor.hsv_to_bgr(frame)
             #frame = Processor.blur_image(frame)
         if self.selecting.selecting_in_progress(OBJECT) \
                 or not Processor.frames_are_same(frame, self._current_frame):

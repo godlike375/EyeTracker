@@ -153,3 +153,25 @@ class Processor:
     def paint_laser_black(image: np.ndarray, lower, upper):
         masked_image = cv2.bitwise_not(cv2.inRange(image, lower, upper))
         return cv2.bitwise_and(image, image, mask=masked_image)
+
+    @staticmethod
+    def replace_hsv_range(hsv_img, h_min, h_max, new_h):
+        mask = cv2.inRange(hsv_img, (h_min, 0, 0), (h_max, 255, 255))
+        # Создание массива с той же формой, что и hsv_image
+        new_hsv = np.zeros_like(hsv_img)
+
+        # Замена значений H в маске на новое значение
+        #new_hsv[:, :, 0] = np.where(mask > 0, new_h, hsv_img[:, :, 0])
+        new_hsv[:, :, 2] = np.where(mask > 0, 30, hsv_img[:, :, 2])
+
+        # Копирование значений S и V из hsv_image
+        new_hsv[:, :, 1] = hsv_img[:, :, 1]
+        return new_hsv
+
+    @staticmethod
+    def bgr_to_hsv(image: np.ndarray):
+        return cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+    @staticmethod
+    def hsv_to_bgr(image: np.ndarray):
+        return cv2.cvtColor(image, cv2.COLOR_HSV2BGR)

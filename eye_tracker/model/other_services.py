@@ -313,6 +313,7 @@ class CoordinateSystemCalibrator(ProcessBased, Calibrator):
         # без засыпания в object попадают невалидные (видимо старые) данные
         ltx, rbx, lty, rby = self.normalize_coordinates(object, self._model._current_frame.shape)
         cropped_frame = self._model._current_frame[lty:rby, ltx:rbx]
+        cropped_frame = Processor.bgr_to_hsv(cropped_frame)
         blured = Processor.blur_image(cropped_frame)
         masks = Processor.cluster_pixels(blured, num_clusters=4)
         mask1 = Processor.get_biggest_mask(masks)
@@ -322,11 +323,12 @@ class CoordinateSystemCalibrator(ProcessBased, Calibrator):
         mask3 = Processor.get_biggest_mask(masks)
         mask1_ranges = Processor.get_color_ranges(mask1)
         mask2_ranges = Processor.get_color_ranges(mask2)
-        mask3_ranges = Processor.get_color_ranges(mask3)
+        #mask3_ranges = Processor.get_color_ranges(mask3)
         united_ranges = (np.array([one if one < two else two for one, two in zip(mask1_ranges[0], mask2_ranges[0])]),
                          np.array([one if one > two else two for one, two in zip(mask1_ranges[1], mask2_ranges[1])]))
-        united_ranges = (np.array([one if one < two else two for one, two in zip(united_ranges[0], mask3_ranges[0])]),
-                         np.array([one if one > two else two for one, two in zip(united_ranges[1], mask3_ranges[1])]))
+        #united_ranges = (np.array([one if one < two else two for one, two in zip(united_ranges[0], mask3_ranges[0])]),
+        #                 np.array([one if one > two else two for one, two in zip(united_ranges[1], mask3_ranges[1])]))
+        united_ranges = (np.array([united_ranges[0][0], 0, 0]), np.array([united_ranges[1][0], 255, 255]),)
         self._model.filtered_ranges = united_ranges
 
         for point in self._laser_borders:
