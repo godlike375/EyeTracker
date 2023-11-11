@@ -50,8 +50,14 @@ class ViewModel:
         self._model.move_laser(x, y)
 
     def _coordinates_on_video(self, event):
-        x = event.x + (self._view._video_label.winfo_reqwidth() - self._view._video_label.winfo_width()) // 2
-        y = event.y + (self._view._video_label.winfo_reqheight() - self._view._video_label.winfo_height()) // 2
+        full_width = self._model._current_frame.shape[1]
+        full_height = self._model._current_frame.shape[0]
+        x = event.x + (full_width - self._view._video_label.winfo_width()) // 2
+        y = event.y + (full_height - self._view._video_label.winfo_height()) // 2
+        x = x if x > 0 else 0
+        x = x if x < full_width else full_width
+        y = y if y > 0 else 0
+        y = y if y < full_height else full_height
         return x, y
 
     def left_button_click(self, selector, event):
