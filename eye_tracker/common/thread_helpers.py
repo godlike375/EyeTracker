@@ -2,7 +2,7 @@ from sys import exit
 from threading import (
     Thread, Event, current_thread
 )
-from time import sleep
+from time import sleep, time
 from dataclasses import dataclass
 
 
@@ -42,11 +42,17 @@ class MutableValue:
 def thread_loop_runner(func, interval: MutableValue = None):
     if interval is None:
         interval = MutableValue(0.05)
+    sleep(interval.value)
     while True:
-        sleep(interval.value)
         if current_thread().is_stopped:
             exit()
+        func_time = time()
         func()
+        func_time = time() - func_time
+        time_to_sleep = interval.value - func_time
+        if time_to_sleep > 0:
+            sleep(time_to_sleep)
+
 
 
 class ThreadLoopable:

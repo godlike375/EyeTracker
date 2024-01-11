@@ -1,13 +1,14 @@
 import sys
 from time import time, sleep
 
+from eye_tracker.common.coordinates import Point
 from eye_tracker.common.logger import logger
 from eye_tracker.common.program import exit_program
 from eye_tracker.common.settings import settings, OBJECT, AREA, private_settings, MAX_LASER_RANGE
 from eye_tracker.common.thread_helpers import ThreadLoopable, MutableValue
 from eye_tracker.model.area_controller import AreaController
 from eye_tracker.model.camera_extractor import CameraService
-from eye_tracker.model.frame_processing import Tracker
+from eye_tracker.model.frame_processing import Tracker, CropZoomer
 from eye_tracker.model.move_controller import MoveController
 from eye_tracker.model.other_services import SelectingService, StateMachine, OnScreenService, \
     NoiseThresholdCalibrator, CoordinateSystemCalibrator
@@ -80,14 +81,16 @@ class Orchestrator(ThreadLoopable):
         self.selecting = SelectingService(self._on_area_selected, self._on_object_selected, self, self.screen,
                                           self._view_model)
         self.laser = laser or MoveController(self._on_laser_error, debug_on=debug_on)
+        self.crop_zoomer = CropZoomer(self)
 
-        self._current_frame = None
+        self.current_frame = None
 
         self.calibrators = {'noise threshold': NoiseThresholdCalibrator(self, self._view_model),
                             'coordinate system': CoordinateSystemCalibrator(self, self._view_model)}
 
         self.previous_area = None
         self._throttle_to_fps_viewed = time()
+        self.frames_count = 0
         self._frame_interval = MutableValue(1 / settings.FPS_VIEWED)
 
         self.rotate_image(private_settings.ROTATION_ANGLE, user_action=False)
@@ -97,26 +100,45 @@ class Orchestrator(ThreadLoopable):
             self.state_control.change_state('camera connected')
         if self.laser.initialized:
             self.state_control.change_state('laser connected')
+        self._processing_loop()
         if area is not None:
             self.selecting.load_selected_area(area)
 
         self.calibrate_laser()
+        self.second_timer = time()
+        self.fps = 30
 
         super().__init__(self._processing_loop, self._frame_interval, run_immediately)
 
     def _processing_loop(self):
         frame = self.camera.extract_frame()
-        if self.selecting.selecting_in_progress(OBJECT) \
-                or not Processor.frames_are_same(frame, self._current_frame):
+        self.raw_frame = frame
+        if self.selecting.selecting_in_progress(OBJECT)\
+                or not Processor.frames_are_same(frame, self.current_frame):
             if self.tracker.in_progress:
                 self._tracking(frame)
+                self.frames_count += 1
+
                 if time() - self._throttle_to_fps_viewed < 1 / settings.FPS_VIEWED:
                     return
-                else:
-                    self._throttle_to_fps_viewed = time()
+
+                passed = time() - self.second_timer
+                if passed > 1:
+                    self.fps = self.frames_count / passed
+                    self.second_timer = time()
+                    self.fps_time = time()
+
+                    self.frames_count = 0
+
+                frame = Processor.draw_text(frame, f'fps: {round(self.fps, 1)}',
+                                            Point(8, 16), 0.5)
+
+            frame = self.screen.common_processing(frame)
+            if self.crop_zoomer.can_crop():
+               frame = self.crop_zoomer.crop_zoom_frame(frame)
             processed_image = self.screen.prepare_image(frame)
             self._view_model.on_image_ready(processed_image)
-        self._current_frame = frame
+        self.current_frame = frame
 
     def _calibrating_in_progress(self):
         return any([i.in_progress for i in self.calibrators.values()])
@@ -139,6 +161,7 @@ class Orchestrator(ThreadLoopable):
         if self.previous_area is not None:
             self.screen.add_selector(self.previous_area, AREA)
             self.area_controller.set_area(self.previous_area, self.laser.laser_borders)
+            self.crop_zoomer.set_zoom_area(self.previous_area)
         self._view_model.progress_bar_set_visibility(False)
 
     def _move_to_relative_cords(self, center):
@@ -164,6 +187,7 @@ class Orchestrator(ThreadLoopable):
         self._view_model.set_menu_state('all', 'normal')
         self.previous_area = area
         self.area_controller.set_area(area, self.laser.laser_borders)
+        self.crop_zoomer.set_zoom_area(area)
         self.state_control.change_state('coordinate system calibrated')
 
     def _on_object_selected(self, run_thread_after=None):
@@ -180,7 +204,10 @@ class Orchestrator(ThreadLoopable):
                                            additional_callback=run_thread_after)
             return
 
-        self.tracker.start_tracking(self._current_frame, object.left_top, object.right_bottom)
+        cropped_width = int(self.current_frame.shape[1])
+        cropped_height = int(self.current_frame.shape[0])
+
+        self.tracker.start_tracking(self.raw_frame, object.left_top, object.right_bottom, cropped_width, cropped_height)
         self.screen.add_selector(self.tracker, OBJECT)
         self._frame_interval.value = 1 / settings.FPS_PROCESSED
         self._view_model.set_menu_state('all', 'disabled')
@@ -189,6 +216,7 @@ class Orchestrator(ThreadLoopable):
             run_thread_after().start()
 
     def _calibrate_common(self, name):
+        self.crop_zoomer.reset_zoom_area()
         if self.selecting.selecting_is_done(AREA):
             self.previous_area = self.screen.get_selector(AREA)
             self.screen.remove_selector(AREA)

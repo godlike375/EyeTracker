@@ -9,6 +9,8 @@ from eye_tracker.common.settings import settings, private_settings, RESOLUTIONS,
 SPLIT_PARTS = 4
 # другие значения не работают с 90 градусов поворотом при разрешениях кроме 640
 
+FONT_SCALE = 0.8
+
 
 class Processor:
     # white
@@ -16,7 +18,6 @@ class Processor:
     COLOR_CAUTION = (0, 0, 255)
     THICKNESS = 2
     CURRENT_COLOR = COLOR_NORMAL
-    FONT_SCALE = 0.8
 
     @staticmethod
     def frame_to_image(frame):
@@ -48,10 +49,10 @@ class Processor:
         return cv2.line(frame, (*start,), (*end,), color=cls.CURRENT_COLOR, thickness=cls.THICKNESS)
 
     @classmethod
-    def draw_text(cls, frame, text: str, coords: Point):
+    def draw_text(cls, frame, text: str, coords: Point, font_scale: float = FONT_SCALE):
         font = cv2.FONT_HERSHEY_SIMPLEX
         return cv2.putText(frame, text, (coords.x, coords.y), font,
-                           cls.FONT_SCALE, Processor.CURRENT_COLOR, cls.THICKNESS, cv2.LINE_AA)
+                           font_scale, Processor.CURRENT_COLOR, cls.THICKNESS, cv2.LINE_AA)
 
     @staticmethod
     def resize_frame_relative(frame, percent):

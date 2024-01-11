@@ -4,9 +4,11 @@ from itertools import chain, repeat
 import dlib
 
 from eye_tracker.common.abstractions import ProcessBased, RectBased, Drawable
-from eye_tracker.common.coordinates import Point, calc_center
+from eye_tracker.common.coordinates import Point, calc_center, get_translation_maxtix, translate_coordinates, \
+    get_translation_maxtix_between_resolutions
 from eye_tracker.common.logger import logger
 from eye_tracker.common.settings import settings
+from eye_tracker.model.selector import AreaSelector
 from eye_tracker.view.drawing import Processor
 
 
@@ -33,16 +35,33 @@ class Tracker(RectBased, Drawable, ProcessBased):
 
     def update_center(self):
         left_cur_pos = Point(int(self._denoisers[0].get()), int(self._denoisers[1].get()))
+        left_cur_pos = translate_coordinates(self.original_to_cropped_matrix, left_cur_pos)
         right_cur_pos = Point(int(self._denoisers[2].get()), int(self._denoisers[3].get()))
+        right_cur_pos = translate_coordinates(self.original_to_cropped_matrix, right_cur_pos)
         center = calc_center(left_cur_pos, right_cur_pos)
         if abs(self.center - center) >= settings.NOISE_THRESHOLD_RANGE:
             self._center = center
 
-    def start_tracking(self, frame, left_top, right_bottom):
+    def start_tracking(self, frame, left_top: Point, right_bottom: Point,
+                       cropped_width: int, cropped_heigth: int):
         logger.debug('tracking started')
-        frame = Processor.resize_frame_relative(frame, settings.DOWNSCALE_FACTOR)
+        original_width = int(frame.shape[1])
+        original_height = int(frame.shape[0])
+
+        self.cropped_to_original_matrix = get_translation_maxtix_between_resolutions(cropped_width, cropped_heigth,
+                                                                                     original_width, original_height)
+        self.original_to_cropped_matrix = get_translation_maxtix_between_resolutions(original_width, original_height,
+                                                                                     cropped_width, cropped_heigth)
+        # needs to be executed before translating coordinates
         self._object_length_xy = Point(abs(left_top.x - right_bottom.x),
                                        abs(left_top.y - right_bottom.y))
+
+        left_top = translate_coordinates(self.cropped_to_original_matrix, left_top)
+        right_bottom = translate_coordinates(self.cropped_to_original_matrix, right_bottom)
+
+        frame = Processor.resize_frame_relative(frame, settings.DOWNSCALE_FACTOR)
+
+
 
         scaled_left_top, scaled_right_bottom = \
             (left_top * settings.DOWNSCALE_FACTOR).to_int(), \
@@ -85,3 +104,37 @@ class Denoiser:
 
     def get(self):
         return self._sum / self._count
+
+class CropZoomer:
+    def __init__(self, model):
+        self.zoom_area = None
+        self.translation_matrix = None
+        self._model = model
+
+    def reset_zoom_area(self):
+        self.zoom_area = None
+        self.translation_matrix = None
+
+    def set_zoom_area(self, area: AreaSelector):
+        area._sort_points_for_viewing()
+        xs = sorted([p.x for p in area.points])
+        ys = sorted([p.y for p in area.points])
+
+        self.zoom_area = Point(xs[0], ys[0]), Point(xs[-1], ys[-1])
+        zoom_points = [Point(xs[0], ys[0]), Point(xs[-1], ys[0]), Point(xs[-1], ys[-1]), Point(xs[0], ys[-1])]
+        height = self._model.current_frame.shape[0]
+        width = self._model.current_frame.shape[1]
+        screen_points = [Point(0, 0), Point(width, 0), Point(width, height), Point(0, height)]
+        self.translation_matrix = get_translation_maxtix(screen_points, zoom_points)
+
+    def to_zoom_area_coordinates(self, point: Point):
+        return translate_coordinates(self.translation_matrix, point)
+
+    def can_crop(self):
+        return self.zoom_area is not None and self.translation_matrix is not None
+
+    def crop_zoom_frame(self, frame):
+        height = frame.shape[0]
+        width = frame.shape[1]
+        frame = frame[self.zoom_area[0].y:self.zoom_area[1].y, self.zoom_area[0].x:self.zoom_area[1].x]
+        return Processor.resize_frame_absolute(frame, height, width)

@@ -50,14 +50,19 @@ class ViewModel:
         self._model.move_laser(x, y)
 
     def _coordinates_on_video(self, event):
-        full_width = self._model._current_frame.shape[1]
-        full_height = self._model._current_frame.shape[0]
+        full_width = self._model.current_frame.shape[1]
+        full_height = self._model.current_frame.shape[0]
         x = event.x + (full_width - self._view._video_label.winfo_width()) // 2
         y = event.y + (full_height - self._view._video_label.winfo_height()) // 2
         x = x if x > 0 else 0
         x = x if x < full_width else full_width
         y = y if y > 0 else 0
         y = y if y < full_height else full_height
+
+        if self._model.crop_zoomer.can_crop():
+            zoomed_coordinates = self._model.crop_zoomer.to_zoom_area_coordinates(Point(x, y))
+            x, y = zoomed_coordinates
+
         return x, y
 
     def left_button_click(self, selector, event):

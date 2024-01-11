@@ -128,7 +128,7 @@ def test_rotate_image_resets_area(fake_model, selected_area_points):
 
 
 def test_noise_calibrate(fake_model, selected_object_points, black_frame):
-    fake_model._current_frame = black_frame
+    fake_model.current_frame = black_frame
     thresh_calibrator = fake_model.calibrators['noise threshold']
     fake_model.calibrate_noise_threshold()
     fake_model.selecting.try_create_selector(name=OBJECT, reselect_while_calibrating=True,
@@ -145,7 +145,7 @@ def test_noise_calibrate(fake_model, selected_object_points, black_frame):
 
 
 def test_coordinates_calibrate(fake_model, selected_object_points, black_frame, selected_area_points):
-    fake_model._current_frame = black_frame
+    fake_model.current_frame = black_frame
     current_point = iter(selected_area_points)
 
     def fake_object_center(_):

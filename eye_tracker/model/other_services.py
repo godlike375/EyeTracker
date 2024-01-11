@@ -37,10 +37,13 @@ class OnScreenService:
     def selector_exists(self, name):
         return name in self.on_screen_selectors
 
-    def prepare_image(self, frame):
+    def common_processing(self, frame):
         frame = Processor.resize_to_minimum(frame)
         processed = self._draw_active_objects(frame)
-        return Processor.frame_to_image(processed)
+        return processed
+
+    def prepare_image(self, frame):
+        return Processor.frame_to_image(frame)
 
     def _draw_active_objects(self, frame):
         for obj in self.on_screen_selectors.values():
