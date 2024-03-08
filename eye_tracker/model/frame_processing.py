@@ -116,12 +116,9 @@ class CropZoomer:
         self.translation_matrix = None
 
     def set_zoom_area(self, area: AreaSelector):
-        area._sort_points_for_viewing()
-        xs = sorted([p.x for p in area.points])
-        ys = sorted([p.y for p in area.points])
-
-        self.zoom_area = Point(xs[0], ys[0]), Point(xs[-1], ys[-1])
-        zoom_points = [Point(xs[0], ys[0]), Point(xs[-1], ys[0]), Point(xs[-1], ys[-1]), Point(xs[0], ys[-1])]
+        self.zoom_area = area.calculate_correct_square_points()
+        pts = self.zoom_area
+        zoom_points = [pts[0], Point(pts[1].x, pts[0].y), pts[1], Point(pts[0].x, pts[1].y)]
         height = self._model.current_frame.shape[0]
         width = self._model.current_frame.shape[1]
         screen_points = [Point(0, 0), Point(width, 0), Point(width, height), Point(0, height)]

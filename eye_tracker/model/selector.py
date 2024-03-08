@@ -44,15 +44,6 @@ class Selector(ABC, ProcessBased):
         less_than_min_dist = any([i < MIN_DISTANCE_BETWEEN_POINTS for i in distances])
         return len(set(self._points)) != len(self._points) or less_than_min_dist
 
-    def _sort_points_for_viewing(self):
-        half_points = len(self._points) // 2
-        sorted_by_y = sorted(self._points, key=lambda p: p.y, reverse=False)
-        top_points = sorted_by_y[:half_points]
-        bottom_points = sorted_by_y[half_points:]
-        top_points.sort(key=lambda p: p.x)
-        bottom_points.sort(key=lambda p: p.x, reverse=True)
-        self._points = top_points + bottom_points
-
     def bind_events(self, events, unbindings):
         self.start()
         self._unbindings = unbindings
@@ -71,6 +62,12 @@ class Selector(ABC, ProcessBased):
         for unbind in self._unbindings:
             unbind[EVENT_NAME]()
         ProcessBased.cancel(self)
+
+    def calculate_correct_square_points(self):
+        xs = sorted([p.x for p in self._points])
+        ys = sorted([p.y for p in self._points])
+
+        return Point(xs[0], ys[0]), Point(xs[-1], ys[-1])
 
 
 class ObjectSelector(RectBased, Drawable, Selector):
@@ -117,7 +114,7 @@ class ObjectSelector(RectBased, Drawable, Selector):
             return
         elif points_count > ObjectSelector.MAX_POINTS:
             self._points = self._points[points_count - ObjectSelector.MAX_POINTS:]
-        self._sort_points_for_viewing()
+        self._points = self.calculate_correct_square_points()
         self._left_top, self._right_bottom = self._points
         # WARNING: не вызывать здесь self.finish_selecting(), т.к. он вызывается в arrow_press() view_model
 
