@@ -67,7 +67,7 @@ class Selector(ABC, ProcessBased):
         xs = sorted([p.x for p in self._points])
         ys = sorted([p.y for p in self._points])
 
-        return Point(xs[0], ys[0]), Point(xs[-1], ys[-1])
+        return [Point(xs[0], ys[0]), Point(xs[-1], ys[-1])]
 
 
 class ObjectSelector(RectBased, Drawable, Selector):
