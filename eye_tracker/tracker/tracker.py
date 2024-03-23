@@ -5,15 +5,56 @@ import dlib
 import time
 import numpy as np
 
+import sys
+sys.setswitchinterval(0.00000001)
+
+
+def bytes_to_numpy(serialized_arr: str) -> np.array:
+    sep = '|'.encode('utf-8')
+    i_0 = serialized_arr.find(sep)
+    i_1 = serialized_arr.find(sep, i_0 + 1)
+    arr_dtype = serialized_arr[:i_0].decode('utf-8')
+    arr_shape = tuple([int(a) for a in serialized_arr[i_0 + 1:i_1].decode('utf-8').split(',')])
+    arr_str = serialized_arr[i_1 + 1:]
+    arr = np.frombuffer(arr_str, dtype = arr_dtype).reshape(arr_shape)
+    return arr
+
+class FPSCounter:
+    def __init__(self):
+        self.start_time = time.time()
+        self.frames = 0
+
+    def calculate(self):
+        current_time = time.time()
+        elapsed_time = current_time - self.start_time
+
+        if elapsed_time >= 1.0:
+            fps = self.frames / elapsed_time
+            self.frames = 0
+            self.start_time = current_time
+            return fps
+        else:
+            return 0
+
+    def able_to_calculate(self):
+        current_time = time.time()
+        elapsed_time = current_time - self.start_time
+
+        if elapsed_time >= 1.0:
+            return True
+        else:
+            return False
+
+
 class ObjectTrackerClient:
     def __init__(self):
         self.tracker = None
-        self.frame_count = 0
         self.start_time = time.time()
+        self.fps_cnt = FPSCounter()
 
     async def track_object(self, frame_str):
-        frame = cv2.imdecode(np.fromstring(frame_str, dtype=np.uint8), cv2.IMREAD_COLOR)
-
+        #frame = cv2.imdecode(np.fromstring(frame_str, dtype=np.uint8), cv2.IMREAD_COLOR)
+        frame = bytes_to_numpy(frame_str)
         if self.tracker is None:
             # Инициализация трекера
             self.tracker = dlib.correlation_tracker()
@@ -27,21 +68,16 @@ class ObjectTrackerClient:
         x, y, w, h = int(track_rect.left()), int(track_rect.top()), int(track_rect.width()), int(track_rect.height())
 
         # Отображение координат объекта на кадре (или другая обработка)
-        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        #cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
         # Отображение кадра с объектом
-        cv2.imshow('Tracked Object', frame)
-        cv2.waitKey(1)
+        #cv2.imshow('Tracked Object', frame)
+        #cv2.waitKey(1)
 
         # Увеличение счетчика кадров
-        self.frame_count += 1
-
-    async def print_fps(self):
-        while True:
-            await asyncio.sleep(1)  # Ожидание 1 секунды
-            elapsed_time = time.time() - self.start_time
-            fps = self.frame_count / elapsed_time
-            print(f"FPS: {fps}")
+        if self.fps_cnt.able_to_calculate():
+            print(self.fps_cnt.calculate())
+        self.fps_cnt.frames += 1
 
     async def receive_frames(self):
         while True:
@@ -54,10 +90,7 @@ class ObjectTrackerClient:
                 pass
 
     def start(self):
-        loop = asyncio.get_event_loop()
-        loop.create_task(self.print_fps())
-        loop.create_task(self.receive_frames())
-        loop.run_forever()
+        asyncio.run(self.receive_frames())
 
 client = ObjectTrackerClient()
 client.start()
