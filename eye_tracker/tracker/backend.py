@@ -1,3 +1,5 @@
+
+
 import cv2
 import asyncio
 import websockets
@@ -18,13 +20,14 @@ class WebcamServer:
 
     async def serve(self, websocket, path):
         self.websockets.add(websocket)
+        ret, frame = self.cap.read()
+        frame_str = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 75])[1].tostring()
         while True:
-            ret, frame = self.cap.read()
+
             # Обработка кадра (если необходимо)
 
             # Преобразование кадра в строку (для отправки через веб-сокет)
-            #frame_str = cv2.imencode('.jpg', frame)[1].tostring()
-            frame_str = numpy_to_bytes(frame)
+
             # Отправка кадра всем клиентам через веб-сокеты
             await asyncio.gather(*[ws.send(frame_str) for ws in self.websockets])
 
