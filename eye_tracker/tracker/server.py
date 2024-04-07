@@ -10,6 +10,7 @@ server_socket.listen(5)
 
 # Захватываем видеопоток с вебкамеры
 camera = cv2.VideoCapture(0)
+camera.set(cv2.CAP_PROP_FPS, 60)
 
 while True:
     client_socket, addr = server_socket.accept()

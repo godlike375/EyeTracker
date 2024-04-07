@@ -1,0 +1,8 @@
+websockets
+websocket-client
+PyQt6
+dlib
+opencv-python
+imageio
+imageio-ffmpeg
+quick-queue

@@ -6,7 +6,7 @@ import time
 
 # Создаем сокет
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-client_socket.connect(('127.0.0.1', 8000))
+client_socket.connect(('127.0.0.1', 5679))
 
 data = b""
 payload_size = struct.calcsize("<L")
@@ -55,11 +55,11 @@ while True:
     data = data[msg_size:]
     frame = pickle.loads(frame_data)
 
-    #cv2.imshow('Video', frame)
+    cv2.imshow('Video', frame)
     fps_cnt.frames += 1
     if fps_cnt.able_to_calculate():
         print(fps_cnt.calculate())
-    #if cv2.waitKey(1) & 0xFF == ord('q'):
+    cv2.waitKey(1)
     #   break
 
 cv2.destroyAllWindows()
