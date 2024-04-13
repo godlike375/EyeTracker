@@ -6,9 +6,8 @@ import cv2
 import numpy as np
 
 
-@dataclass
+@dataclass(slots=True)
 class Point:
-    __slots__ = ['x', 'y']
     x: float
     y: float
 
