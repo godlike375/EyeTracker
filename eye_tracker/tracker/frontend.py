@@ -1,32 +1,34 @@
 import asyncio
-from time import sleep
 import sys
 from functools import partial
 
 import cv2
 import numpy
-import websockets
-from time import sleep
-from multiprocessing import Process, Queue
-
-from PyQt6.QtCore import QSize, Qt
+from PyQt6.QtCore import QThread, pyqtSignal, QSize, Qt, pyqtSlot
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget
+import websockets
 
 from eye_tracker.tracker.command_processor import CommandExecutor
-from eye_tracker.tracker.protocol import Command, Commands, Coordinates, StartTracking, ImageWithCoordinates
+from eye_tracker.tracker.protocol import Command, Commands, Coordinates, StartTracking, \
+    ImageWithCoordinates
 from eye_tracker.tracker.abstractions import ID
 from eye_tracker.tracker.fps_counter import FPSCounter
 
-class DataStreamProcessor:
-    def __init__(self, url, images_stream, command_stream):
+import sys
+
+#sys.setswitchinterval(0.0000000000000000001)
+
+
+class DataStreamProcessor(QThread):
+    update_image = pyqtSignal(object)
+
+    def __init__(self, url):
+        super().__init__()
         self.url = url
         self.connection = None
-        self.update_image = None
-        self.commands = CommandExecutor()
         self.fps = FPSCounter()
-        self.images_stream: Queue = images_stream
-        self.command_stream: Queue = command_stream
+        self.commands = CommandExecutor()
 
     def run(self):
         asyncio.run(self.connect())
@@ -41,21 +43,26 @@ class DataStreamProcessor:
         func = partial(self.connection.send, command.pack())
         self.commands.queue_command(func)
 
-    async def mainloop(self):
-        while True:
-            if not self.command_stream.empty():
-                cmd: Command = self.command_stream.get(block=False)
-                await self.connection.send(cmd.pack())
 
-            msg: bytes = await self.connection.recv()
-            imcords = ImageWithCoordinates.unpack(msg)
-            sleep(0.00001) # WARNING: somehow it saves main window from freezing. looks like it's connected with Queues
-            self.images_stream.put(imcords)
-            if self.fps.able_to_calculate():
-                print(f'main fps {self.fps.calculate()}')
-                #print(len(msg))
-            #print(f'processor frame id {imcords.image.id}')
-            self.fps.count_frame()
+    async def mainloop(self):
+        try:
+            while True:
+                await self.commands.exec_queued_commands()
+                msg: bytes = await self.connection.recv()
+                from time import sleep
+                sleep(0.001)
+                imcords = ImageWithCoordinates.unpack(msg)
+                self.update_image.emit(imcords)
+                if self.fps.able_to_calculate():
+                    self.fps.calculate()
+                    #print(self.fps.calculate())
+                #print(f'processor frame id {imcords.image.id}')
+                self.fps.count_frame()
+
+
+        except Exception as e:
+            print("Exception in async mainloop:", e)
+
 
 class MainWindow(QWidget):
     def __init__(self):
@@ -64,42 +71,23 @@ class MainWindow(QWidget):
         layout = QVBoxLayout()
         layout.addWidget(self.video_label)
         self.setLayout(layout)
-        self.images_stream = Queue(maxsize=1)
-        self.command_stream = Queue(maxsize=1)
-        self.url = 'ws://localhost:5680'
-        self.data_stream = DataStreamProcessor(self.url, self.images_stream,
-                                               self.command_stream)
-        self.data_stream_process = Process(target=self.data_stream.run)
-        self.data_stream_process.start()
 
+        self.data_stream = DataStreamProcessor('ws://localhost:5680')
+        self.data_stream.update_image.connect(self.update_video_frame, Qt.ConnectionType.QueuedConnection)
         self.video_size_set = False
         self.free_tracker_id: ID = ID(0)
         self.frame_id: ID = ID(0)
+        self.data_stream.start()
 
-        self.timer = self.startTimer(4)
-        self.fps = FPSCounter()
-        self.prev_frame = numpy.zeros((480, 640, 3))
-
-    def timerEvent(self, id) -> None:
-        self.update_video_frame()
-
-    def update_video_frame(self):
-        if self.images_stream.empty():
-            return
-        imcords: ImageWithCoordinates = self.images_stream.get(block=False)
+    @pyqtSlot(object)
+    def update_video_frame(self, imcords: ImageWithCoordinates):
         self.frame_id = imcords.image.id
         #print(f'main frame id {imcords.image.id}')
         # TODO: draw coords
-
+        frame = imcords.image.to_raw_image()
         frame = imcords.image.to_raw_image().astype(numpy.uint8)
         for c in imcords.coords:
             frame = cv2.rectangle(frame, (int(c.x1), int(c.y1)), (int(c.x2), int(c.y2)), color=(255, 0, 0), thickness=2)
-
-        if self.fps.able_to_calculate():
-            print(f'update fps {self.fps.calculate()}')
-        if not (frame == self.prev_frame).all():
-            self.fps.count_frame()
-        self.prev_frame = frame
 
         image = QImage(frame, frame.shape[1], frame.shape[0], QImage.Format.Format_BGR888)
         pixmap = QPixmap.fromImage(image)
@@ -118,7 +106,8 @@ class MainWindow(QWidget):
         start_data = StartTracking(Coordinates(270, 190, 370, 290), self.frame_id, self.free_tracker_id)
         self.free_tracker_id += 1
         cmd = Command(Commands.START_TRACKING, start_data)
-        self.command_stream.put(cmd)
+        self.data_stream.send_command(cmd)
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

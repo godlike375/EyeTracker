@@ -61,14 +61,10 @@ def do_coro_proc_work(q, stuff, stuff2):
     loop.run_until_complete(_do_coro_proc_work(q, stuff, stuff2))
 
 async def do_work(q):
+    loop = asyncio.get_event_loop()
     loop.run_in_executor(ProcessPoolExecutor(max_workers=1),
                          do_coro_proc_work, q, 1, 2)
     item = await q.coro_get()
     print("Got %s from worker" % item)
     item = item + 25
     q.put(item)
-
-if __name__  == "__main__":
-    q = AsyncProcessQueue()
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(do_work(q))

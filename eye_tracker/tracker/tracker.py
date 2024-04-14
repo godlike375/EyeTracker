@@ -1,8 +1,9 @@
 import dataclasses
+import queue
+import time
 from multiprocessing import Process, Queue
 
 import dlib
-from quick_queue import QQueue
 
 from eye_tracker.tracker.fps_counter import FPSCounter
 from eye_tracker.tracker.image import CompressedImage
@@ -13,15 +14,16 @@ from eye_tracker.tracker.abstractions import ID
 class TrackerWrapper:
     def __init__(self, id: int, coordinates: Coordinates):
         self.id = id
-        self.video_stream = Queue(maxsize=1)
-        self.coordinates_commands_stream = Queue(maxsize=1)
+        self.video_stream = Queue(maxsize=2)
+        self.coordinates_commands_stream = Queue(maxsize=2)
         self.process = Process(
                 target=self._mainloop,
-                args=(self.video_stream, self.coordinates_commands_stream, id, coordinates)
+                args=(self.video_stream, self.coordinates_commands_stream, id, coordinates),
+                daemon=True
             )
         self.process.start()
 
-    def _mainloop(self, video_stream: QQueue, coordinates_commands: QQueue,
+    def _mainloop(self, video_stream: Queue, coordinates_commands: Queue,
                   id: ID, coordinates: Coordinates):
         fps = FPSCounter()
         print(f'tracker start id {id}')
@@ -29,7 +31,12 @@ class TrackerWrapper:
         stopped = False
         tracker = dlib.correlation_tracker()
         while not stopped:
-            frame_bytes = video_stream.get()
+            while True:
+                try:
+                    frame_bytes = video_stream.get_nowait()
+                    break
+                except queue.Empty:
+                    time.sleep(0.0065)
             image = CompressedImage.unpack(frame_bytes)
             raw = image.to_raw_image()
 
@@ -43,4 +50,10 @@ class TrackerWrapper:
             if fps.able_to_calculate():
                 print(fps.calculate())
                 print(f'update tracker id {id} coordinates {new_coordinates}')
-            coordinates_commands.put(Coordinates(*new_coordinates))
+
+            while True:
+                try:
+                    coordinates_commands.put_nowait(Coordinates(*new_coordinates))
+                    break
+                except queue.Full:
+                    time.sleep(0.0065)
