@@ -2,6 +2,7 @@ import io
 from dataclasses import dataclass
 
 import PIL
+import cv2
 from PIL.Image import Image
 import numpy
 
@@ -35,3 +36,9 @@ class CompressedImage(Packable):
     def from_raw_image(cls, raw: numpy.ndarray, id: ID) -> 'CompressedImage':
         img = PIL.Image.fromarray(raw)
         return CompressedImage(id, encode_array_to_jpeg(img))
+
+
+def resize_frame_relative(frame: numpy.ndarray, percent):
+    width = int(frame.shape[1] * percent)
+    height = int(frame.shape[0] * percent)
+    return cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)

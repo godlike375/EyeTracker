@@ -58,7 +58,7 @@ class DataStreamProcessor(QThread):
                     imcords = ImageWithCoordinates.unpack(msg)
                     self.update_image.emit(imcords)
                 if self.fps.able_to_calculate():
-                    print(self.fps.calculate())
+                    print(f'frontend fps: {self.fps.calculate()}')
                 #print(f'processor frame id {imcords.image.id}')
                 self.fps.count_frame()
                 self.throttle.count_frame()

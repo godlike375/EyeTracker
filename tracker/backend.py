@@ -19,30 +19,39 @@ from tracker.object_tracker import TrackerWrapper, FPS_120
 
 
 class WebCam:
-    def __init__(self):
+    def __init__(self, benchmark = False):
         self.image_id: ID = ID(0)
 
         self.frames = Queue(maxsize=3)
         self.thread = Thread(target=self.mainloop, daemon=True)
         self.thread.start()
+        self.benchmark = benchmark
 
     def mainloop(self):
         self.camera = cv2.VideoCapture(0)
         self.camera.set(cv2.CAP_PROP_FPS, 60)
-        #self.ret, self.frame = self.camera.read()
-        while True:
-            self.frames.put(self.capture_jpeg())
+        if self.benchmark:
+            self.ret, self.frame = self.camera.read()
+            while True:
+                self.frames.put(self.capture_image_benchmark())
+        else:
+            while True:
+                self.frames.put(self.capture_image())
 
     def __del__(self):
         self.camera.release()
 
-    def capture_jpeg(self) -> CompressedImage:
+    def capture_image(self) -> CompressedImage:
         ret, frame = self.camera.read()
-        #jpeg = CompressedImage.from_raw_image(self.frame, self.image_id)
+        #frame = resize_frame_relative(frame, 0.5)
         jpeg = CompressedImage.from_raw_image(frame, self.image_id)
         self.image_id += 1
-        #return jpeg if self.ret else None
         return jpeg if ret else None
+
+    def capture_image_benchmark(self) -> CompressedImage:
+        jpeg = CompressedImage.from_raw_image(self.frame, self.image_id)
+        self.image_id += 1
+        return jpeg if self.ret else None
 
 
 class WebSocketServer:
