@@ -53,9 +53,9 @@ class DataStreamProcessor(QThread):
             while True:
                 await self.commands.exec_queued_commands()
                 msg: bytes = await self.connection.recv()
-                imcords = ImageWithCoordinates.unpack(msg)
                 if self.throttle.able_to_calculate():
                     self.throttle.calculate()
+                    imcords = ImageWithCoordinates.unpack(msg)
                     self.update_image.emit(imcords)
                 if self.fps.able_to_calculate():
                     print(self.fps.calculate())

@@ -15,21 +15,21 @@ from tracker.image import CompressedImage
 from tracker.protocol import Command, Commands, Coordinates, ImageWithCoordinates, StartTracking
 from tracker.abstractions import ID, try_few_times
 from tracker.fps_counter import FPSCounter
-from tracker.object_tracker import TrackerWrapper, FPS_160_FRAME_TIME
+from tracker.object_tracker import TrackerWrapper, FPS_120
 
 
 class WebCam:
     def __init__(self):
         self.image_id: ID = ID(0)
 
-        self.frames = Queue(maxsize=2)
+        self.frames = Queue(maxsize=3)
         self.thread = Thread(target=self.mainloop, daemon=True)
         self.thread.start()
 
     def mainloop(self):
         self.camera = cv2.VideoCapture(0)
-        #self.ret, self.frame = self.camera.read()
         self.camera.set(cv2.CAP_PROP_FPS, 60)
+        #self.ret, self.frame = self.camera.read()
         while True:
             self.frames.put(self.capture_jpeg())
 
@@ -58,7 +58,7 @@ class WebSocketServer:
             await Future()
 
     def send_to_tracker(self, tracker: TrackerWrapper, img: bytes):
-        try_few_times(lambda: tracker.video_stream.put_nowait(img), interval=FPS_160_FRAME_TIME)
+        try_few_times(lambda: tracker.video_stream.put_nowait(img), interval=FPS_120 / 3, times=3)
 
     async def _send_to_trackers(self, img: bytes):
         trackers = self.trackers.values()
@@ -69,7 +69,7 @@ class WebSocketServer:
 
     def receive_from_tracker(self, tracker: TrackerWrapper, results: list):
         try_few_times(lambda : results.append(tracker.coordinates_commands_stream.get_nowait()),
-                      interval=FPS_160_FRAME_TIME)
+                      interval=FPS_120, times=1)
 
 
     async def _receive_from_trackers(self, coordinates: list[Coordinates]) -> list[Coordinates]:

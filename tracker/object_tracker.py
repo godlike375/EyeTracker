@@ -9,14 +9,14 @@ from tracker.protocol import Coordinates
 from tracker.abstractions import ID, try_few_times
 
 
-FPS_160_FRAME_TIME = 1/160
+FPS_120 = 1 / 120
 
 
 class TrackerWrapper:
     def __init__(self, id: int, coordinates: Coordinates):
         self.id = id
-        self.video_stream = Queue(maxsize=2)
-        self.coordinates_commands_stream = Queue(maxsize=2)
+        self.video_stream = Queue(maxsize=3)
+        self.coordinates_commands_stream = Queue(maxsize=3)
         self.process = Process(
                 target=self._mainloop,
                 args=(self.video_stream, self.coordinates_commands_stream, id, coordinates),
@@ -34,7 +34,7 @@ class TrackerWrapper:
         while not stopped:
             frame = []
             try_few_times(lambda: frame.append(video_stream.get_nowait()),
-                          interval=FPS_160_FRAME_TIME / 2)
+                          interval=FPS_120 / 3, times=4)
             if not frame:
                 continue
             image = CompressedImage.unpack(frame[0])
@@ -51,4 +51,4 @@ class TrackerWrapper:
                 print(f'tracker fps: {fps.calculate()}')
 
             try_few_times(lambda : coordinates_commands.put_nowait(Coordinates(*new_coordinates)),
-                          interval=FPS_160_FRAME_TIME)
+                          interval=FPS_120 / 2)
