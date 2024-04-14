@@ -26,7 +26,7 @@ class FPSCounter:
         current_time = time.time()
         elapsed_time = current_time - self.start_time
 
-        if elapsed_time >= 1.0:
+        if elapsed_time >= self.count_every:
             return True
         else:
             return False

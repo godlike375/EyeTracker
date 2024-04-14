@@ -1,21 +1,21 @@
 import asyncio
-import queue
+import multiprocessing
+import sys
 from asyncio import Future
-from concurrent.futures import ThreadPoolExecutor
 from threading import Thread
-#from multiprocessing import Queue
 from queue import Queue
-
 import websockets
 
 import cv2
 from websockets import WebSocketServerProtocol
 
-from eye_tracker.tracker.image import CompressedImage
-from eye_tracker.tracker.protocol import Command, Commands, Coordinates, ImageWithCoordinates, StartTracking
-from eye_tracker.tracker.abstractions import ID
-from eye_tracker.tracker.fps_counter import FPSCounter
-from eye_tracker.tracker.tracker import TrackerWrapper
+sys.path.append('..')
+
+from tracker.image import CompressedImage
+from tracker.protocol import Command, Commands, Coordinates, ImageWithCoordinates, StartTracking
+from tracker.abstractions import ID, try_few_times
+from tracker.fps_counter import FPSCounter
+from tracker.object_tracker import TrackerWrapper, FPS_160_FRAME_TIME
 
 
 class WebCam:
@@ -52,46 +52,31 @@ class WebSocketServer:
         self.camera = WebCam()
         self.fps = FPSCounter()
         self.trackers: dict[int, TrackerWrapper] = {}
-        self.executor = ThreadPoolExecutor()
 
     async def start(self):
         async with  websockets.serve(self.accept_frontend, 'localhost', 5680):
             await Future()
 
     def send_to_tracker(self, tracker: TrackerWrapper, img: bytes):
-        while True:
-            try:
-                tracker.video_stream.put_nowait(img)
-                break
-            except queue.Full:
-                continue
+        try_few_times(lambda: tracker.video_stream.put_nowait(img), interval=FPS_160_FRAME_TIME)
 
     async def _send_to_trackers(self, img: bytes):
         trackers = self.trackers.values()
-        #executor = ThreadPoolExecutor()  # WARNING: without new executor
-        # program stuck and crashes at 1 or 2 trackers not more
         send_to_trackers = [
-            asyncio.get_running_loop().run_in_executor(self.executor, self.send_to_tracker, tracker, img)
+            asyncio.get_running_loop().run_in_executor(None, self.send_to_tracker, tracker, img)
             for tracker in trackers]
         await asyncio.gather(*send_to_trackers)
 
     def receive_from_tracker(self, tracker: TrackerWrapper, results: list):
-        while True:
-            try:
-                results.append(tracker.coordinates_commands_stream.get_nowait())
-                break
-            except queue.Empty:
-                continue
+        try_few_times(lambda : results.append(tracker.coordinates_commands_stream.get_nowait()),
+                      interval=FPS_160_FRAME_TIME)
 
-    async def _receive_from_trackers(self) -> list[Coordinates]:
-        coordinates: list[Coordinates] = []
+
+    async def _receive_from_trackers(self, coordinates: list[Coordinates]) -> list[Coordinates]:
         trackers = self.trackers.values()
-        #executor = ThreadPoolExecutor() # WARNING: without new executor
-        # program stuck and crashes at 1 or 2 trackers not more
         send_to_trackers = [
             asyncio.get_running_loop().
-            run_in_executor(self.executor,
-                            self.receive_from_tracker, tracker, coordinates)
+            run_in_executor(None, self.receive_from_tracker, tracker, coordinates)
             for tracker in trackers]
         await asyncio.gather(*send_to_trackers)
         return coordinates
@@ -100,9 +85,8 @@ class WebSocketServer:
         while True:
             jpeg: CompressedImage = self.camera.frames.get()
             packed = jpeg.pack()
-            await self._send_to_trackers(packed)
             coordinates = []
-            coordinates = await self._receive_from_trackers()
+            await asyncio.gather(self._send_to_trackers(packed), self._receive_from_trackers(coordinates))
             jpeg_with_coordinates = ImageWithCoordinates(jpeg, coordinates)
             await self.frontend.send(jpeg_with_coordinates.pack())
             if self.fps.able_to_calculate():
@@ -136,5 +120,6 @@ class WebSocketServer:
 
 
 if __name__ == "__main__":
+    multiprocessing.freeze_support()
     server = WebSocketServer()
     asyncio.run(server.start())

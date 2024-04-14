@@ -1,14 +1,15 @@
 import dataclasses
-import queue
-import time
 from multiprocessing import Process, Queue
 
 import dlib
 
-from eye_tracker.tracker.fps_counter import FPSCounter
-from eye_tracker.tracker.image import CompressedImage
-from eye_tracker.tracker.protocol import Coordinates
-from eye_tracker.tracker.abstractions import ID
+from tracker.fps_counter import FPSCounter
+from tracker.image import CompressedImage
+from tracker.protocol import Coordinates
+from tracker.abstractions import ID, try_few_times
+
+
+FPS_160_FRAME_TIME = 1/160
 
 
 class TrackerWrapper:
@@ -31,13 +32,12 @@ class TrackerWrapper:
         stopped = False
         tracker = dlib.correlation_tracker()
         while not stopped:
-            while True:
-                try:
-                    frame_bytes = video_stream.get_nowait()
-                    break
-                except queue.Empty:
-                    time.sleep(0.0065)
-            image = CompressedImage.unpack(frame_bytes)
+            frame = []
+            try_few_times(lambda: frame.append(video_stream.get_nowait()),
+                          interval=FPS_160_FRAME_TIME / 2)
+            if not frame:
+                continue
+            image = CompressedImage.unpack(frame[0])
             raw = image.to_raw_image()
 
             if not started:
@@ -48,12 +48,7 @@ class TrackerWrapper:
             new_coordinates = new_pos.left(), new_pos.top(), new_pos.right(), new_pos.bottom()
             fps.count_frame()
             if fps.able_to_calculate():
-                print(fps.calculate())
-                print(f'update tracker id {id} coordinates {new_coordinates}')
+                print(f'tracker fps: {fps.calculate()}')
 
-            while True:
-                try:
-                    coordinates_commands.put_nowait(Coordinates(*new_coordinates))
-                    break
-                except queue.Full:
-                    time.sleep(0.0065)
+            try_few_times(lambda : coordinates_commands.put_nowait(Coordinates(*new_coordinates)),
+                          interval=FPS_160_FRAME_TIME)

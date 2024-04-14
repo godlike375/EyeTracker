@@ -3,8 +3,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
-from eye_tracker.tracker.abstractions import Packable, ID
-from eye_tracker.tracker.image import CompressedImage
+from tracker.abstractions import Packable, ID
+from tracker.image import CompressedImage
 
 
 class Commands(Enum):

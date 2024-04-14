@@ -9,15 +9,18 @@ from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget
 import websockets
 
-from eye_tracker.tracker.command_processor import CommandExecutor
-from eye_tracker.tracker.protocol import Command, Commands, Coordinates, StartTracking, \
+sys.path.append('..')
+
+from tracker.command_processor import CommandExecutor
+from tracker.protocol import Command, Commands, Coordinates, StartTracking, \
     ImageWithCoordinates
-from eye_tracker.tracker.abstractions import ID
-from eye_tracker.tracker.fps_counter import FPSCounter
+from tracker.abstractions import ID
+from tracker.fps_counter import FPSCounter
 
 import sys
 
-#sys.setswitchinterval(0.0000000000000000001)
+
+FPS_25 = 1/25
 
 
 class DataStreamProcessor(QThread):
@@ -28,6 +31,7 @@ class DataStreamProcessor(QThread):
         self.url = url
         self.connection = None
         self.fps = FPSCounter()
+        self.throttle = FPSCounter(FPS_25)
         self.commands = CommandExecutor()
 
     def run(self):
@@ -49,15 +53,15 @@ class DataStreamProcessor(QThread):
             while True:
                 await self.commands.exec_queued_commands()
                 msg: bytes = await self.connection.recv()
-                from time import sleep
-                sleep(0.001)
                 imcords = ImageWithCoordinates.unpack(msg)
-                self.update_image.emit(imcords)
+                if self.throttle.able_to_calculate():
+                    self.throttle.calculate()
+                    self.update_image.emit(imcords)
                 if self.fps.able_to_calculate():
-                    self.fps.calculate()
-                    #print(self.fps.calculate())
+                    print(self.fps.calculate())
                 #print(f'processor frame id {imcords.image.id}')
                 self.fps.count_frame()
+                self.throttle.count_frame()
 
 
         except Exception as e:

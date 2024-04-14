@@ -5,7 +5,7 @@ import PIL
 from PIL.Image import Image
 import numpy
 
-from eye_tracker.tracker.abstractions import Packable, ID
+from tracker.abstractions import Packable, ID
 
 
 # works 2 times faster than imencode!
