@@ -11,7 +11,7 @@ from websockets import WebSocketServerProtocol
 
 sys.path.append('..')
 
-from tracker.image import CompressedImage
+from tracker.image import CompressedImage, PREFER_PERFORMANCE_OVER_QUALITY
 from tracker.protocol import Command, Commands, Coordinates, ImageWithCoordinates, StartTracking
 from tracker.abstractions import ID, try_few_times
 from tracker.fps_counter import FPSCounter
@@ -44,12 +44,12 @@ class WebCam:
     def capture_image(self) -> CompressedImage:
         ret, frame = self.camera.read()
         #frame = resize_frame_relative(frame, 0.5)
-        jpeg = CompressedImage.from_raw_image(frame, self.image_id)
+        jpeg = CompressedImage.from_raw_image(frame, self.image_id, quality=PREFER_PERFORMANCE_OVER_QUALITY)
         self.image_id += 1
         return jpeg if ret else None
 
     def capture_image_benchmark(self) -> CompressedImage:
-        jpeg = CompressedImage.from_raw_image(self.frame, self.image_id)
+        jpeg = CompressedImage.from_raw_image(self.frame, self.image_id, quality=PREFER_PERFORMANCE_OVER_QUALITY)
         self.image_id += 1
         return jpeg if self.ret else None
 
@@ -79,7 +79,6 @@ class WebSocketServer:
     def receive_from_tracker(self, tracker: TrackerWrapper, results: list):
         try_few_times(lambda : results.append(tracker.coordinates_commands_stream.get_nowait()),
                       interval=FPS_120, times=1)
-
 
     async def _receive_from_trackers(self, coordinates: list[Coordinates]) -> list[Coordinates]:
         trackers = self.trackers.values()

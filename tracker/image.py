@@ -9,10 +9,13 @@ import numpy
 from tracker.abstractions import Packable, ID
 
 
+PREFER_PERFORMANCE_OVER_QUALITY = 35
+
+
 # works 2 times faster than imencode!
-def encode_array_to_jpeg(image: Image) -> bytes:
+def encode_array_to_jpeg(image: Image, quality=PREFER_PERFORMANCE_OVER_QUALITY) -> bytes:
     with io.BytesIO() as output_buffer:
-        image.save(output_buffer, format='JPEG', quality=50)  # Сохраняем изображение в буфер в формате JPEG
+        image.save(output_buffer, format='JPEG', quality=quality)  # Сохраняем изображение в буфер в формате JPEG
         return output_buffer.getvalue()
 
 
@@ -33,9 +36,9 @@ class CompressedImage(Packable):
         return decode_jpeg_to_array(self.jpeg_bytes)
 
     @classmethod
-    def from_raw_image(cls, raw: numpy.ndarray, id: ID) -> 'CompressedImage':
+    def from_raw_image(cls, raw: numpy.ndarray, id: ID, quality=35) -> 'CompressedImage':
         img = PIL.Image.fromarray(raw)
-        return CompressedImage(id, encode_array_to_jpeg(img))
+        return CompressedImage(id, encode_array_to_jpeg(img, quality=quality))
 
 
 def resize_frame_relative(frame: numpy.ndarray, percent):
