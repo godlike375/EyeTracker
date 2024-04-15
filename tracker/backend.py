@@ -133,6 +133,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-b', '--benchmark',
                         action='store_true')
-    args = parser.parse_args()
+    args = parser.parse_args(sys.argv[1:])
     server = WebSocketServer(args.benchmark)
     asyncio.run(server.start())
