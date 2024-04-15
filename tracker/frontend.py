@@ -30,7 +30,7 @@ class DataStreamProcessor(QThread):
         super().__init__()
         self.url = url
         self.connection = None
-        self.fps = FPSCounter()
+        self.fps = FPSCounter(2)
         self.throttle = FPSCounter(FPS_25)
         self.commands = CommandExecutor()
 

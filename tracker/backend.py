@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import multiprocessing
 import sys
@@ -55,11 +56,11 @@ class WebCam:
 
 
 class WebSocketServer:
-    def __init__(self):
+    def __init__(self, benchmark = False):
         self.frontend: WebSocketServerProtocol = None
         self.elvis: WebSocketServerProtocol = None
-        self.camera = WebCam()
-        self.fps = FPSCounter()
+        self.camera = WebCam(benchmark)
+        self.fps = FPSCounter(1.5)
         self.trackers: dict[int, TrackerWrapper] = {}
 
     async def start(self):
@@ -129,5 +130,9 @@ class WebSocketServer:
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()
-    server = WebSocketServer()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-b', '--benchmark',
+                        action='store_true')
+    args = parser.parse_args()
+    server = WebSocketServer(args.benchmark)
     asyncio.run(server.start())

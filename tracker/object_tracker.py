@@ -15,8 +15,8 @@ FPS_120 = 1 / 120
 class TrackerWrapper:
     def __init__(self, id: int, coordinates: Coordinates):
         self.id = id
-        self.video_stream = Queue(maxsize=3)
-        self.coordinates_commands_stream = Queue(maxsize=3)
+        self.video_stream = Queue(maxsize=2)
+        self.coordinates_commands_stream = Queue(maxsize=2)
         self.process = Process(
                 target=self._mainloop,
                 args=(self.video_stream, self.coordinates_commands_stream, id, coordinates),
@@ -26,7 +26,7 @@ class TrackerWrapper:
 
     def _mainloop(self, video_stream: Queue, coordinates_commands: Queue,
                   id: ID, coordinates: Coordinates):
-        fps = FPSCounter()
+        fps = FPSCounter(2.5)
         print(f'tracker start id {id}')
         started = False
         stopped = False
