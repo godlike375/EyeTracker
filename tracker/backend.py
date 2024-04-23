@@ -111,6 +111,7 @@ class WebSocketServer:
                     com_data: StartTracking = command.data
                     tracker = TrackerWrapper(com_data.tracker_id, com_data.coords)
                     self.trackers[com_data.tracker_id] = tracker
+            await asyncio.sleep(FPS_120 * 2.5) # Throttle a bit cause the stream's priority is higher
 
     async def accept_frontend(self, websocket: WebSocketServerProtocol, path):
         name = await websocket.recv()
