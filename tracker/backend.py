@@ -60,7 +60,7 @@ class WebSocketServer:
         self.frontend: WebSocketServerProtocol = None
         self.elvis: WebSocketServerProtocol = None
         self.camera = WebCam(benchmark)
-        self.fps = FPSCounter(1.5)
+        self.fps = FPSCounter(2)
         self.trackers: dict[int, TrackerWrapper] = {}
 
     async def start(self):
@@ -68,24 +68,23 @@ class WebSocketServer:
             await Future()
 
     def send_to_tracker(self, tracker: TrackerWrapper, img: bytes):
-        try_few_times(lambda: tracker.video_stream.put_nowait(img), interval=FPS_120 / 3, times=3)
+        try_few_times(lambda: tracker.video_stream.put_nowait(img), interval=FPS_120 / 6, times=2)
 
     async def _send_to_trackers(self, img: bytes):
         trackers = self.trackers.values()
         send_to_trackers = [
-            asyncio.get_running_loop().run_in_executor(None, self.send_to_tracker, tracker, img)
+            asyncio.to_thread(self.send_to_tracker, tracker, img)
             for tracker in trackers]
         await asyncio.gather(*send_to_trackers)
 
     def receive_from_tracker(self, tracker: TrackerWrapper, results: list):
         try_few_times(lambda : results.append(tracker.coordinates_commands_stream.get_nowait()),
-                      interval=FPS_120, times=1)
+                      interval=FPS_120 / 2, times=1)
 
     async def _receive_from_trackers(self, coordinates: list[Coordinates]) -> list[Coordinates]:
         trackers = self.trackers.values()
         send_to_trackers = [
-            asyncio.get_running_loop().
-            run_in_executor(None, self.receive_from_tracker, tracker, coordinates)
+            asyncio.to_thread(self.receive_from_tracker, tracker, coordinates)
             for tracker in trackers]
         await asyncio.gather(*send_to_trackers)
         return coordinates

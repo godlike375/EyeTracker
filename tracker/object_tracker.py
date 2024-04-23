@@ -26,18 +26,13 @@ class TrackerWrapper:
 
     def _mainloop(self, video_stream: Queue, coordinates_commands: Queue,
                   id: ID, coordinates: Coordinates):
-        fps = FPSCounter(2.5)
+        fps = FPSCounter(2)
         print(f'tracker start id {id}')
         started = False
         stopped = False
         tracker = dlib.correlation_tracker()
         while not stopped:
-            frame = []
-            try_few_times(lambda: frame.append(video_stream.get_nowait()),
-                          interval=FPS_120 / 3, times=4)
-            if not frame:
-                continue
-            image = CompressedImage.unpack(frame[0])
+            image = CompressedImage.unpack(video_stream.get())
             raw = image.to_raw_image()
 
             if not started:
@@ -49,6 +44,4 @@ class TrackerWrapper:
             fps.count_frame()
             if fps.able_to_calculate():
                 print(f'tracker fps: {fps.calculate()}')
-
-            try_few_times(lambda : coordinates_commands.put_nowait(Coordinates(*new_coordinates)),
-                          interval=FPS_120 / 2)
+            coordinates_commands.put(Coordinates(*new_coordinates))

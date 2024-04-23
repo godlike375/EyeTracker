@@ -1,3 +1,4 @@
+from datetime import datetime
 import io
 from dataclasses import dataclass
 
@@ -10,6 +11,7 @@ from tracker.abstractions import Packable, ID
 
 
 PREFER_PERFORMANCE_OVER_QUALITY = 35
+MSEC_IN_SEC = 1000
 
 
 # works 2 times faster than imencode!
@@ -31,6 +33,7 @@ def decode_jpeg_to_array(jpeg_data: bytes) -> numpy.ndarray:
 class CompressedImage(Packable):
     id: ID
     jpeg_bytes: bytes
+    timestamp: int # milliseconds from 01.01.1970
 
     def to_raw_image(self) -> numpy.ndarray:
         return decode_jpeg_to_array(self.jpeg_bytes)
@@ -38,7 +41,9 @@ class CompressedImage(Packable):
     @classmethod
     def from_raw_image(cls, raw: numpy.ndarray, id: ID, quality=35) -> 'CompressedImage':
         img = PIL.Image.fromarray(raw)
-        return CompressedImage(id, encode_array_to_jpeg(img, quality=quality))
+        return CompressedImage(id,
+                               encode_array_to_jpeg(img, quality=quality),
+                               int(datetime.timestamp(datetime.now()) * MSEC_IN_SEC))
 
 
 def resize_frame_relative(frame: numpy.ndarray, percent):
