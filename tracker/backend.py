@@ -10,7 +10,10 @@ import websockets
 import cv2
 from websockets import WebSocketServerProtocol
 
+from tracker.network import BufferPoller
+
 sys.path.append('..')
+sys.setswitchinterval(0.00000000001)
 
 from tracker.image import CompressedImage, PREFER_PERFORMANCE_OVER_QUALITY
 from tracker.protocol import Command, Commands, Coordinates, ImageWithCoordinates, StartTracking
@@ -20,7 +23,7 @@ from tracker.object_tracker import TrackerWrapper, FPS_120
 
 
 class WebCam:
-    def __init__(self, benchmark = False):
+    def __init__(self, benchmark = True):
         self.image_id: ID = ID(0)
 
         self.frames = Queue(maxsize=3)
@@ -62,13 +65,14 @@ class WebSocketServer:
         self.camera = WebCam(benchmark)
         self.fps = FPSCounter(1.5)
         self.trackers: dict[int, TrackerWrapper] = {}
+        self.buffer_pooler = BufferPoller()
 
     async def start(self):
         async with  websockets.serve(self.accept_frontend, 'localhost', 5680):
             await Future()
 
     def send_to_tracker(self, tracker: TrackerWrapper, img: bytes):
-        try_few_times(lambda: tracker.video_stream.put_nowait(img), interval=FPS_120 / 3, times=3)
+        try_few_times(lambda: tracker.video_buffer.put_nowait(img), interval=FPS_120 / 3, times=3)
 
     async def _send_to_trackers(self, img: bytes):
         trackers = self.trackers.values()
@@ -78,7 +82,7 @@ class WebSocketServer:
         await asyncio.gather(*send_to_trackers)
 
     def receive_from_tracker(self, tracker: TrackerWrapper, results: list):
-        try_few_times(lambda : results.append(tracker.coordinates_commands_stream.get_nowait()),
+        try_few_times(lambda : results.append(tracker.coordinates_commands_buffer.get_nowait()),
                       interval=FPS_120, times=1)
 
     async def _receive_from_trackers(self, coordinates: list[Coordinates]) -> list[Coordinates]:
@@ -88,14 +92,18 @@ class WebSocketServer:
             run_in_executor(None, self.receive_from_tracker, tracker, coordinates)
             for tracker in trackers]
         await asyncio.gather(*send_to_trackers)
-        return coordinates
+        return [c for c in coordinates if c is not None]
 
     async def stream_video(self):
         while True:
             jpeg: CompressedImage = self.camera.frames.get()
             packed = jpeg.pack()
             coordinates = []
-            await asyncio.gather(self._send_to_trackers(packed), self._receive_from_trackers(coordinates))
+            for tracker in self.trackers.values():
+                tracker.video_buffer.put_nowait(packed)
+            for tracker in self.trackers.values():
+                coordinates.append(tracker.coordinates_commands_buffer.get_nowait())
+            #await asyncio.gather(self._send_to_trackers(packed), self._receive_from_trackers(coordinates))
             jpeg_with_coordinates = ImageWithCoordinates(jpeg, coordinates)
             await self.frontend.send(jpeg_with_coordinates.pack())
             if self.fps.able_to_calculate():
@@ -111,6 +119,8 @@ class WebSocketServer:
                     com_data: StartTracking = command.data
                     tracker = TrackerWrapper(com_data.tracker_id, com_data.coords)
                     self.trackers[com_data.tracker_id] = tracker
+                    self.buffer_pooler.buffers.append(tracker.video_buffer)
+                    self.buffer_pooler.buffers.append(tracker.coordinates_commands_buffer)
 
     async def accept_frontend(self, websocket: WebSocketServerProtocol, path):
         name = await websocket.recv()

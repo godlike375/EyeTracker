@@ -88,9 +88,10 @@ class MainWindow(QWidget):
         self.frame_id = imcords.image.id
         #print(f'main frame id {imcords.image.id}')
         # TODO: draw coords
-        frame = imcords.image.to_raw_image()
         frame = imcords.image.to_raw_image().astype(numpy.uint8)
         for c in imcords.coords:
+            if c is None:
+                continue
             frame = cv2.rectangle(frame, (int(c.x1), int(c.y1)), (int(c.x2), int(c.y2)), color=(255, 0, 0), thickness=2)
 
         image = QImage(frame, frame.shape[1], frame.shape[0], QImage.Format.Format_BGR888)
