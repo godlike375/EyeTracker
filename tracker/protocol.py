@@ -28,9 +28,16 @@ class StartTracking:
 
 
 @dataclass
+class FrameTrackerCoordinates:
+    frame_id: ID = ID(0)
+    tracker_id: ID = ID(0)
+    coords: Coordinates = dataclasses.field(default_factory=Coordinates)
+
+
+@dataclass
 class ImageWithCoordinates(Packable):
-    image: CompressedImage
-    coords: list[Coordinates] = dataclasses.field(default_factory=list)
+    image: CompressedImage = dataclasses.field(default_factory=CompressedImage)
+    trackers_coords: dict[ID, Coordinates] = dataclasses.field(default_factory=dict)
 
 
 @dataclass(slots=True, frozen=True)

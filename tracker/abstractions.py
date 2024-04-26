@@ -1,6 +1,18 @@
 import pickle
 import time
+from dataclasses import dataclass
 from typing import Callable
+
+
+@dataclass
+class MutableVar:
+    value: object = None
+
+    def get(self) -> object:
+        return self.value
+
+    def set(self, another: object):
+        self.value = another
 
 
 class Packable:
@@ -19,6 +31,16 @@ def try_few_times(action: Callable, times: int = 2, interval: float = 0.01):
     for _ in range(times):
         try:
             action()
-            break
+            return True
         except:
-            time.sleep(interval)
+            if interval > 0:
+                time.sleep(interval)
+    return False
+
+
+def try_one_time(action: Callable):
+        try:
+            action()
+            return True
+        except:
+            return False

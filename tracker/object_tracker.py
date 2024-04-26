@@ -1,22 +1,25 @@
 import dataclasses
-from multiprocessing import Process, Queue
+from collections import deque
+from multiprocessing import Process, JoinableQueue
+from time import sleep
 
 import dlib
 
 from tracker.fps_counter import FPSCounter
 from tracker.image import CompressedImage
-from tracker.protocol import Coordinates
+from tracker.protocol import Coordinates, FrameTrackerCoordinates
 from tracker.abstractions import ID, try_few_times
 
 
-FPS_120 = 1 / 120
+FPS_120 = 1 / 900
+MAX_LATENCY = 2
 
 
 class TrackerWrapper:
-    def __init__(self, id: int, coordinates: Coordinates):
+    def __init__(self, id: ID, coordinates: Coordinates):
         self.id = id
-        self.video_stream = Queue(maxsize=2)
-        self.coordinates_commands_stream = Queue(maxsize=2)
+        self.video_stream = JoinableQueue(maxsize=1)
+        self.coordinates_commands_stream = JoinableQueue(maxsize=1)
         self.process = Process(
                 target=self._mainloop,
                 args=(self.video_stream, self.coordinates_commands_stream, id, coordinates),
@@ -24,7 +27,7 @@ class TrackerWrapper:
             )
         self.process.start()
 
-    def _mainloop(self, video_stream: Queue, coordinates_commands: Queue,
+    def _mainloop(self, video_stream: JoinableQueue, coordinates_commands: JoinableQueue,
                   id: ID, coordinates: Coordinates):
         fps = FPSCounter(2)
         print(f'tracker start id {id}')
@@ -32,7 +35,8 @@ class TrackerWrapper:
         stopped = False
         tracker = dlib.correlation_tracker()
         while not stopped:
-            image = CompressedImage.unpack(video_stream.get())
+            image: CompressedImage = video_stream.get()
+            #print(f'get frame {image.id}')
             raw = image.to_raw_image()
 
             if not started:
@@ -44,4 +48,6 @@ class TrackerWrapper:
             fps.count_frame()
             if fps.able_to_calculate():
                 print(f'tracker fps: {fps.calculate()}')
-            coordinates_commands.put(Coordinates(*new_coordinates))
+            result = FrameTrackerCoordinates(image.id, id, Coordinates(*new_coordinates))
+            coordinates_commands.put(result)
+            #print(f'put frame {image.id}')

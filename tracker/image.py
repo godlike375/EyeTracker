@@ -31,9 +31,9 @@ def decode_jpeg_to_array(jpeg_data: bytes) -> numpy.ndarray:
 
 @dataclass(slots=True, frozen=True)
 class CompressedImage(Packable):
-    id: ID
-    jpeg_bytes: bytes
-    timestamp: int # milliseconds from 01.01.1970
+    id: ID = ID(0)
+    jpeg_bytes: bytes = b''
+    timestamp: int = 0# milliseconds from 01.01.1970
 
     def to_raw_image(self) -> numpy.ndarray:
         return decode_jpeg_to_array(self.jpeg_bytes)
