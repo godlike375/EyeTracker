@@ -3,103 +3,96 @@ import asyncio
 import multiprocessing
 import sys
 from asyncio import Future
-from threading import Thread
+from threading import Thread, RLock
 from queue import Queue
+
+import numpy
 import websockets
+from multiprocessing.shared_memory import SharedMemory
 
 import cv2
 from websockets import WebSocketServerProtocol
 
 sys.path.append('..')
 
-from tracker.image import CompressedImage, PREFER_PERFORMANCE_OVER_QUALITY
+from tracker.image import CompressedImage, PREFER_PERFORMANCE_OVER_QUALITY, resize_frame_relative
 from tracker.protocol import Command, Commands, Coordinates, ImageWithCoordinates, StartTracking
 from tracker.abstractions import ID, try_few_times
 from tracker.fps_counter import FPSCounter
 from tracker.object_tracker import TrackerWrapper, FPS_120
+from time import sleep
 
 
 class WebCam:
-    def __init__(self, benchmark = False):
+    def __init__(self, benchmark = False, id_camera = 0):
         self.image_id: ID = ID(0)
+        self.benchmark = benchmark
+        self.id_camera = id_camera
+        self.shared_frame_mem = None
+        self.initialization_lock = RLock()
 
-        self.frames = Queue(maxsize=3)
         self.thread = Thread(target=self.mainloop, daemon=True)
         self.thread.start()
-        self.benchmark = benchmark
+
 
     def mainloop(self):
-        self.camera = cv2.VideoCapture(0)
+        self.initialization_lock.acquire()
+        self.camera = cv2.VideoCapture(self.id_camera)
         self.camera.set(cv2.CAP_PROP_FPS, 60)
-        if self.benchmark:
-            self.ret, self.frame = self.camera.read()
-            while True:
-                self.frames.put(self.capture_image_benchmark())
-        else:
-            while True:
-                self.frames.put(self.capture_image())
+        self.ret, self.frame = self.camera.read()
+        self.shared_frame_mem: SharedMemory = SharedMemory(name='frame', size=self.frame.size*self.frame.itemsize, create=True)
+        self.current_frame = numpy.ndarray(self.frame.shape, dtype=self.frame.dtype, buffer=self.shared_frame_mem.buf)
+        self.initialization_lock.release()
+        while self.benchmark:
+            self.capture_image_benchmark()
 
-    def __del__(self):
-        self.camera.release()
+        while not self.benchmark:
+            self.capture_image()
 
-    def capture_image(self) -> CompressedImage:
+    def capture_image(self):
         ret, frame = self.camera.read()
+        numpy.copyto(self.current_frame, frame)
         #frame = resize_frame_relative(frame, 0.5)
-        jpeg = CompressedImage.from_raw_image(frame, self.image_id, quality=PREFER_PERFORMANCE_OVER_QUALITY)
         self.image_id += 1
-        return jpeg if ret else None
 
-    def capture_image_benchmark(self) -> CompressedImage:
-        jpeg = CompressedImage.from_raw_image(self.frame, self.image_id, quality=PREFER_PERFORMANCE_OVER_QUALITY)
+    def capture_image_benchmark(self):
+        numpy.copyto(self.current_frame, self.frame)
         self.image_id += 1
-        return jpeg if self.ret else None
 
 
 class WebSocketServer:
-    def __init__(self, benchmark = False):
+    def __init__(self, benchmark = False, id_camera: int = 0):
         self.frontend: WebSocketServerProtocol = None
         self.elvis: WebSocketServerProtocol = None
-        self.camera = WebCam(benchmark)
+        self.camera = WebCam(benchmark, id_camera)
         self.fps = FPSCounter(2)
         self.trackers: dict[int, TrackerWrapper] = {}
+        self.shared_frame_mem = None
+        self.throttle_all = FPSCounter(FPS_120 / 5)
 
     async def start(self):
         async with  websockets.serve(self.accept_frontend, 'localhost', 5680):
             await Future()
 
-    def send_to_tracker(self, tracker: TrackerWrapper, img: bytes):
-        try_few_times(lambda: tracker.video_stream.put_nowait(img), interval=FPS_120 / 6, times=2)
-
-    async def _send_to_trackers(self, img: bytes):
-        trackers = self.trackers.values()
-        send_to_trackers = [
-            asyncio.to_thread(self.send_to_tracker, tracker, img)
-            for tracker in trackers]
-        await asyncio.gather(*send_to_trackers)
-
-    def receive_from_tracker(self, tracker: TrackerWrapper, results: list):
-        try_few_times(lambda : results.append(tracker.coordinates_commands_stream.get_nowait()),
-                      interval=FPS_120 / 2, times=1)
-
-    async def _receive_from_trackers(self, coordinates: list[Coordinates]) -> list[Coordinates]:
-        trackers = self.trackers.values()
-        send_to_trackers = [
-            asyncio.to_thread(self.receive_from_tracker, tracker, coordinates)
-            for tracker in trackers]
-        await asyncio.gather(*send_to_trackers)
-        return coordinates
-
     async def stream_video(self):
+        sleep(1.5)
+        self.camera.initialization_lock.acquire(blocking=True)
+        self.shared_frame_mem = self.camera.shared_frame_mem # initialization
         while True:
-            jpeg: CompressedImage = self.camera.frames.get()
-            packed = jpeg.pack()
-            coordinates = []
-            await asyncio.gather(self._send_to_trackers(packed), self._receive_from_trackers(coordinates))
+            if not self.throttle_all.able_to_calculate():
+                await asyncio.sleep(FPS_120 / 7)
+                continue
+            self.throttle_all.calculate()
+            jpeg = CompressedImage.from_raw_image(self.camera.current_frame, self.camera.image_id,
+                                                  quality=PREFER_PERFORMANCE_OVER_QUALITY)
+            coordinates = [Coordinates(*tracker.coordinates_memory[:])
+                           for tracker in self.trackers.values()]
             jpeg_with_coordinates = ImageWithCoordinates(jpeg, coordinates)
             await self.frontend.send(jpeg_with_coordinates.pack())
             if self.fps.able_to_calculate():
                 print(f'backend fps: {self.fps.calculate()}')
             self.fps.count_frame()
+
 
     async def receive_frontend_commands(self):
         while True:
@@ -108,9 +101,9 @@ class WebSocketServer:
             match command.type:
                 case Commands.START_TRACKING:
                     com_data: StartTracking = command.data
-                    tracker = TrackerWrapper(com_data.tracker_id, com_data.coords)
+                    tracker = TrackerWrapper(com_data.tracker_id, com_data.coords, self.shared_frame_mem)
                     self.trackers[com_data.tracker_id] = tracker
-            await asyncio.sleep(FPS_120 * 2.5) # Throttle a bit cause the stream's priority is higher
+            await asyncio.sleep(FPS_120 * 2) # Throttle a bit cause the stream's priority is higher
 
     async def accept_frontend(self, websocket: WebSocketServerProtocol, path):
         name = await websocket.recv()
@@ -133,6 +126,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-b', '--benchmark',
                         action='store_true')
+    parser.add_argument('-i', '--id_camera',
+                        type=int, default=0)
     args = parser.parse_args(sys.argv[1:])
-    server = WebSocketServer(args.benchmark)
+    server = WebSocketServer(args.benchmark, args.id_camera)
     asyncio.run(server.start())

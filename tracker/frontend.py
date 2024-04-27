@@ -20,7 +20,7 @@ from tracker.fps_counter import FPSCounter
 import sys
 
 
-FPS_25 = 1/25
+FPS_30 = 1 / 30
 
 
 class DataStreamProcessor(QThread):
@@ -31,7 +31,7 @@ class DataStreamProcessor(QThread):
         self.url = url
         self.connection = None
         self.fps = FPSCounter(2)
-        self.throttle = FPSCounter(FPS_25)
+        self.throttle = FPSCounter(FPS_30)
         self.commands = CommandExecutor()
 
     def run(self):
@@ -59,9 +59,7 @@ class DataStreamProcessor(QThread):
                     self.update_image.emit(imcords)
                 if self.fps.able_to_calculate():
                     print(f'frontend fps: {self.fps.calculate()}')
-                #print(f'processor frame id {imcords.image.id}')
                 self.fps.count_frame()
-                self.throttle.count_frame()
 
 
         except Exception as e:
@@ -86,7 +84,6 @@ class MainWindow(QWidget):
     @pyqtSlot(object)
     def update_video_frame(self, imcords: ImageWithCoordinates):
         self.frame_id = imcords.image.id
-        #print(f'main frame id {imcords.image.id}')
         # TODO: draw coords
         frame = imcords.image.to_raw_image().astype(numpy.uint8)
         for c in imcords.coords:

@@ -1,47 +1,47 @@
 import dataclasses
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Array
+from multiprocessing.shared_memory import SharedMemory
 
 import dlib
+import numpy
 
 from tracker.fps_counter import FPSCounter
-from tracker.image import CompressedImage
 from tracker.protocol import Coordinates
-from tracker.abstractions import ID, try_few_times
+from tracker.abstractions import ID
 
 
 FPS_120 = 1 / 120
 
 
 class TrackerWrapper:
-    def __init__(self, id: int, coordinates: Coordinates):
+    def __init__(self, id: int, coordinates: Coordinates, frame_memory: SharedMemory):
         self.id = id
-        self.video_stream = Queue(maxsize=2)
-        self.coordinates_commands_stream = Queue(maxsize=2)
+        self.frame_memory = frame_memory
+        self.coordinates_memory = Array('i', [0] * 4)
         self.process = Process(
                 target=self._mainloop,
-                args=(self.video_stream, self.coordinates_commands_stream, id, coordinates),
+                args=(self.frame_memory, self.coordinates_memory, id, coordinates),
                 daemon=True
             )
         self.process.start()
 
-    def _mainloop(self, video_stream: Queue, coordinates_commands: Queue,
+    def _mainloop(self, frame_memory: SharedMemory, coordinates_memory: Array,
                   id: ID, coordinates: Coordinates):
         fps = FPSCounter(2)
         print(f'tracker start id {id}')
         started = False
-        stopped = False
         tracker = dlib.correlation_tracker()
-        while not stopped:
-            image = CompressedImage.unpack(video_stream.get())
-            raw = image.to_raw_image()
-
+        raw = numpy.ndarray((480, 640, 3), dtype=numpy.uint8, buffer=self.frame_memory.buf)
+        while True:
             if not started:
                 started = True
                 tracker.start_track(raw, dlib.rectangle(*dataclasses.astuple(coordinates)))
             tracker.update(raw)
             new_pos = tracker.get_position()
-            new_coordinates = new_pos.left(), new_pos.top(), new_pos.right(), new_pos.bottom()
+            coordinates_memory[0] = int(new_pos.left())
+            coordinates_memory[1] = int(new_pos.top())
+            coordinates_memory[2] = int(new_pos.right())
+            coordinates_memory[3] = int(new_pos.bottom())
             fps.count_frame()
             if fps.able_to_calculate():
                 print(f'tracker fps: {fps.calculate()}')
-            coordinates_commands.put(Coordinates(*new_coordinates))
