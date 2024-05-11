@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
+import numpy
+
 from tracker.abstractions import Packable, ID
 from tracker.image import CompressedImage
 
@@ -28,8 +30,8 @@ class StartTracking:
 
 
 @dataclass
-class ImageWithCoordinates(Packable):
-    image: CompressedImage
+class ImageWithCoordinates:
+    image: numpy.ndarray
     coords: list[Coordinates] = dataclasses.field(default_factory=list)
 
 

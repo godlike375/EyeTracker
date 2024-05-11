@@ -1,94 +1,70 @@
+import argparse
 import asyncio
+import multiprocessing
 import sys
 from functools import partial
+from multiprocessing.shared_memory import SharedMemory
 
-import cv2
 import numpy
-from PyQt6.QtCore import QThread, pyqtSignal, QSize, Qt, pyqtSlot
-from PyQt6.QtGui import QImage, QPixmap
-from PyQt6.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget
-import websockets
+from PyQt6.QtCore import pyqtSignal, QSize, Qt, pyqtSlot, QTimerEvent, QObject
+from PyQt6.QtGui import QImage, QPixmap, QAction
+from PyQt6.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget, QMainWindow
+
+from tracker.gaze_predictor_backend import GazePredictorBackend
+from tracker.camera_streamer import create_camera_streamer
+from tracker.object_tracker import TrackerWrapper
+from tracker.overlays import DrawnObjectsOverlay
 
 sys.path.append('..')
 
-from tracker.command_processor import CommandExecutor
+from tracker.command_processor import AsyncCommandExecutor
 from tracker.protocol import Command, Commands, Coordinates, StartTracking, \
     ImageWithCoordinates
 from tracker.abstractions import ID
 from tracker.fps_counter import FPSCounter
 
-import sys
+
+FPS_30 = 1 / 120
 
 
-FPS_30 = 1 / 30
-
-
-class DataStreamProcessor(QThread):
-    update_image = pyqtSignal(object)
-
-    def __init__(self, url):
-        super().__init__()
-        self.url = url
-        self.connection = None
-        self.fps = FPSCounter(2)
-        self.throttle = FPSCounter(FPS_30)
-        self.commands = CommandExecutor()
-
-    def run(self):
-        asyncio.run(self.connect())
-
-    async def connect(self):
-        async with websockets.connect(self.url, timeout=10) as websocket:
-            await websocket.send('frontend')
-            self.connection = websocket
-            await self.mainloop()
-
-    def send_command(self, command: Command):
-        func = partial(self.connection.send, command.pack())
-        self.commands.queue_command(func)
-
-
-    async def mainloop(self):
-        try:
-            while True:
-                await self.commands.exec_queued_commands()
-                msg: bytes = await self.connection.recv()
-                if self.throttle.able_to_calculate():
-                    self.throttle.calculate()
-                    imcords = ImageWithCoordinates.unpack(msg)
-                    self.update_image.emit(imcords)
-                if self.fps.able_to_calculate():
-                    print(f'frontend fps: {self.fps.calculate()}')
-                self.fps.count_frame()
-
-
-        except Exception as e:
-            print("Exception in async mainloop:", e)
-
-
-class MainWindow(QWidget):
+class MainWindow(QMainWindow):
+    new_tracker = pyqtSignal(Coordinates)
     def __init__(self):
         super().__init__()
         self.video_label = QLabel()
         layout = QVBoxLayout()
         layout.addWidget(self.video_label)
-        self.setLayout(layout)
 
-        self.data_stream = DataStreamProcessor('ws://localhost:5680')
-        self.data_stream.update_image.connect(self.update_video_frame, Qt.ConnectionType.QueuedConnection)
+        self.overlay = DrawnObjectsOverlay(self.video_label)
+        self.overlay.setGeometry(self.video_label.geometry())
+        self.overlay.show()
+
+        self.menu_bar = self.menuBar()
+
+        select_pupil = self.menu_bar.addMenu('Выделить зрачок')
+        calibrate_tracker = self.menu_bar.addMenu('Калибровка взгляда')
+
+        start = QAction('Начать', self)
+        #start.triggered.connect()
+        end = QAction('Остановить', self)
+
+        # Добавление действий в меню
+        calibrate_tracker.addAction(start)
+        calibrate_tracker.addAction(end)
+
+        # Добавление layout в основное окно
+        main_widget = QWidget(self)
+        self.setCentralWidget(main_widget)
+        main_widget.setLayout(layout)
+
         self.video_size_set = False
-        self.free_tracker_id: ID = ID(0)
-        self.frame_id: ID = ID(0)
-        self.data_stream.start()
 
-    @pyqtSlot(object)
     def update_video_frame(self, imcords: ImageWithCoordinates):
-        self.frame_id = imcords.image.id
-        # TODO: draw coords
-        frame = imcords.image.to_raw_image().astype(numpy.uint8)
-        for c in imcords.coords:
-            frame = cv2.rectangle(frame, (int(c.x1), int(c.y1)), (int(c.x2), int(c.y2)), color=(255, 0, 0), thickness=2)
+        frame = numpy.copy(imcords.image)
 
+        #self.overlay.update()
+        #self.overlay.paint_rects(imcords.coords)
+        self.overlay.paint_rects(imcords.coords)
         image = QImage(frame, frame.shape[1], frame.shape[0], QImage.Format.Format_BGR888)
         pixmap = QPixmap.fromImage(image)
         self.video_label.setPixmap(pixmap)
@@ -100,17 +76,61 @@ class MainWindow(QWidget):
     def keyPressEvent(self, event):
         key = event.key()
         if key == Qt.Key.Key_Enter or key == Qt.Key.Key_Return:
-            self.start_tracking()
+            self.new_tracker.emit(Coordinates(270, 190, 370, 290))
 
-    def start_tracking(self):
-        start_data = StartTracking(Coordinates(270, 190, 370, 290), self.frame_id, self.free_tracker_id)
+
+class Frontend(QObject):
+
+    def __init__(self, parent: MainWindow, id_camera: int = 0, fps=120, resolution=640):
+        super().__init__(parent)
+        self.video_frame, self.video_stream_process, self.shared_memory =\
+            create_camera_streamer(id_camera, fps, resolution)
+
+        self.trackers: dict[ID, TrackerWrapper] = {}
+
+        #self.calibrator_backend = GazePredictorBackend()
+        self.window = parent
+
+        self.fps = FPSCounter(2)
+        self.throttle = FPSCounter(FPS_30)
+        self.refresh_timer = self.startTimer(int(FPS_30 * 1000))
+
+        self.free_tracker_id: ID = ID(0)
+
+    def timerEvent(self, a0: QTimerEvent):
+        if self.throttle.able_to_calculate():
+            self.throttle.calculate()
+            # TODO: get coordinates
+            coords = [Coordinates(*t.coordinates_memory[:]) for t in self.trackers.values()]
+            self.window.update_video_frame(ImageWithCoordinates(self.video_frame, coords))
+
+        if self.fps.able_to_calculate():
+            print(f'frontend fps: {self.fps.calculate()}')
+        self.fps.count_frame()
+
+    @pyqtSlot(Coordinates)
+    def on_new_tracker_requested(self, coords: Coordinates):
         self.free_tracker_id += 1
-        cmd = Command(Commands.START_TRACKING, start_data)
-        self.data_stream.send_command(cmd)
+        tracker = TrackerWrapper(self.free_tracker_id, coords, self.shared_memory)
+        self.trackers[self.free_tracker_id] = tracker
+
 
 
 if __name__ == '__main__':
+    multiprocessing.freeze_support()
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-i', '--id_camera',
+                        type=int, default=0)
+    parser.add_argument('-f', '--fps',
+                        type=int, default=120)
+    parser.add_argument('-r', '--resolution',
+                        type=int, default=640)
+    args = parser.parse_args(sys.argv[1:])
+
     app = QApplication(sys.argv)
     window = MainWindow()
+    frontend = Frontend(window, args.id_camera, args.fps, args.resolution)
+    window.new_tracker.connect(frontend.on_new_tracker_requested)
     window.show()
     sys.exit(app.exec())

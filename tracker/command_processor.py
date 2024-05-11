@@ -23,7 +23,7 @@ class CommandQueue:
         return self
 
 
-class CommandExecutor:
+class AsyncCommandExecutor:
     def __init__(self):
         self.queue = CommandQueue()
 
