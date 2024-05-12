@@ -22,12 +22,6 @@ class Coordinates:
     x2: int = 0
     y2: int = 0
 
-@dataclass
-class StartTracking:
-    coords: Coordinates
-    frame_id: ID
-    tracker_id: ID
-
 
 @dataclass
 class ImageWithCoordinates:
@@ -38,4 +32,4 @@ class ImageWithCoordinates:
 @dataclass(slots=True, frozen=True)
 class Command(Packable):
     type: Commands
-    data: Optional[StartTracking | ID]
+    data: Optional[ID]

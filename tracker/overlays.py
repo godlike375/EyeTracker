@@ -5,7 +5,7 @@ from PyQt6.QtCore import Qt, QTimerEvent, QRect, QPoint
 from tracker.protocol import Coordinates
 
 
-class DrawnObjectsOverlay(QWidget):
+class ObjectsPainter(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowFlags(Qt.WindowType.Widget | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
@@ -16,12 +16,13 @@ class DrawnObjectsOverlay(QWidget):
         self.painter.setPen(self.pen)
 
     def paint_rects(self, coordinates: list[Coordinates]):
+        painter = QPainter(self)
+        painter.setPen(self.pen)
         for c in coordinates:
-            self.painter.drawRect(QRect(QPoint(c.x1, c.y1), QPoint(c.x2, c.y2)))
+            painter.drawRect(QRect(QPoint(c.x1, c.y1), QPoint(c.x2, c.y2)))
 
     def paintEvent(self, a0: QPaintEvent):
-        painter = QPainter(self)
-        pen = QPen(QColor(255, 0, 0, 255))
-        pen.setWidth(10)
-        painter.setPen(self.pen)
-        painter.drawRect(self.rect())
+        ...
+        # painter = QPainter(self)
+        # painter.setPen(self.pen)
+        # painter.drawRect(self.rect())

@@ -5,6 +5,7 @@ import sys
 from functools import partial
 from multiprocessing.shared_memory import SharedMemory
 
+import cv2
 import numpy
 from PyQt6.QtCore import pyqtSignal, QSize, Qt, pyqtSlot, QTimerEvent, QObject
 from PyQt6.QtGui import QImage, QPixmap, QAction
@@ -13,18 +14,18 @@ from PyQt6.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget, QMainWin
 from tracker.gaze_predictor_backend import GazePredictorBackend
 from tracker.camera_streamer import create_camera_streamer
 from tracker.object_tracker import TrackerWrapper
-from tracker.overlays import DrawnObjectsOverlay
+from tracker.overlays import ObjectsPainter
 
 sys.path.append('..')
 
 from tracker.command_processor import AsyncCommandExecutor
-from tracker.protocol import Command, Commands, Coordinates, StartTracking, \
+from tracker.protocol import Command, Commands, Coordinates, \
     ImageWithCoordinates
 from tracker.abstractions import ID
 from tracker.fps_counter import FPSCounter
 
 
-FPS_30 = 1 / 120
+FPS_45 = 1 / 45
 
 
 class MainWindow(QMainWindow):
@@ -35,22 +36,29 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout()
         layout.addWidget(self.video_label)
 
-        self.overlay = DrawnObjectsOverlay(self.video_label)
+        self.overlay = ObjectsPainter(self.video_label)
         self.overlay.setGeometry(self.video_label.geometry())
         self.overlay.show()
 
         self.menu_bar = self.menuBar()
 
-        select_pupil = self.menu_bar.addMenu('Выделить зрачок')
+        select_pupil = self.menu_bar.addMenu('Выделение зрачка')
+        start_select = QAction('Начать', self)
+        # start.triggered.connect()
+        end_select = QAction('Остановить', self)
+
+        select_pupil.menuAction().triggered.connect(self.selection_started)
         calibrate_tracker = self.menu_bar.addMenu('Калибровка взгляда')
 
-        start = QAction('Начать', self)
+        start_calibrate = QAction('Начать', self)
         #start.triggered.connect()
-        end = QAction('Остановить', self)
+        end_calibrate = QAction('Остановить', self)
 
         # Добавление действий в меню
-        calibrate_tracker.addAction(start)
-        calibrate_tracker.addAction(end)
+        select_pupil.addAction(start_select)
+        select_pupil.addAction(end_select)
+        calibrate_tracker.addAction(start_calibrate)
+        calibrate_tracker.addAction(end_calibrate)
 
         # Добавление layout в основное окно
         main_widget = QWidget(self)
@@ -61,10 +69,8 @@ class MainWindow(QMainWindow):
 
     def update_video_frame(self, imcords: ImageWithCoordinates):
         frame = numpy.copy(imcords.image)
-
-        #self.overlay.update()
-        #self.overlay.paint_rects(imcords.coords)
-        self.overlay.paint_rects(imcords.coords)
+        for c in imcords.coords:
+            frame = cv2.rectangle(frame, (int(c.x1), int(c.y1)), (int(c.x2), int(c.y2)), color=(255, 0, 0), thickness=2)
         image = QImage(frame, frame.shape[1], frame.shape[0], QImage.Format.Format_BGR888)
         pixmap = QPixmap.fromImage(image)
         self.video_label.setPixmap(pixmap)
@@ -77,6 +83,10 @@ class MainWindow(QMainWindow):
         key = event.key()
         if key == Qt.Key.Key_Enter or key == Qt.Key.Key_Return:
             self.new_tracker.emit(Coordinates(270, 190, 370, 290))
+
+    @pyqtSlot()
+    def selection_started(self):
+        print('select')
 
 
 class Frontend(QObject):
@@ -92,8 +102,8 @@ class Frontend(QObject):
         self.window = parent
 
         self.fps = FPSCounter(2)
-        self.throttle = FPSCounter(FPS_30)
-        self.refresh_timer = self.startTimer(int(FPS_30 * 1000))
+        self.throttle = FPSCounter(FPS_45)
+        self.refresh_timer = self.startTimer(int(FPS_45 * 1000))
 
         self.free_tracker_id: ID = ID(0)
 

@@ -1,4 +1,5 @@
 import asyncio
+import json
 import sys
 from asyncio import Future
 
@@ -9,7 +10,7 @@ from websockets import WebSocketServerProtocol
 sys.path.append('..')
 
 from tracker.image import CompressedImage, PREFER_PERFORMANCE_OVER_QUALITY
-from tracker.protocol import Command, Commands, Coordinates, ImageWithCoordinates, StartTracking
+from tracker.protocol import Command, Commands, Coordinates, ImageWithCoordinates
 from tracker.fps_counter import FPSCounter
 from tracker.object_tracker import TrackerWrapper, FPS_120
 from time import sleep
@@ -51,10 +52,10 @@ class GazePredictorBackend:
     async def receive_messages(self, elvis: WebSocketServerProtocol):
         while True:
             msg = await elvis.recv()
-            command = Command.unpack(msg)
-            # match command.type:
-            #     case Commands.START_TRACKING:
-            #         com_data: StartTracking = command.data
+            command = json.loads(msg)
+            if command['command'] == 'gaze':
+                # TODO: calculate gaze
+                await elvis.send(gaze)
             await asyncio.sleep(FPS_120 * 2) # Throttle a bit cause the stream's priority is higher
 
     async def on_new_connection(self, elvis: WebSocketServerProtocol, path):
