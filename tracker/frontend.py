@@ -25,7 +25,7 @@ from tracker.abstractions import ID
 from tracker.fps_counter import FPSCounter
 
 
-FPS_45 = 1 / 45
+FPS_50 = 1 / 50
 
 
 class MainWindow(QMainWindow):
@@ -67,10 +67,7 @@ class MainWindow(QMainWindow):
 
         self.video_size_set = False
 
-    def update_video_frame(self, imcords: ImageWithCoordinates):
-        frame = numpy.copy(imcords.image)
-        for c in imcords.coords:
-            frame = cv2.rectangle(frame, (int(c.x1), int(c.y1)), (int(c.x2), int(c.y2)), color=(255, 0, 0), thickness=2)
+    def update_video_frame(self, frame: numpy.ndarray):
         image = QImage(frame, frame.shape[1], frame.shape[0], QImage.Format.Format_BGR888)
         pixmap = QPixmap.fromImage(image)
         self.video_label.setPixmap(pixmap)
@@ -102,8 +99,8 @@ class Frontend(QObject):
         self.window = parent
 
         self.fps = FPSCounter(2)
-        self.throttle = FPSCounter(FPS_45)
-        self.refresh_timer = self.startTimer(int(FPS_45 * 1000))
+        self.throttle = FPSCounter(FPS_50)
+        self.refresh_timer = self.startTimer(int(FPS_50 * 1000))
 
         self.free_tracker_id: ID = ID(0)
 
@@ -112,7 +109,11 @@ class Frontend(QObject):
             self.throttle.calculate()
             # TODO: get coordinates
             coords = [Coordinates(*t.coordinates_memory[:]) for t in self.trackers.values()]
-            self.window.update_video_frame(ImageWithCoordinates(self.video_frame, coords))
+            frame = numpy.copy(self.video_frame)
+            for c in coords:
+                frame = cv2.rectangle(frame, (int(c.x1), int(c.y1)), (int(c.x2), int(c.y2)), color=(255, 0, 0),
+                                      thickness=2)
+            self.window.update_video_frame(frame)
 
         if self.fps.able_to_calculate():
             print(f'frontend fps: {self.fps.calculate()}')
