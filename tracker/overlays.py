@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import QApplication, QLabel, QWidget
 from PyQt6.QtGui import QPainter, QPen, QColor, QPixmap, QPaintEvent
 from PyQt6.QtCore import Qt, QTimerEvent, QRect, QPoint
 
-from tracker.protocol import Coordinates
+from tracker.protocol import BoundingBox
 
 
 class ObjectsPainter(QWidget):
@@ -15,7 +15,7 @@ class ObjectsPainter(QWidget):
         self.pen.setWidth(10)
         self.painter.setPen(self.pen)
 
-    def paint_rects(self, coordinates: list[Coordinates]):
+    def paint_rects(self, coordinates: list[BoundingBox]):
         painter = QPainter(self)
         painter.setPen(self.pen)
         for c in coordinates:

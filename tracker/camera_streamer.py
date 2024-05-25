@@ -4,7 +4,7 @@ from multiprocessing.shared_memory import SharedMemory
 import cv2
 import numpy
 
-from tracker.abstractions import ID
+from tracker.utils.fps import FPSCounter
 
 
 def stream_video(shared_frame_mem: SharedMemory, id_camera = 0, fps=120, resolution=640):
@@ -13,9 +13,13 @@ def stream_video(shared_frame_mem: SharedMemory, id_camera = 0, fps=120, resolut
     camera.set(cv2.CAP_PROP_FRAME_WIDTH, resolution)
     ret, frame = camera.read()
     current_frame = numpy.ndarray(frame.shape, dtype=frame.dtype, buffer=shared_frame_mem.buf)
+    camera_fps = FPSCounter()
     while True:
         ret, frame = camera.read()
         numpy.copyto(current_frame, frame)
+        camera_fps.count_frame()
+        if camera_fps.able_to_calculate():
+            print(f'camera fps {camera_fps.calculate()}')
 
 
 def create_camera_streamer(id_camera = 0, fps=120, resolution=640):

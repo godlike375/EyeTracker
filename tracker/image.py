@@ -7,8 +7,8 @@ import cv2
 from PIL.Image import Image
 import numpy
 
-from tracker.abstractions import Packable, ID
-
+from tracker.abstractions import ID
+from tracker.protocol import Packable
 
 PREFER_PERFORMANCE_OVER_QUALITY = 35
 MSEC_IN_SEC = 1000

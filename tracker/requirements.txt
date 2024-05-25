@@ -2,5 +2,4 @@ websockets
 PyQt6
 dlib
 opencv-python
-imageio
-imageio-ffmpeg
+pupil-detectors

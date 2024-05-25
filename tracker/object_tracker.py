@@ -5,8 +5,8 @@ from multiprocessing.shared_memory import SharedMemory
 import dlib
 import numpy
 
-from tracker.fps_counter import FPSCounter
-from tracker.protocol import Coordinates
+from tracker.utils.fps import FPSCounter
+from tracker.protocol import BoundingBox
 from tracker.abstractions import ID
 
 
@@ -14,7 +14,7 @@ FPS_120 = 1 / 120
 
 
 class TrackerWrapper:
-    def __init__(self, id: int, coordinates: Coordinates, frame_memory: SharedMemory):
+    def __init__(self, id: int, coordinates: BoundingBox, frame_memory: SharedMemory):
         self.id = id
         self.frame_memory = frame_memory
         self.coordinates_memory = Array('i', [0] * 4)
@@ -27,7 +27,7 @@ class TrackerWrapper:
         self.process.start()
 
     def _mainloop(self, coordinates_memory: Array,
-                  id: ID, coordinates: Coordinates):
+                  id: ID, coordinates: BoundingBox):
         fps = FPSCounter(2)
         print(f'tracker start id {id}')
         started = False
@@ -39,7 +39,9 @@ class TrackerWrapper:
             if not started:
                 started = True
                 tracker.start_track(raw, dlib.rectangle(*dataclasses.astuple(coordinates)))
-            tracker.update(raw)
+            confidence = tracker.update(raw)
+            if confidence < 4.65:
+                print(f'object lost {confidence}')
             new_pos = tracker.get_position()
             coordinates_memory[0] = int(new_pos.left())
             coordinates_memory[1] = int(new_pos.top())

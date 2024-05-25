@@ -10,9 +10,9 @@ from websockets import WebSocketServerProtocol
 sys.path.append('..')
 
 from tracker.image import CompressedImage, PREFER_PERFORMANCE_OVER_QUALITY
-from tracker.protocol import Command, Commands, Coordinates, ImageWithCoordinates
-from tracker.fps_counter import FPSCounter
-from tracker.object_tracker import TrackerWrapper, FPS_120
+from tracker.protocol import BoundingBox, ImageWithCoordinates
+from tracker.utils.fps import FPSCounter
+from tracker.object_tracker import FPS_120
 from time import sleep
 
 
@@ -40,7 +40,7 @@ class GazePredictorBackend:
             self.throttle_all.calculate()
             jpeg = CompressedImage.from_raw_image(self.camera.current_frame, self.camera.image_id,
                                                   quality=PREFER_PERFORMANCE_OVER_QUALITY)
-            coordinates = [Coordinates(*tracker.coordinates_memory[:])
+            coordinates = [BoundingBox(*tracker.coordinates_memory[:])
                            for tracker in self.trackers.values()]
             jpeg_with_coordinates = ImageWithCoordinates(jpeg, coordinates)
             await self.frontend.send(jpeg_with_coordinates.pack())
