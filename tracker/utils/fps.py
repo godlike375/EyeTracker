@@ -41,3 +41,10 @@ class FPSLimiter:
             self.start_time = current_time
             return True
         return False
+
+    def throttle(self):
+        current_time = time.time()
+        elapsed_time = current_time - self.start_time
+        if elapsed_time < self.limit_time:
+            throttle_time = self.limit_time - elapsed_time
+            time.sleep(throttle_time)

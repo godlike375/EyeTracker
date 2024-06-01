@@ -1,11 +1,10 @@
 import numpy
-from PyQt6.QtCore import pyqtSignal, QSize
-from PyQt6.QtGui import QAction, QImage, QPixmap
+from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QMainWindow, QVBoxLayout, QWidget
 
-from tracker.overlays import ObjectsPainter
 from tracker.protocol import BoundingBox
-from tracker.ui.video_box import CallbacksLabel
+from tracker.ui.video_label import CallbacksVideoLabel
 
 
 class MainWindow(QMainWindow):
@@ -14,13 +13,13 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.video_label = CallbacksLabel(self)
+        self.video_label = CallbacksVideoLabel(parent=self)
         layout = QVBoxLayout()
         layout.addWidget(self.video_label)
 
-        self.overlay = ObjectsPainter(self.video_label)
-        self.overlay.setGeometry(self.video_label.geometry())
-        self.overlay.show()
+        # self.overlay = ObjectsPainter(self.video_label)
+        # self.overlay.setGeometry(self.video_label.geometry())
+        # self.overlay.show()
 
         self.menu_bar = self.menuBar()
 
@@ -46,16 +45,8 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(main_widget)
         main_widget.setLayout(layout)
 
-        self.video_size_set = False
-
     def update_video_frame(self, frame: numpy.ndarray):
-        image = QImage(frame, frame.shape[1], frame.shape[0], QImage.Format.Format_BGR888)
-        pixmap = QPixmap.fromImage(image)
-        self.video_label.setPixmap(pixmap)
-
-        if not self.video_size_set:
-            self.video_label.setFixedSize(QSize(frame.shape[1], frame.shape[0]))
-            self.video_size_set = True
+        self.video_label.set_frame(frame)
 
     def keyPressEvent(self, event):
         self.video_label.keyPressEvent(event)

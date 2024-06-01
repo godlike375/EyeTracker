@@ -7,14 +7,15 @@ from PyQt6.QtCore import QObject, QTimerEvent, pyqtSlot
 
 from tracker.abstractions import ID, DrawnObject, ProcessBased
 from tracker.camera_streamer import create_camera_streamer
-from tracker.detectors.detectors import DarkAreaPupilDetector
+from tracker.detectors.pupil_detectors import DarkAreaPupilDetector, PupilLibraryDetector
 from tracker.detectors.managers import PupilDetectorManager
 from tracker.detectors.selector import EyeSelector
 from tracker.object_tracker import TrackerWrapper
 from tracker.protocol import BoundingBox
 from tracker.ui.main_window import MainWindow
 from tracker.utils.coordinates import Point
-from tracker.utils.fps import FPSCounter
+from tracker.utils.fps import FPSCounter, FPSLimiter
+from tracker.utils.image_processing import get_resolution
 
 FPS_50 = 1 / 50
 
@@ -36,29 +37,29 @@ class Frontend(QObject):
         self.window = parent
 
         self.fps = FPSCounter(2)
-        self.throttle = FPSCounter(FPS_50)
-        self.refresh_timer = self.startTimer(int(FPS_50 * 1000))
+        self.throttle = FPSLimiter(40)
+        self.refresh_timer = self.startTimer(int(1 / 40 * 1000))
 
         self.free_tracker_id: ID = ID(0)
 
     def timerEvent(self, a0: QTimerEvent):
-        if self.throttle.able_to_calculate():
-            self.throttle.calculate()
+        if not self.throttle.able_to_execute():
+            self.throttle.throttle()
             # TODO: get coordinates
-            coords = [BoundingBox(*t.coordinates_memory[:]) for t in self.trackers.values()]
-            frame = numpy.copy(self.video_frame)
-            for c in coords:
-                frame = cv2.rectangle(frame, (int(c.x1), int(c.y1)), (int(c.x2), int(c.y2)), color=(255, 0, 0),
-                                      thickness=2)
+        coords = [BoundingBox(*t.coordinates_memory[:]) for t in self.trackers.values()]
+        frame = numpy.copy(self.video_frame)
+        for c in coords:
+            frame = cv2.rectangle(frame, (int(c.x1), int(c.y1)), (int(c.x2), int(c.y2)), color=(255, 0, 0),
+                                  thickness=2)
 
-            if self.pupil_manager:
-                pupil: Point = self.pupil_manager.detect()
-                cv2.circle(frame, (*pupil,), 3, (0, 255, 0), -1)
+        if self.pupil_manager:
+            pupil: Point = self.pupil_manager.detect()
+            cv2.circle(frame, (*pupil,), 3, (0, 255, 0), -1)
 
-            for object in self.drawable_objects.values():
-                object.draw_on_frame(frame)
+        for object in self.drawable_objects.values():
+            object.draw_on_frame(frame)
 
-            self.window.update_video_frame(frame)
+        self.window.update_video_frame(frame)
 
         if self.fps.able_to_calculate():
             self.fps.calculate()
@@ -92,7 +93,10 @@ class Frontend(QObject):
         del self.drawable_objects[selector.name]
 
     def on_pupil_detector_start(self, eye_box: Array):
-        self.pupil_manager = PupilDetectorManager({0: DarkAreaPupilDetector(eye_box, self.frame_memory)})
+        self.pupil_manager = PupilDetectorManager({0: DarkAreaPupilDetector(eye_box, self.frame_memory,
+                                                   get_resolution(self.video_frame))})#,
+                                                   #1: PupilLibraryDetector(eye_box, self.frame_memory,
+                                                   #                         get_resolution(self.video_frame))})
 
     @pyqtSlot(BoundingBox)
     def on_new_tracker_requested(self, coords: BoundingBox):

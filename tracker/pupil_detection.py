@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-cap = cv2.VideoCapture(1)
+cap = cv2.VideoCapture(r'C:\Users\godlike\Desktop\Видео_макаки\снизу_близко.mp4')
 eye_cascade = cv2.CascadeClassifier('haarcascade_eye.xml')
 
 while True:
@@ -12,8 +12,9 @@ while True:
 
     # Использование каскадов Хаара для детектирования глаз
 
-    eyes = eye_cascade.detectMultiScale(gray, scaleFactor=1.52, minNeighbors=3, minSize=(22, 22), maxSize=(250, 250))
+    eyes = eye_cascade.detectMultiScale(gray, scaleFactor=1.52, minNeighbors=2, minSize=(6, 6), maxSize=(250, 250))
 
+    #eyes = eye_cascade.detectMultiScale(gray, scaleFactor=1.52, minNeighbors=3, minSize=(22, 22), maxSize=(250, 250))
     # Поиск зрачка внутри области глаз
     for (ex, ey, ew, eh) in eyes:
         cv2.rectangle(image, (ex, ey), (ex + ew, ey + eh), (255, 255, 255), 2)
@@ -39,7 +40,10 @@ while True:
                 cv2.circle(image, (cx, cy), 3, (0, 0, 255), -1)
 
     # Отображение результата
+    image = cv2.resize(image, (640, 480), interpolation=cv2.INTER_AREA)
+
     cv2.imshow("Pupil Detection", image)
+
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 

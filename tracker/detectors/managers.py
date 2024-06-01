@@ -1,4 +1,4 @@
-from tracker.detectors.detectors import PupilDetector
+from tracker.detectors.pupil_detectors import PupilDetector
 from tracker.utils.coordinates import Point
 
 Priority = int

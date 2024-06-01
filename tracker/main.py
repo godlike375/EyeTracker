@@ -14,7 +14,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--id_camera',
-                        type=int, default=0)
+                        type=str, default='0')
     parser.add_argument('-f', '--fps',
                         type=int, default=120)
     parser.add_argument('-r', '--resolution',
@@ -23,6 +23,10 @@ if __name__ == '__main__':
     try:
         app = QApplication(sys.argv)
         window = MainWindow()
+        try:
+            args.id_camera = int(args.id_camera)
+        except:
+            ...
         frontend = Frontend(window, args.id_camera, args.fps, args.resolution)
         window.new_tracker.connect(frontend.on_new_tracker_requested)
         window.select_eye.connect(frontend.on_eye_select_requested)
