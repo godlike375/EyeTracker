@@ -2,4 +2,3 @@ websockets
 PyQt6
 dlib
 opencv-python
-pupil-detectors

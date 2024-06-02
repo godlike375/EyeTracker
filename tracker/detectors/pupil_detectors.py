@@ -6,9 +6,9 @@ from multiprocessing.shared_memory import SharedMemory
 import cv2
 import numpy
 import numpy as np
-from pupil_detectors import Detector2D
 
 from tracker.abstractions import ProcessBased
+from tracker.detectors.jonnedtc import GradientIntersect
 from tracker.object_tracker import FPS_120
 from tracker.utils.fps import FPSCounter, FPSLimiter
 
@@ -25,27 +25,32 @@ class PupilDetector(ProcessBased):
     def mainloop(self):
         ...
 
+    def remove_zeroes_and_take_percentile(self, hist, percent):
+        pairs = [(i, int(hist[i][0])) for i in range(len(hist))]
+        pairs.sort(key=lambda x: x[1])
+        pairs = [(i, v) for (i, v) in pairs if v > 0]
+        percentile_25th = int(len(pairs) * percent / 100)
+        return pairs[percentile_25th:]
+
     def find_optimal_threshold(self, blurred, base_factor=None):
-        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(blurred)
-        # the more is min_val - the less is the multiplicator
-        # best yet params: base_factor = -min_val / 254 + 1.465
-        # TODO: improve to increse stability:
-        #  чем больший диапазон освещения на участке фото, тем обычно проще найти зрачок.
-        #  Значит при маленьком диапазоне нужно допуск меньше что-ли делать
-        # base_factor = ((max_val - min_val) / 212) ** 2.785 + 0.75
-        # base_factor = ((max_val - min_val) / 243) ** 2.67 + 0.685
-        # base_factor = ((max_val - min_val) / 227) ** 2.77 + 0.71
-        base_factor = base_factor or ((max_val - min_val) / 248) ** 4.64 + 1.0518
-        #base_factor = 1.0515
+        kernel = np.ones((2, 2), np.uint8)
+        blurred = cv2.dilate(blurred, kernel, iterations=1)
+        hist = cv2.calcHist([blurred], [0], None, [256], [0, 256])
+        # the coefficients are optimal in most scenarios
+        sorted_by_values = self.remove_zeroes_and_take_percentile(hist, percent=1.0325)
+        sorted_by_indexes = sorted(sorted_by_values, key=lambda x: x[0])
+        min_val = max(sorted_by_indexes[0][0], 1)
+        max_val = sorted_by_indexes[-1][0]
+        base_factor = base_factor or ((max_val - min_val) / 255) ** 2.4685 + 1
         # TODO: если широкий диапазон - использовать контуры больше. Если узкий - круги
-        base_factor = base_factor if base_factor > 1 else 1
-        try_threshold = int((max(min_val, 1)) * base_factor)
+        base_factor = max(base_factor, 1)
+        try_threshold = int(min_val * base_factor)
         return try_threshold
 
     def preprocess_image(self, raw: numpy.ndarray):
         eye_frame = raw[self.eye_box[1]: self.eye_box[3], self.eye_box[0]: self.eye_box[2]]
         gray = cv2.cvtColor(eye_frame, cv2.COLOR_BGR2GRAY)
-        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        blurred = cv2.GaussianBlur(gray, (9, 9), 0)
         return blurred
 
 
@@ -56,24 +61,38 @@ class DarkAreaPupilDetector(PupilDetector):
         self.process.start()
 
     def find_threshold_and_detect(self, blurred: numpy.ndarray, ex, ey):
-        kernel = np.ones((2, 2), np.uint8)
+        kernel = np.ones((3, 3), np.uint8)
         blurred = cv2.dilate(blurred, kernel, iterations=1)
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(blurred)
         min_val = max(min_val, 1)
+        # Вычислите средний динамический диапазон яркости
 
-        step = 1.3385
-        prev_area = 1
-        max_steps = 14.875
-        threshold = step + min_val * 1.06325
-        while True:
-            thresholded_img = cv2.threshold(blurred, threshold, 255, cv2.THRESH_BINARY_INV)[1]
-
-            pupil, px, py, pw, ph, largest_area = self.pupil_by_contours(thresholded_img, ex, ey)
-            if largest_area <= prev_area:
-                max_steps -= 2.215
-            if max_steps <= 0.35 or (prev_area / largest_area <= 0.714 and largest_area - prev_area >= 31):
+        hist = [int(h[0]) for h in hist]
+        peak_index = 0
+        for i, (prev, next) in enumerate(zip(hist[:-2], hist[1:])):
+            if prev > next + 1:
+                peak_index = i
                 break
-            threshold += step
+        peak_value = hist[peak_index]
+        threshold = int((min_val + peak_value) / 1.25)
+        print(threshold)
+        thresholded_img = cv2.threshold(blurred, threshold, 255, cv2.THRESH_BINARY_INV)[1]
+
+        pupil, px, py, pw, ph, largest_area = self.pupil_by_contours(thresholded_img, ex, ey)
+
+        # step = 1.3385
+        # prev_area = 1
+        # max_steps = 14.875
+        # threshold = step + peak_value * 1.06325
+        # while True:
+        #     thresholded_img = cv2.threshold(blurred, threshold, 255, cv2.THRESH_BINARY_INV)[1]
+        #
+        #     pupil, px, py, pw, ph, largest_area = self.pupil_by_contours(thresholded_img, ex, ey)
+        #     if largest_area <= prev_area:
+        #         max_steps -= 2.215
+        #     if max_steps <= 0.35 or (prev_area / largest_area <= 0.714 and largest_area - prev_area >= 31):
+        #         break
+        #     threshold += step
 
             # Возвращаем найденный порог
         cv2.imshow('eye thresholded', thresholded_img)
@@ -125,17 +144,21 @@ class DarkAreaPupilDetector(PupilDetector):
                 continue
             ex, ey = self.eye_box[0], self.eye_box[1]
             blurred = self.preprocess_image(raw)
-            pupil_by_contours, px, py, pw, ph, area = self.find_threshold_and_detect(blurred, ex, ey)
+            threshold = self.find_optimal_threshold(blurred)
+            thresholded_img = cv2.threshold(blurred, threshold, 255, cv2.THRESH_BINARY_INV)[1]
+            pupil_by_contours, px, py, pw, ph, area = self.pupil_by_contours(thresholded_img, ex, ey)
+            cv2.imshow('threshold', thresholded_img)
+            cv2.waitKey(1)
 
             pupil_by_circles = None
             if pupil_by_contours is not None:
-                pupil_by_circles = self.pupil_by_circles(blurred, px, py, pw, ph, ex, ey)
-
-            if pupil_by_circles is not None:
-                self.coordinates[0], self.coordinates[1] = \
-                    (pupil_by_circles[0] + pupil_by_contours[0]) // 2,\
-                    (pupil_by_circles[1] + pupil_by_contours[1]) // 2
-            elif pupil_by_contours:
+            #     pupil_by_circles = self.pupil_by_circles(blurred, px, py, pw, ph, ex, ey)
+            #
+            # if pupil_by_circles is not None:
+            #     self.coordinates[0], self.coordinates[1] = \
+            #         (pupil_by_circles[0] + pupil_by_contours[0]) // 2,\
+            #         (pupil_by_circles[1] + pupil_by_contours[1]) // 2
+            # elif pupil_by_contours:
                 self.coordinates[0], self.coordinates[1] = pupil_by_contours
 
 
@@ -147,8 +170,15 @@ class PupilLibraryDetector(PupilDetector):
 
     def mainloop(self):
         raw = numpy.ndarray((*self.resolution, 3), dtype=numpy.uint8, buffer=self.current_frame.buf)
-        detector = Detector2D()
+        detector = GradientIntersect()
         fps = FPSLimiter(120)
+
+        eye_frame = raw[self.eye_box[1]: self.eye_box[3], self.eye_box[0]: self.eye_box[2]]
+        gray = cv2.cvtColor(eye_frame, cv2.COLOR_BGR2GRAY)
+        ex, ey = self.eye_box[0], self.eye_box[1]
+        result = detector.locate(gray)
+        self.coordinates[0], self.coordinates[1] = int(result[1] + ex), int(result[0] + ey)
+
         while True:
             if not fps.able_to_execute():
                 time.sleep(FPS_120)
@@ -156,8 +186,5 @@ class PupilLibraryDetector(PupilDetector):
             eye_frame = raw[self.eye_box[1]: self.eye_box[3], self.eye_box[0]: self.eye_box[2]]
             gray = cv2.cvtColor(eye_frame, cv2.COLOR_BGR2GRAY)
             ex, ey = self.eye_box[0], self.eye_box[1]
-            result = detector.detect(gray)
-            if result['confidence'] < 0.4:
-                continue
-            x, y = result['location']
-            self.coordinates[0], self.coordinates[1] = int(x + ex), int(y + ey)
+            result = detector.track(gray, result)
+            self.coordinates[0], self.coordinates[1] = int(result[1] + ex), int(result[0] + ey)
