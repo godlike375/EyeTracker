@@ -20,17 +20,14 @@ if __name__ == '__main__':
     parser.add_argument('-r', '--resolution',
                         type=int, default=640)
     args = parser.parse_args(sys.argv[1:])
+    app = QApplication(sys.argv)
+    window = MainWindow()
     try:
-        app = QApplication(sys.argv)
-        window = MainWindow()
-        try:
-            args.id_camera = int(args.id_camera)
-        except:
-            ...
-        frontend = Frontend(window, args.id_camera, args.fps, args.resolution)
-        window.new_tracker.connect(frontend.on_new_tracker_requested)
-        window.select_eye.connect(frontend.on_eye_select_requested)
-        window.show()
-        sys.exit(app.exec())
-    except Exception as e:
-        print(e)
+        args.id_camera = int(args.id_camera)
+    except:
+        ...
+    frontend = Frontend(window, args.id_camera, args.fps, args.resolution)
+    window.new_tracker.connect(frontend.on_new_tracker_requested)
+    window.select_eye.connect(frontend.on_eye_select_requested)
+    window.show()
+    sys.exit(app.exec())

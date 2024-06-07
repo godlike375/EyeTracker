@@ -3,17 +3,18 @@ from multiprocessing import Array
 
 import cv2
 import numpy
-from PyQt6.QtCore import QObject, QTimerEvent, pyqtSlot
+from PyQt6.QtCore import QObject, QTimerEvent, pyqtSlot, QTimer
 
-from tracker.abstractions import ID, DrawnObject, ProcessBased
+from tracker.abstractions import ID, DrawnObject
 from tracker.camera_streamer import create_camera_streamer
+from tracker.detectors.detectors import EyeDetector
+from tracker.detectors.eye_detectors import HaarHoughEyeDetector
 from tracker.detectors.pupil_detectors import DarkAreaPupilDetector, PupilLibraryDetector
-from tracker.detectors.managers import PupilDetectorManager
+from tracker.detectors.managers import DetectorManager
 from tracker.detectors.selector import EyeSelector
 from tracker.object_tracker import TrackerWrapper
 from tracker.protocol import BoundingBox
 from tracker.ui.main_window import MainWindow
-from tracker.utils.coordinates import Point
 from tracker.utils.fps import FPSCounter, FPSLimiter
 from tracker.utils.image_processing import get_resolution
 
@@ -31,7 +32,7 @@ class Frontend(QObject):
         self.drawable_objects: dict[str, DrawnObject] = {}
         self.eye_box = Array('i', [0]*4)
 
-        self.pupil_manager: PupilDetectorManager = None
+        self.detector_manager: DetectorManager = None
 
         #self.calibrator_backend = GazePredictorBackend()
         self.window = parent
@@ -52,9 +53,14 @@ class Frontend(QObject):
             frame = cv2.rectangle(frame, (int(c.x1), int(c.y1)), (int(c.x2), int(c.y2)), color=(255, 0, 0),
                                   thickness=2)
 
-        if self.pupil_manager:
-            pupil: Point = self.pupil_manager.detect()
-            cv2.circle(frame, (*pupil,), 3, (0, 255, 0), -1)
+        if self.detector_manager:
+            eye, pupil = self.detector_manager.detect()
+            if pupil:
+                cv2.circle(frame, (*pupil,), 3, (0, 255, 0), -1)
+            if eye:
+                cv2.rectangle(frame, (eye.x1, eye.y1), (eye.x2, eye.y2),
+                          (255, 0, 0), 3)
+
 
         for object in self.drawable_objects.values():
             object.draw_on_frame(frame)
@@ -89,14 +95,26 @@ class Frontend(QObject):
         self.eye_box[1] = selector.left_top.y
         self.eye_box[2] = selector.right_bottom.x
         self.eye_box[3] = selector.right_bottom.y
-        self.on_pupil_detector_start(self.eye_box)
+        self.on_detection_start(self.eye_box)
         del self.drawable_objects[selector.name]
 
-    def on_pupil_detector_start(self, eye_box: Array):
-        self.pupil_manager = PupilDetectorManager({0: DarkAreaPupilDetector(eye_box, self.frame_memory,
-                                                   get_resolution(self.video_frame))})#,
+    def on_detection_start(self, eye_box: Array):
+        box = BoundingBox(*self.eye_box[:])
+        haar_detector = HaarHoughEyeDetector(eye_box, self.frame_memory,
+                                                get_resolution(self.video_frame), 50)
+        self.detector_manager = DetectorManager(box,
+                                                eye_detectors={0: haar_detector},
+                                                )
+        QTimer.singleShot(800, lambda : self.on_eye_detector_started(haar_detector))
+
+    def on_eye_detector_started(self, detector: EyeDetector):
+        dark_area_detector = DarkAreaPupilDetector(detector.eye_coordinates, self.frame_memory,
+                                                   get_resolution(self.video_frame), 180)
+        self.detector_manager.add_pupil_detectors({0: dark_area_detector})
+        #,
                                                    #1: PupilLibraryDetector(eye_box, self.frame_memory,
                                                    #                         get_resolution(self.video_frame))})
+
 
     @pyqtSlot(BoundingBox)
     def on_new_tracker_requested(self, coords: BoundingBox):

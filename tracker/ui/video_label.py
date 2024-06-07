@@ -51,10 +51,10 @@ class CallbacksVideoLabel(QLabel):
 
     def setup_rescaling(self, height: int, width: int):
         if width > height:
-            new_width = 920 # WARNING TODO: strange bug looking if the value is 950 or 945 for example
+            new_width = 860 # WARNING TODO: strange bug looking if the value is 950 or 945 for example
             scale = new_width / width
         else:
-            new_height = 570 # WARNING TODO: strange bug looking if the value is 580 for example
+            new_height = 620 # WARNING TODO: strange bug looking if the value is 580 for example
             scale = new_height / height
         self.new_width = int(width * scale)
         self.new_height = int(height * scale)

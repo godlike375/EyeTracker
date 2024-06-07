@@ -39,7 +39,7 @@ def create_camera_streamer(id_camera = 0, fps=120, resolution=640):
     if not captured:
         raise IOError("can't access camera")
     camera.release()
-    shared_frame_mem: SharedMemory = SharedMemory(name='frame', size=frame.size*frame.itemsize, create=True)
+    shared_frame_mem: SharedMemory = SharedMemory(size=frame.size*frame.itemsize, create=True)
     process = Process(target=stream_video, args=(shared_frame_mem, id_camera, fps, resolution), daemon=True)
     process.start()
     current_frame = numpy.ndarray(frame.shape, dtype=frame.dtype, buffer=shared_frame_mem.buf)
