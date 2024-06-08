@@ -42,6 +42,7 @@ class Frontend(QObject):
         self.refresh_timer = self.startTimer(int(1 / 40 * 1000))
 
         self.free_tracker_id: ID = ID(0)
+        self.on_eye_select_requested()
 
     def timerEvent(self, a0: QTimerEvent):
         if not self.throttle.able_to_execute():
@@ -56,10 +57,10 @@ class Frontend(QObject):
         if self.detector_manager:
             eye, pupil = self.detector_manager.detect()
             if pupil:
-                cv2.circle(frame, (*pupil,), 3, (0, 255, 0), -1)
+                cv2.circle(frame, (*pupil,), 2, (0, 255, 0), -1)
             if eye:
                 cv2.rectangle(frame, (eye.x1, eye.y1), (eye.x2, eye.y2),
-                          (255, 0, 0), 3)
+                          (255, 0, 0), 2)
 
 
         for object in self.drawable_objects.values():
@@ -76,8 +77,9 @@ class Frontend(QObject):
         label = self.window.video_label
         label.on_mouse_click = selector.left_button_click
         label.on_mouse_move = selector.left_button_down_moved
-        label.on_mouse_release = selector.left_button_up
-        label.on_enter_press = selector.finish_selecting
+        #label.on_mouse_release = selector.left_button_up
+        label.on_mouse_release = selector.finish_selecting
+        #label.on_enter_press = selector.finish_selecting
 
     def unbind_selector_from_events(self):
         label = self.window.video_label
@@ -97,7 +99,7 @@ class Frontend(QObject):
         self.eye_box[3] = selector.right_bottom.y
         if not self.detector_manager:
             self.on_detection_start(self.eye_box)
-        del self.drawable_objects[selector.name]
+        #del self.drawable_objects[selector.name]
 
     def on_detection_start(self, eye_box: Array):
         box = BoundingBox(*self.eye_box[:])

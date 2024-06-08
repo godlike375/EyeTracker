@@ -1,6 +1,8 @@
 from abc import ABC
 from typing import Callable
 
+import cv2
+
 from tracker.utils.coordinates import Point
 from tracker.abstractions import RectBased, DrawnObject, ProcessBased
 from tracker.utils.logger import logger
@@ -46,9 +48,10 @@ class Selector(ProcessBased):
         less_than_min_dist = any([i < MIN_DISTANCE_BETWEEN_POINTS for i in distances])
         return len(set(self._points)) != len(self._points) or less_than_min_dist
 
-    def finish_selecting(self):
+    def finish_selecting(self, event):
+        self.left_button_up(event)
         self.finish()
-        self._unbind_callback()
+        #self._unbind_callback()
         if self._after_selection is not None:
             self._after_selection(self)
 
@@ -115,7 +118,8 @@ class EyeSelector(DrawnObject, Selector):
         self.right_bottom.x += CORRECTIVE_STEP_PIXELS
 
     def draw_on_frame(self, frame):
-        return Processor.draw_rectangle(frame, self.left_top, self.right_bottom)
+        return cv2.rectangle(frame, (*self.left_top,), (*self.right_bottom,),
+                          (255, 0, 224), 2)
 
     @property
     def is_empty(self):

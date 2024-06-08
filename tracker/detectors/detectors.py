@@ -48,7 +48,7 @@ class Detector(ProcessBased):
         sorted_by_values = self.remove_zeroes_and_take_percentile(hist, percent=1.0305)
         sorted_by_indexes = sorted(sorted_by_values, key=lambda x: x[0])
         min_val = max(sorted_by_indexes[0][0], 1)
-        max_val = sorted_by_indexes[-1][0]
+        max_val = max(sorted_by_indexes[-1][0], 2)
         # the coefficients are optimal in most scenarios
         base_factor = base_factor or ((max_val - min_val) / 255) ** 2.485 + 1
         # TODO: если широкий диапазон - использовать контуры больше. Если узкий - круги
