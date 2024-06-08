@@ -95,21 +95,24 @@ class Frontend(QObject):
         self.eye_box[1] = selector.left_top.y
         self.eye_box[2] = selector.right_bottom.x
         self.eye_box[3] = selector.right_bottom.y
-        self.on_detection_start(self.eye_box)
+        if not self.detector_manager:
+            self.on_detection_start(self.eye_box)
         del self.drawable_objects[selector.name]
 
     def on_detection_start(self, eye_box: Array):
         box = BoundingBox(*self.eye_box[:])
         haar_detector = HaarHoughEyeDetector(eye_box, self.frame_memory,
-                                                get_resolution(self.video_frame), 50)
+                                                get_resolution(self.video_frame), 90)
         self.detector_manager = DetectorManager(box,
                                                 eye_detectors={0: haar_detector},
                                                 )
-        QTimer.singleShot(800, lambda : self.on_eye_detector_started(haar_detector))
+        self.on_eye_detector_started(haar_detector)
 
-    def on_eye_detector_started(self, detector: EyeDetector):
-        dark_area_detector = DarkAreaPupilDetector(detector.eye_coordinates, self.frame_memory,
-                                                   get_resolution(self.video_frame), 180)
+    def on_eye_detector_started(self, eye_detector: EyeDetector):
+        dark_area_detector = DarkAreaPupilDetector(eye_detector.eye_coordinates, self.frame_memory,
+                                                    get_resolution(self.video_frame), 180)
+        #pupil_lib_detector = PupilLibraryDetector(eye_detector.eye_coordinates, self.frame_memory,
+        #                                           get_resolution(self.video_frame), 180)
         self.detector_manager.add_pupil_detectors({0: dark_area_detector})
         #,
                                                    #1: PupilLibraryDetector(eye_box, self.frame_memory,

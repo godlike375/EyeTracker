@@ -6,7 +6,7 @@ import cv2
 import numpy
 
 from tracker.detectors.detectors import PupilDetector
-from tracker.detectors.jonnedtc import GradientIntersect
+from tracker.detectors.jonnedtc import GradientIntersect, IsophoteCurvature
 from tracker.object_tracker import FPS_120
 from tracker.utils.coordinates import Point
 from tracker.utils.fps import FPSLimiter
@@ -70,22 +70,11 @@ class HoughCirclesPupilDetector(PupilDetector):
 
 class PupilLibraryDetector(PupilDetector):
     def mainloop(self):
-        raw = numpy.ndarray((*self.resolution, 3), dtype=numpy.uint8, buffer=self.current_frame.buf)
-        detector = GradientIntersect()
-        fps = FPSLimiter(120)
+        self.detector = IsophoteCurvature()
+        super().mainloop()
 
-        eye_frame = raw[self.eye_box[1]: self.eye_box[3], self.eye_box[0]: self.eye_box[2]]
-        gray = cv2.cvtColor(eye_frame, cv2.COLOR_BGR2GRAY)
-        ex, ey = self.eye_box[0], self.eye_box[1]
-        result = detector.locate(gray)
-        self.pupil_coordinates[0], self.pupil_coordinates[1] = int(result[1] + ex), int(result[0] + ey)
-
-        while True:
-            if not fps.able_to_execute():
-                time.sleep(FPS_120)
-                continue
-            eye_frame = raw[self.eye_box[1]: self.eye_box[3], self.eye_box[0]: self.eye_box[2]]
-            gray = cv2.cvtColor(eye_frame, cv2.COLOR_BGR2GRAY)
-            ex, ey = self.eye_box[0], self.eye_box[1]
-            result = detector.track(gray, result)
-            self.pupil_coordinates[0], self.pupil_coordinates[1] = int(result[1] + ex), int(result[0] + ey)
+    def detect(self, raw: numpy.ndarray):
+        gray = self.get_eye_frame(raw)
+        result = self.detector.locate(gray)
+        self.pupil_coordinates[0], self.pupil_coordinates[1] = int(result[1] + self.eye_box[0]),\
+                                                               int(result[0] + self.eye_box[1])

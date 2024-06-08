@@ -1,6 +1,7 @@
 from abc import abstractmethod
 from multiprocessing import Array, Process
 from multiprocessing.shared_memory import SharedMemory
+from time import sleep
 
 import cv2
 import numpy
@@ -57,9 +58,14 @@ class Detector(ProcessBased):
         return try_threshold
 
     def get_eye_frame(self, raw: numpy.ndarray):
-        eye_frame = raw[self.eye_box[1]: self.eye_box[3], self.eye_box[0]: self.eye_box[2]]
-        gray = cv2.cvtColor(eye_frame, cv2.COLOR_BGR2GRAY)
-        return gray
+        while True:
+            eye_frame = raw[self.eye_box[1]: self.eye_box[3], self.eye_box[0]: self.eye_box[2]]
+            try:
+                gray = cv2.cvtColor(eye_frame, cv2.COLOR_BGR2GRAY)
+                return gray
+            except:
+                sleep(1/50)
+                continue
 
     def blur_image(self, gray: numpy.ndarray, gaussian=0, dilate=0, erode=0):
         blurred = gray
