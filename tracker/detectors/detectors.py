@@ -45,15 +45,25 @@ class Detector(ProcessBased):
     def find_optimal_threshold(self, blurred, base_factor=None):
         hist = cv2.calcHist([blurred], [0], None, [256], [0, 256])
         # the coefficients are optimal in most scenarios
-        sorted_by_values = self.remove_zeroes_and_take_percentile(hist, percent=1.0305)
+        sorted_by_values = self.remove_zeroes_and_take_percentile(hist, percent=1.03)
         sorted_by_indexes = sorted(sorted_by_values, key=lambda x: x[0])
         min_val = max(sorted_by_indexes[0][0], 1)
         max_val = max(sorted_by_indexes[-1][0], 2)
         # the coefficients are optimal in most scenarios
-        base_factor = base_factor or ((max_val - min_val) / 255) ** 2.485 + 1
-        # TODO: если широкий диапазон - использовать контуры больше. Если узкий - круги
+
+        # base_factor = base_factor or ((max_val - min_val) ** 1.65 / 255 ** 1.65) + 0.6
+        # base_factor = max(base_factor, 1.07)
+
+        base_factor = base_factor or ((max_val - min_val) ** 1.18 / 255 ** 1.18) ** 1.1 + 0.71
+        base_factor = max(base_factor, 1.078)
+
+        # latest
+        # base_factor = base_factor or ((max_val - min_val) ** 1.5 / 255 ** 1.5) + 0.45
+        # base_factor = max(base_factor, 1.085)
+
+        # base_factor = base_factor or ((max_val - min_val) / 255) ** 1.11 + 0.5
+        # base_factor = max(base_factor, 1.038)
         # TODO: пересчитывать только если диапазон поменялся больше чем на N%
-        base_factor = max(base_factor, 1)
         try_threshold = int(min_val * base_factor)
         return try_threshold
 

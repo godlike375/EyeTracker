@@ -105,20 +105,12 @@ class Frontend(QObject):
         box = BoundingBox(*self.eye_box[:])
         haar_detector = HaarHoughEyeDetector(eye_box, self.frame_memory,
                                                 get_resolution(self.video_frame), 90)
+        dark_area_detector = DarkAreaPupilDetector(haar_detector.eye_coordinates, self.frame_memory,
+                                                   get_resolution(self.video_frame), 180)
         self.detector_manager = DetectorManager(box,
                                                 eye_detectors={0: haar_detector},
+                                                pupil_detectors={0: dark_area_detector}
                                                 )
-        self.on_eye_detector_started(haar_detector)
-
-    def on_eye_detector_started(self, eye_detector: EyeDetector):
-        dark_area_detector = DarkAreaPupilDetector(eye_detector.eye_coordinates, self.frame_memory,
-                                                    get_resolution(self.video_frame), 180)
-        #pupil_lib_detector = PupilLibraryDetector(eye_detector.eye_coordinates, self.frame_memory,
-        #                                           get_resolution(self.video_frame), 180)
-        self.detector_manager.add_pupil_detectors({0: dark_area_detector})
-        #,
-                                                   #1: PupilLibraryDetector(eye_box, self.frame_memory,
-                                                   #                         get_resolution(self.video_frame))})
 
 
     @pyqtSlot(BoundingBox)

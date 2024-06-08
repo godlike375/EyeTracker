@@ -13,6 +13,10 @@ from tracker.utils.fps import FPSLimiter
 
 
 class DarkAreaPupilDetector(PupilDetector):
+    def mainloop(self):
+        self.threshold = 1
+        super().mainloop()
+
     def detect_contours(self, eye_thresholded, ex, ey):
         pupil = None
         eye_contours, _ = cv2.findContours(eye_thresholded, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -35,10 +39,15 @@ class DarkAreaPupilDetector(PupilDetector):
         gray = self.get_eye_frame(raw)
         blurred = self.blur_image(gray, gaussian=7, erode=3) # tested, works most accurate
         threshold = self.find_optimal_threshold(blurred)
+        if max(threshold, self.threshold) / min(threshold, self.threshold) > 3:
+            print(threshold)
+            self.threshold = threshold
         thresholded_img = cv2.threshold(blurred, threshold, 255, cv2.THRESH_BINARY_INV)[1]
         pupil_by_contours, px, py, pw, ph, area = self.detect_contours(thresholded_img, ex, ey)
         # cv2.imshow('threshold', thresholded_img)
         # cv2.waitKey(1)
+        cv2.imshow('threshold', thresholded_img)
+        cv2.waitKey(1)
 
         if pupil_by_contours is not None:
             self.pupil_coordinates[0], self.pupil_coordinates[1] = pupil_by_contours
