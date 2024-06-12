@@ -1,7 +1,5 @@
 from collections import deque
 from dataclasses import dataclass
-from multiprocessing import Array, Process
-from multiprocessing.shared_memory import SharedMemory
 
 import cv2
 import numpy

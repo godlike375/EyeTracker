@@ -16,6 +16,10 @@ CURRENT_COLOR = (150, 240, 40)
 RESOLUTIONS = {1280: 720, 800: 600, 640: 480}
 DOWNSCALED_WIDTH = 640
 
+DEGREE_TO_CV2_MAP = {90: cv2.ROTATE_90_CLOCKWISE,
+                     180: cv2.ROTATE_180,
+                     270: cv2.ROTATE_90_COUNTERCLOCKWISE}
+
 
 def draw_rectangle(frame, left_top: Point, right_bottom: Point):
     left_top = left_top.to_int()
@@ -62,5 +66,9 @@ def frames_are_same(one: np.ndarray, another: np.ndarray, same_threshold: float)
         return False
     return all(i.mean() > same_threshold for i in np.split((one == another), SPLIT_PARTS))
 
-def get_resolution(frame: np.ndarray) -> tuple[int, int]:
-    return frame.shape[0], frame.shape[1]
+
+def rotate_frame(frame: np.ndarray, degree: int):
+    if degree:
+        return cv2.rotate(frame, DEGREE_TO_CV2_MAP[degree])
+    else:
+        return frame

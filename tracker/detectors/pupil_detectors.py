@@ -6,15 +6,14 @@ import cv2
 import numpy
 
 from tracker.detectors.detectors import PupilDetector
-from tracker.detectors.jonnedtc import GradientIntersect, IsophoteCurvature
-from tracker.object_tracker import FPS_120
+from tracker.detectors.jonnedtc import IsophoteCurvature
+from tracker.frame_processing import Denoiser
 from tracker.utils.coordinates import Point
-from tracker.utils.fps import FPSLimiter
 
 
 class DarkAreaPupilDetector(PupilDetector):
     def mainloop(self):
-        self.threshold = 1
+        self.threshold = Denoiser(1, 7)
         super().mainloop()
 
     def detect_contours(self, eye_thresholded, ex, ey):
@@ -37,17 +36,16 @@ class DarkAreaPupilDetector(PupilDetector):
     def detect(self, raw: numpy.ndarray):
         ex, ey = self.eye_box[0], self.eye_box[1]
         gray = self.get_eye_frame(raw)
-        blurred = self.blur_image(gray, gaussian=7, erode=3) # tested, works most accurate
+        blurred = self.blur_image(gray, blur=7, erode=2) # tested, works most accurate
+        blurred = self.contrast_image(blurred, contrast=1.4, brightness=0)
         threshold = self.find_optimal_threshold(blurred)
-        if max(threshold, self.threshold) / min(threshold, self.threshold) > 3:
-            print(threshold)
-            self.threshold = threshold
-        thresholded_img = cv2.threshold(blurred, threshold, 255, cv2.THRESH_BINARY_INV)[1]
+        self.threshold.add(threshold)
+        thresholded_img = cv2.threshold(blurred, self.threshold.get(), 255, cv2.THRESH_BINARY_INV)[1]
         pupil_by_contours, px, py, pw, ph, area = self.detect_contours(thresholded_img, ex, ey)
         # cv2.imshow('threshold', thresholded_img)
         # cv2.waitKey(1)
-        cv2.imshow('threshold', thresholded_img)
-        cv2.waitKey(1)
+        # cv2.imshow('threshold', blurred)
+        # cv2.waitKey(1)
 
         if pupil_by_contours is not None:
             self.pupil_coordinates[0], self.pupil_coordinates[1] = pupil_by_contours
@@ -57,7 +55,7 @@ class HoughCirclesPupilDetector(PupilDetector):
     def detect(self, raw):
         gray = self.get_eye_frame(raw)
         ex, ey = self.eye_box[0], self.eye_box[1]
-        center = self.detect_circles(self.blur_image(gray, gaussian=7, dilate=5))
+        center = self.detect_circles(self.blur_image(gray, blur=7, dilate=5))
         self.pupil_coordinates[0], self.pupil_coordinates[1] = center.x + ex, center.y + ey
 
     def detect_circles(self, eye_frame: numpy.ndarray) -> Point:

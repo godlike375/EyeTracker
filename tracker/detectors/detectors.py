@@ -8,28 +8,25 @@ import numpy
 import numpy as np
 
 from tracker.abstractions import ProcessBased
+from tracker.camera_streamer import VideoAdapter
 from tracker.utils.fps import FPSLimiter
 
 
 class Detector(ProcessBased):
-    def __init__(self, eye_box: Array, frame_memory: SharedMemory, resolution: tuple[int, int], target_fps: int):
+    def __init__(self, eye_box: Array, video_adapter: VideoAdapter, target_fps: int):
         super().__init__()
-        self.current_frame = frame_memory
+        self.video_adapter = video_adapter
         self.eye_box = eye_box
-        self.resolution = resolution
         self.fps = FPSLimiter(target_fps)
         self.process = Process(target=self.mainloop)
         self.process.start()
 
-    def numpy_array_from_shared_memory(self):
-        return numpy.ndarray((*self.resolution, 3), dtype=numpy.uint8, buffer=self.current_frame.buf)
-
     def mainloop(self):
-        raw = self.numpy_array_from_shared_memory()
+        self.video_adapter.setup_video_frame()
         while True:
             if not self.fps.able_to_execute():
                 self.fps.throttle()
-            self.detect(raw)
+            self.detect(self.video_adapter.get_video_frame())
 
     @abstractmethod
     def detect(self, raw: numpy.ndarray):
@@ -63,7 +60,6 @@ class Detector(ProcessBased):
 
         # base_factor = base_factor or ((max_val - min_val) / 255) ** 1.11 + 0.5
         # base_factor = max(base_factor, 1.038)
-        # TODO: пересчитывать только если диапазон поменялся больше чем на N%
         try_threshold = int(min_val * base_factor)
         return try_threshold
 
@@ -77,10 +73,10 @@ class Detector(ProcessBased):
                 sleep(1/50)
                 continue
 
-    def blur_image(self, gray: numpy.ndarray, gaussian=0, dilate=0, erode=0):
+    def blur_image(self, gray: numpy.ndarray, blur=0, dilate=0, erode=0):
         blurred = gray
-        if gaussian:
-            blurred = cv2.GaussianBlur(blurred, (gaussian, gaussian), 0)
+        if blur:
+            blurred = cv2.medianBlur(blurred, blur)
         if dilate:
             kernel = np.ones((dilate, dilate), np.uint8)
             blurred = cv2.dilate(blurred, kernel, iterations=1)
@@ -89,14 +85,17 @@ class Detector(ProcessBased):
             blurred = cv2.erode(blurred, kernel, iterations=1)
         return blurred
 
+    def contrast_image(self, frame: numpy.ndarray, contrast=1.3, brightness = -60):
+        return cv2.addWeighted(frame, contrast, numpy.zeros(frame.shape, frame.dtype), 0, brightness)
+
 
 class EyeDetector(Detector):
-    def __init__(self, eye_box: Array, frame_memory: SharedMemory, resolution: tuple[int, int], target_fps: int):
+    def __init__(self, eye_box: Array, video_adapter: VideoAdapter, target_fps: int):
         self.eye_coordinates = Array('i', [0] * 4)
-        super().__init__(eye_box, frame_memory, resolution, target_fps)
+        super().__init__(eye_box, video_adapter, target_fps)
 
 
 class PupilDetector(Detector):
-    def __init__(self, eye_box: Array, frame_memory: SharedMemory, resolution: tuple[int, int], target_fps: int):
+    def __init__(self, eye_box: Array, video_adapter: VideoAdapter, target_fps: int):
         self.pupil_coordinates = Array('i', [0] * 2)
-        super().__init__(eye_box, frame_memory, resolution, target_fps)
+        super().__init__(eye_box, video_adapter, target_fps)

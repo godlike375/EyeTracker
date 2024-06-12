@@ -1,22 +1,19 @@
-from functools import partial
-from multiprocessing import Array
+from multiprocessing import Array, Value
 
 import cv2
 import numpy
-from PyQt6.QtCore import QObject, QTimerEvent, pyqtSlot, QTimer
+from PyQt6.QtCore import QObject, QTimerEvent, pyqtSlot
 
 from tracker.abstractions import ID, DrawnObject
 from tracker.camera_streamer import create_camera_streamer
-from tracker.detectors.detectors import EyeDetector
 from tracker.detectors.eye_detectors import HaarHoughEyeDetector
-from tracker.detectors.pupil_detectors import DarkAreaPupilDetector, PupilLibraryDetector
+from tracker.detectors.pupil_detectors import DarkAreaPupilDetector
 from tracker.detectors.managers import DetectorManager
 from tracker.detectors.selector import EyeSelector
 from tracker.object_tracker import TrackerWrapper
 from tracker.protocol import BoundingBox
 from tracker.ui.main_window import MainWindow
 from tracker.utils.fps import FPSCounter, FPSLimiter
-from tracker.utils.image_processing import get_resolution
 
 FPS_50 = 1 / 50
 
@@ -25,8 +22,10 @@ class Frontend(QObject):
 
     def __init__(self, parent: MainWindow, id_camera: int = 0, fps=120, resolution=640):
         super().__init__(parent)
-        self.video_frame, self.video_stream_process, self.frame_memory =\
+        self.video_stream_process, self.video_adapter =\
             create_camera_streamer(id_camera, fps, resolution)
+
+        self.video_adapter.setup_video_frame()
 
         self.trackers: dict[ID, TrackerWrapper] = {}
         self.drawable_objects: dict[str, DrawnObject] = {}
@@ -49,7 +48,7 @@ class Frontend(QObject):
             self.throttle.throttle()
             # TODO: get coordinates
         coords = [BoundingBox(*t.coordinates_memory[:]) for t in self.trackers.values()]
-        frame = numpy.copy(self.video_frame)
+        frame = numpy.copy(self.video_adapter.get_video_frame())
         for c in coords:
             frame = cv2.rectangle(frame, (int(c.x1), int(c.y1)), (int(c.x2), int(c.y2)), color=(255, 0, 0),
                                   thickness=2)
@@ -92,6 +91,10 @@ class Frontend(QObject):
         selector.start()
         self.drawable_objects[selector.name] = selector
 
+    @pyqtSlot(int)
+    def on_rotate(self, degree: int):
+        self.video_adapter.rotate_degree.value = degree
+
     def on_selection_finished(self, selector: EyeSelector):
         self.eye_box[0] = selector.left_top.x
         self.eye_box[1] = selector.left_top.y
@@ -103,10 +106,8 @@ class Frontend(QObject):
 
     def on_detection_start(self, eye_box: Array):
         box = BoundingBox(*self.eye_box[:])
-        haar_detector = HaarHoughEyeDetector(eye_box, self.frame_memory,
-                                                get_resolution(self.video_frame), 90)
-        dark_area_detector = DarkAreaPupilDetector(haar_detector.eye_coordinates, self.frame_memory,
-                                                   get_resolution(self.video_frame), 180)
+        haar_detector = HaarHoughEyeDetector(eye_box, self.video_adapter, 90)
+        dark_area_detector = DarkAreaPupilDetector(haar_detector.eye_coordinates, self.video_adapter, 180)
         self.detector_manager = DetectorManager(box,
                                                 eye_detectors={0: haar_detector},
                                                 pupil_detectors={0: dark_area_detector}
@@ -116,5 +117,5 @@ class Frontend(QObject):
     @pyqtSlot(BoundingBox)
     def on_new_tracker_requested(self, coords: BoundingBox):
         self.free_tracker_id += 1
-        tracker = TrackerWrapper(self.free_tracker_id, coords, self.frame_memory)
+        tracker = TrackerWrapper(self.free_tracker_id, coords, self.video_adapter)
         self.trackers[self.free_tracker_id] = tracker

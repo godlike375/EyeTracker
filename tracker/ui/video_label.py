@@ -1,9 +1,10 @@
 from typing import Callable, Optional
 
+import cv2
 import numpy
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import Qt, QSize, pyqtSlot
 from PyQt6.QtGui import QMouseEvent, QKeyEvent, QImage, QPixmap
-from PyQt6.QtWidgets import QLabel
+from PyQt6.QtWidgets import QLabel, QApplication
 
 from tracker.utils.coordinates import Point, get_translation_maxtix_between_resolutions, translate_coordinates
 from tracker.utils.image_processing import resize_frame_relative
@@ -11,19 +12,18 @@ from tracker.utils.image_processing import resize_frame_relative
 
 class CallbacksVideoLabel(QLabel):
 
-    def __init__(self, resized_resolution: tuple[int, int] = (480, 640), parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
         self.new_width = 640
         self.new_height = 480
         self.scale = 1
         self.resized_to_original = None
-        #self.resized_to_original = None
         self.on_mouse_click: Optional[Callable] = None
         self.on_mouse_move: Optional[Callable] = None
         self.on_mouse_release: Optional[Callable] = None
         self.on_enter_press: Optional[Callable] = None
-        self.video_size_set = False
         self.portrait_oriented = False
+        self.rotate_degree = 0
 
     def mousePressEvent(self, ev: QMouseEvent):
         super().mousePressEvent(ev)
@@ -50,17 +50,27 @@ class CallbacksVideoLabel(QLabel):
                 self.on_enter_press()
 
     def setup_rescaling(self, height: int, width: int):
+        available = QApplication.primaryScreen().availableGeometry()
+        # TODO: refactor
         if width > height:
-            new_width = 860 # WARNING TODO: strange bug looking if the value is 950 or 945 for example
+            new_width = int(available.width() // 1.3)
             scale = new_width / width
         else:
-            new_height = 620 # WARNING TODO: strange bug looking if the value is 580 for example
+            new_height = int(available.height() // 1.3)
             scale = new_height / height
         self.new_width = int(width * scale)
+        if self.new_width > available.width():
+            self.new_width = int(available.width() // 1.3)
+            scale = self.new_width / width
+
         self.new_height = int(height * scale)
+        if self.new_height > available.height():
+            self.new_height = int(available.height() // 1.3)
+            scale = self.new_height / height
+            self.new_width = int(width * scale)
+
         self.resized_to_original = get_translation_maxtix_between_resolutions(self.new_width, self.new_height, width, height)
         return scale
-        #self.resized_to_original = get_translation_maxtix_between_resolutions(*self.resized, width, heigth)
 
     def set_frame(self, frame: numpy.ndarray):
         if self.resized_to_original is None:
@@ -69,14 +79,17 @@ class CallbacksVideoLabel(QLabel):
             if height > width:
                 self.portrait_oriented = True
             self.scale = self.setup_rescaling(height, width)
-        # rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        # rgb = Image.fromarray(rgb) TODO: maybe faster?
+            self.setFixedSize(QSize(self.new_width, self.new_height))
+            self.parent().parent().adjust()
 
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         frame = resize_frame_relative(frame, self.scale)
-        image = QImage(frame, self.new_width, self.new_height, QImage.Format.Format_BGR888)
+        bytes_per_line = 3 * frame.shape[1]
+        image = QImage(frame, frame.shape[1], frame.shape[0], bytes_per_line, QImage.Format.Format_RGB888)
         pixmap = QPixmap.fromImage(image)
         self.setPixmap(pixmap)
 
-        if not self.video_size_set:
-            self.setFixedSize(QSize(frame.shape[1], frame.shape[0]))
-            self.video_size_set = True
+    @pyqtSlot(int)
+    def on_rotate(self, degree: int):
+        self.resized_to_original = None
+

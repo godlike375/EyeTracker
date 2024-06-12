@@ -28,6 +28,7 @@ if __name__ == '__main__':
         ...
     frontend = Frontend(window, args.id_camera, args.fps, args.resolution)
     window.new_tracker.connect(frontend.on_new_tracker_requested)
-    window.select_eye.connect(frontend.on_eye_select_requested)
+    window.rotate.connect(frontend.on_rotate)
+    window.rotate.connect(window.video_label.on_rotate)
     window.show()
     sys.exit(app.exec())
