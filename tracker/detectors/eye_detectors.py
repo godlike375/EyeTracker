@@ -6,6 +6,7 @@ import numpy
 
 from tracker.detectors.detectors import EyeDetector
 from tracker.utils.coordinates import Point
+from tracker.utils.denoise import MovingAverageDenoiser
 
 
 @dataclass
@@ -17,9 +18,13 @@ class HaarModel:
 
 class HaarHoughEyeDetector(EyeDetector):
     def mainloop(self):
+        self.x1 = MovingAverageDenoiser(0, 10)
+        self.x2 = MovingAverageDenoiser(0, 10)
+        self.y1 = MovingAverageDenoiser(0, 10)
+        self.y2 = MovingAverageDenoiser(0, 10)
         self.eye_cascade = cv2.CascadeClassifier('haarcascade_eye.xml')
         self.models = [HaarModel(19, 2.65, 1), HaarModel(22, 1.35, 2)] #, , , ] HaarModel(33, 1.65, 1)
-        self.frames_count = 6
+        self.frames_count = 7
         self.previous_eyes = deque(maxlen=self.frames_count)
         self.previous_eyes_levels = deque(maxlen=self.frames_count)
         manual_x, manual_y, manual_x2, manual_y2 = self.eye_box[0], self.eye_box[1], self.eye_box[2], self.eye_box[3]
@@ -121,8 +126,11 @@ class HaarHoughEyeDetector(EyeDetector):
         manual_x, manual_y, manual_x2, manual_y2 = self.eye_box[0], self.eye_box[1], self.eye_box[2], self.eye_box[3]
         if final_boxes:
             eye_box = final_boxes[0]
-            self.eye_coordinates[0], self.eye_coordinates[1], self.eye_coordinates[2], self.eye_coordinates[3] =\
-            manual_x+eye_box[0], manual_y+eye_box[1], manual_x + eye_box[0] + eye_box[2], manual_y + eye_box[1] + eye_box[3]
+            self.x1.add(manual_x+eye_box[0])
+            self.y1.add(manual_y+eye_box[1])
+            self.x2.add(manual_x + eye_box[0] + eye_box[2])
+            self.y2.add(manual_y + eye_box[1] + eye_box[3])
+            self.eye_coordinates[:] = int(self.x1.get()), int(self.y1.get()), int(self.x2.get()), int(self.y2.get())
         else:
             self.eye_coordinates[0], self.eye_coordinates[1], self.eye_coordinates[2], self.eye_coordinates[3] =\
             manual_x, manual_y, manual_x2, manual_y2

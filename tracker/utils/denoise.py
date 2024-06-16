@@ -2,7 +2,7 @@ from collections import deque
 from itertools import repeat
 
 
-class Denoiser:
+class MovingAverageDenoiser:
     def __init__(self, init_value: float, mean_count: int):
         self._count = mean_count
         self._buffer = deque(repeat(init_value, mean_count))

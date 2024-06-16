@@ -7,13 +7,15 @@ import numpy
 
 from tracker.detectors.detectors import PupilDetector
 from tracker.detectors.jonnedtc import IsophoteCurvature
-from tracker.frame_processing import Denoiser
+from tracker.utils.denoise import MovingAverageDenoiser
 from tracker.utils.coordinates import Point
 
 
 class DarkAreaPupilDetector(PupilDetector):
     def mainloop(self):
-        self.threshold = Denoiser(1, 7)
+        self.threshold = MovingAverageDenoiser(0, 7)
+        self.x = MovingAverageDenoiser(0, 7)
+        self.y = MovingAverageDenoiser(0, 7)
         super().mainloop()
 
     def detect_contours(self, eye_thresholded, ex, ey):
@@ -36,19 +38,31 @@ class DarkAreaPupilDetector(PupilDetector):
     def detect(self, raw: numpy.ndarray):
         ex, ey = self.eye_box[0], self.eye_box[1]
         gray = self.get_eye_frame(raw)
-        blurred = self.blur_image(gray, blur=7, erode=2) # tested, works most accurate
-        blurred = self.contrast_image(blurred, contrast=1.4, brightness=0)
+
+        # blurred = self.blur_image(gray, blur=7)
+        # blurred = self.blur_image(blurred, erode=2)
+        # blurred = self.blur_image(blurred, blur=3)
+        # blurred = self.blur_image(blurred, erode=2)
+
+        blurred = self.blur_image(gray, blur=7)
+        blurred = self.blur_image(blurred, blur=3)
+        blurred = self.blur_image(blurred, dilate=3)
+        blurred = self.blur_image(blurred, erode=2)
+
+        #blurred = self.contrast_image(blurred, contrast=1.47, brightness=-3)
         threshold = self.find_optimal_threshold(blurred)
         self.threshold.add(threshold)
         thresholded_img = cv2.threshold(blurred, self.threshold.get(), 255, cv2.THRESH_BINARY_INV)[1]
         pupil_by_contours, px, py, pw, ph, area = self.detect_contours(thresholded_img, ex, ey)
         # cv2.imshow('threshold', thresholded_img)
         # cv2.waitKey(1)
-        # cv2.imshow('threshold', blurred)
+        # cv2.imshow('blur', blurred)
         # cv2.waitKey(1)
 
         if pupil_by_contours is not None:
-            self.pupil_coordinates[0], self.pupil_coordinates[1] = pupil_by_contours
+            self.x.add(pupil_by_contours[0])
+            self.y.add(pupil_by_contours[1])
+        self.pupil_coordinates[0], self.pupil_coordinates[1] = int(self.x.get()), int(self.y.get())
 
 
 class HoughCirclesPupilDetector(PupilDetector):

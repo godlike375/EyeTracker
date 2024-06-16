@@ -11,7 +11,7 @@ cap = cv2.VideoCapture(1)
 #cap = cv2.VideoCapture(r'C:\Users\godlike\Desktop\макаки2\bandicam 2024-05-23 05-30-57-597.mp4')
 #cap = cv2.VideoCapture(r'C:\Users\godlike\Desktop\Видео_макаки\снизу_близко.mp4')
 #cap = cv2.VideoCapture(r'C:\Users\godlike\Desktop\Видео_макаки\сверху.mp4')
-eye_cascade = cv2.CascadeClassifier('haarcascade_eye.xml')
+eye_cascade = cv2.CascadeClassifier('../haarcascade_eye.xml')
 
 @dataclass
 class HaarModel:

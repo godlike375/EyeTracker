@@ -10,9 +10,6 @@ from tracker.protocol import BoundingBox
 from tracker.abstractions import ID
 
 
-FPS_120 = 1 / 120
-
-
 class TrackerWrapper:
     def __init__(self, id: int, coordinates: BoundingBox, frame_memory: SharedMemory):
         self.id = id

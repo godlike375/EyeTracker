@@ -1,6 +1,8 @@
 from abc import abstractmethod
+from math import sqrt
 from multiprocessing import Array, Process
 from multiprocessing.shared_memory import SharedMemory
+from statistics import mean
 from time import sleep
 
 import cv2
@@ -18,7 +20,7 @@ class Detector(ProcessBased):
         self.video_adapter = video_adapter
         self.eye_box = eye_box
         self.fps = FPSLimiter(target_fps)
-        self.process = Process(target=self.mainloop)
+        self.process = Process(target=self.mainloop, daemon=True)
         self.process.start()
 
     def mainloop(self):
@@ -32,36 +34,33 @@ class Detector(ProcessBased):
     def detect(self, raw: numpy.ndarray):
         ...
 
+    def negative_half_square(self, a):
+        if a<0:
+            return -(a*a)*1.7125
+        return a*a*1.7125
+
     def remove_zeroes_and_take_percentile(self, hist, percent):
         pairs = [(i, int(hist[i][0])) for i in range(len(hist))]
         pairs.sort(key=lambda x: x[1])
         pairs = [(i, v) for (i, v) in pairs if v > 0]
-        percentile_25th = int(len(pairs) * percent / 100)
-        return pairs[percentile_25th:]
+
+
+        base_threshold = 117
+        weights = [int(self.negative_half_square(base_threshold - i) * (v ** 0.1194)) for (i, v) in pairs]
+        weighted = [(pair, weight) for pair, weight in zip(pairs, weights) if weight > 0]
+        weighted.sort(key=lambda x: x[1], reverse=True)
+
+        percentile = int(len(weighted) * percent / 100)
+        try:
+            return max(weighted[:percentile], key=lambda x: x[0][0])[0][0]
+        except:
+            return base_threshold
 
     def find_optimal_threshold(self, blurred, base_factor=None):
         hist = cv2.calcHist([blurred], [0], None, [256], [0, 256])
         # the coefficients are optimal in most scenarios
-        sorted_by_values = self.remove_zeroes_and_take_percentile(hist, percent=1.03)
-        sorted_by_indexes = sorted(sorted_by_values, key=lambda x: x[0])
-        min_val = max(sorted_by_indexes[0][0], 1)
-        max_val = max(sorted_by_indexes[-1][0], 2)
-        # the coefficients are optimal in most scenarios
-
-        # base_factor = base_factor or ((max_val - min_val) ** 1.65 / 255 ** 1.65) + 0.6
-        # base_factor = max(base_factor, 1.07)
-
-        base_factor = base_factor or ((max_val - min_val) ** 1.18 / 255 ** 1.18) ** 1.1 + 0.71
-        base_factor = max(base_factor, 1.078)
-
-        # latest
-        # base_factor = base_factor or ((max_val - min_val) ** 1.5 / 255 ** 1.5) + 0.45
-        # base_factor = max(base_factor, 1.085)
-
-        # base_factor = base_factor or ((max_val - min_val) / 255) ** 1.11 + 0.5
-        # base_factor = max(base_factor, 1.038)
-        try_threshold = int(min_val * base_factor)
-        return try_threshold
+        threshold = self.remove_zeroes_and_take_percentile(hist, percent=8.02)
+        return threshold
 
     def get_eye_frame(self, raw: numpy.ndarray):
         while True:

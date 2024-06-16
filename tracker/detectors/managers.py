@@ -13,11 +13,12 @@ class DetectorManager:
         self.manual_box = manual_box
         self.eye_detectors = eye_detectors
         self.pupil_detectors = pupil_detectors
-        self.process = Process(target=self.mainloop)
+        self.process = Process(target=self.mainloop, daemon=True)
         self.eye_coordinates = Array('i', [0] * 4)
         self.pupil_coordinates = Array('i', [0] * 2)
 
     def mainloop(self):
+        # TODO: проводить весь анализ здесь, а результаты анализа забирать в detect()
         ...
 
     def detect(self) -> tuple[BoundingBox, Point]:
@@ -28,5 +29,10 @@ class DetectorManager:
         pupil = None
         for detector in self.pupil_detectors.values():
             pupil = Point(detector.pupil_coordinates[0], detector.pupil_coordinates[1])
+
+        if eye:
+            self.eye_coordinates[:] = eye.x1, eye.y1, eye.x2, eye.y2
+        if pupil:
+            self.pupil_coordinates[:] = pupil.x, pupil.y
 
         return eye, pupil

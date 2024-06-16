@@ -9,9 +9,9 @@ import numpy
 
 from tracker.abstractions import ID
 from tracker.protocol import Packable
+from tracker.utils.fps import MSEC_IN_SEC
 
 PREFER_PERFORMANCE_OVER_QUALITY = 35
-MSEC_IN_SEC = 1000
 
 
 # works 2 times faster than imencode!

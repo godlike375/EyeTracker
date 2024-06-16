@@ -7,16 +7,15 @@ import websockets
 
 from websockets import WebSocketServerProtocol
 
-sys.path.append('..')
+sys.path.append('../..')
 
 from tracker.image import CompressedImage, PREFER_PERFORMANCE_OVER_QUALITY
 from tracker.protocol import BoundingBox, ImageWithCoordinates
-from tracker.utils.fps import FPSCounter
-from tracker.object_tracker import FPS_120
+from tracker.utils.fps import FPSCounter, FPS_120
 from time import sleep
 
 
-class GazePredictorBackend:
+class GazeVideoServer:
     def __init__(self):
         self.frontend: WebSocketServerProtocol = None
         self.elvis: WebSocketServerProtocol = None

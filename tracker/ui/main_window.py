@@ -1,7 +1,7 @@
 from functools import partial
 
 import numpy
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import pyqtSignal, Qt
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QMainWindow, QVBoxLayout, QWidget
 
@@ -12,6 +12,9 @@ from tracker.ui.video_label import CallbacksVideoLabel
 class MainWindow(QMainWindow):
     new_tracker = pyqtSignal(BoundingBox)
     rotate = pyqtSignal(int)
+    start_calibration = pyqtSignal()
+    stop_calibration = pyqtSignal()
+
 
     def __init__(self):
         super().__init__()
@@ -27,17 +30,17 @@ class MainWindow(QMainWindow):
         self.menu_bar = self.menuBar()
 
         rotate_image = self.menu_bar.addMenu('Поворот изображения')
-        self.rotate_actions = {}
         for i, angle in enumerate(self.angles):
             rotate = QAction(f'{angle}°', self)
             rotate.triggered.connect(partial(self.rotate.emit, self.angles[i]))
             rotate_image.addAction(rotate)
-            self.rotate_actions[angle] = rotate
 
         calibrate_tracker = self.menu_bar.addMenu('Калибровка взгляда')
 
         start_calibrate = QAction('Начать', self)
+        start_calibrate.triggered.connect(self.start_calibration)
         end_calibrate = QAction('Остановить', self)
+        end_calibrate.triggered.connect(self.stop_calibration)
 
         calibrate_tracker.addAction(start_calibrate)
         calibrate_tracker.addAction(end_calibrate)

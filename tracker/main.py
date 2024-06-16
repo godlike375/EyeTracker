@@ -4,7 +4,7 @@ import sys
 
 from PyQt6.QtWidgets import QApplication
 
-from tracker.ui.frontend import Frontend
+from tracker.ui.main_controller import MainController
 from tracker.ui.main_window import MainWindow
 
 sys.path.append('..')
@@ -26,9 +26,11 @@ if __name__ == '__main__':
         args.id_camera = int(args.id_camera)
     except:
         ...
-    frontend = Frontend(window, args.id_camera, args.fps, args.resolution)
+    frontend = MainController(window, args.id_camera, args.fps, args.resolution)
     window.new_tracker.connect(frontend.on_new_tracker_requested)
     window.rotate.connect(frontend.on_rotate)
     window.rotate.connect(window.video_label.on_rotate)
+    window.start_calibration.connect(frontend.on_calibration_started)
+    window.stop_calibration.connect(frontend.on_calibration_stopped)
     window.show()
     sys.exit(app.exec())

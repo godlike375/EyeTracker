@@ -1,8 +1,9 @@
-from multiprocessing import Array, Value
+from multiprocessing import Array
 
 import cv2
 import numpy
 from PyQt6.QtCore import QObject, QTimerEvent, pyqtSlot
+from PyQt6.QtWidgets import QMessageBox, QApplication
 
 from tracker.abstractions import ID, DrawnObject
 from tracker.camera_streamer import create_camera_streamer
@@ -10,15 +11,15 @@ from tracker.detectors.eye_detectors import HaarHoughEyeDetector
 from tracker.detectors.pupil_detectors import DarkAreaPupilDetector
 from tracker.detectors.managers import DetectorManager
 from tracker.detectors.selector import EyeSelector
+from tracker.gaze.gaze_predictor import GazePredictor
+from tracker.gaze.gaze_video_server import GazeVideoServer
 from tracker.object_tracker import TrackerWrapper
 from tracker.protocol import BoundingBox
 from tracker.ui.main_window import MainWindow
-from tracker.utils.fps import FPSCounter, FPSLimiter
-
-FPS_50 = 1 / 50
+from tracker.utils.fps import FPSCounter, FPSLimiter, FPS_50, MSEC_IN_SEC
 
 
-class Frontend(QObject):
+class MainController(QObject):
 
     def __init__(self, parent: MainWindow, id_camera: int = 0, fps=120, resolution=640):
         super().__init__(parent)
@@ -32,13 +33,16 @@ class Frontend(QObject):
         self.eye_box = Array('i', [0]*4)
 
         self.detector_manager: DetectorManager = None
+        self.gaze_coordinates = Array('i', [0]*2)
+        self.gaze_server: GazeVideoServer = None # GazeVideoServer(self.gaze_coordinates, self.video_adapter)
+        self.gaze_predictor: GazePredictor = None # GazePredictor(self.gaze_coordinates, self.
 
         #self.calibrator_backend = GazePredictorBackend()
         self.window = parent
 
         self.fps = FPSCounter(2)
         self.throttle = FPSLimiter(40)
-        self.refresh_timer = self.startTimer(int(1 / 40 * 1000))
+        self.refresh_timer = self.startTimer(int(FPS_50 * MSEC_IN_SEC))
 
         self.free_tracker_id: ID = ID(0)
         self.on_eye_select_requested()
@@ -119,3 +123,27 @@ class Frontend(QObject):
         self.free_tracker_id += 1
         tracker = TrackerWrapper(self.free_tracker_id, coords, self.video_adapter)
         self.trackers[self.free_tracker_id] = tracker
+
+    @pyqtSlot()
+    def on_calibration_started(self):
+        if len(QApplication.screens()) < 1:
+            QMessageBox.warning(None, 'Ошибка', 'Необходимо подключить второй экран')
+            return
+        if not self.detector_manager:
+            QMessageBox.warning(None, 'Ошибка', 'Необходимо выделить приблизительную область нахождения глаза')
+            return
+        self.gaze_predictor = GazePredictor(self.gaze_coordinates,
+                                            self.detector_manager.eye_coordinates,
+                                            self.detector_manager.pupil_coordinates)
+
+    @pyqtSlot()
+    def on_calibration_stopped(self):
+        if self.gaze_predictor:
+            try:
+                self.gaze_predictor.calibration_process.kill()
+            except:
+                ...
+            try:
+                self.gaze_predictor.calibration_window.kill()
+            except:
+                ...

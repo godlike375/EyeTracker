@@ -1,6 +1,9 @@
 import time
 
 
+
+
+
 class FPSCounter:
     def __init__(self, count_every_seconds: float = 1.0):
         self.start_time = time.time()
@@ -48,3 +51,8 @@ class FPSLimiter:
         if elapsed_time < self.limit_time:
             throttle_time = self.limit_time - elapsed_time
             time.sleep(throttle_time)
+
+
+FPS_50 = 1 / 50
+FPS_120 = 1 / 120
+MSEC_IN_SEC = 1000

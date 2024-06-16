@@ -5,7 +5,7 @@ import cv2
 from tracker.utils.fps import FPSCounter
 
 cap = cv2.VideoCapture(1)
-eye_cascade = cv2.CascadeClassifier('haarcascade_eye.xml')
+eye_cascade = cv2.CascadeClassifier('../haarcascade_eye.xml')
 fps = FPSCounter()
 
 ret, image = cap.read()

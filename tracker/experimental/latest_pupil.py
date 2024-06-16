@@ -34,7 +34,7 @@ def find_pupil(eye_image):
     return cx, cy
 
 
-eye_cascade = cv2.CascadeClassifier('haarcascade_eye.xml')
+eye_cascade = cv2.CascadeClassifier('../haarcascade_eye.xml')
 video_capture = cv2.VideoCapture(1)
 
 while True:
