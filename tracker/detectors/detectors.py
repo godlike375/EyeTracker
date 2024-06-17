@@ -17,7 +17,7 @@ from tracker.utils.fps import FPSLimiter
 class Detector(ProcessBased):
     def __init__(self, eye_box: Array, video_adapter: VideoAdapter, target_fps: int):
         super().__init__()
-        self.video_adapter = video_adapter
+        self.video_adapter = video_adapter.send_to_process()
         self.eye_box = eye_box
         self.fps = FPSLimiter(target_fps)
         self.process = Process(target=self.mainloop, daemon=True)

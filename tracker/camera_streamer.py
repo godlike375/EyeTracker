@@ -1,5 +1,6 @@
 from multiprocessing import Process, Value
 from multiprocessing.shared_memory import SharedMemory
+from copy import copy
 
 import cv2
 import numpy
@@ -21,6 +22,11 @@ class VideoAdapter:
 
     def get_video_frame(self):
         return rotate_frame(self.video_frame, self.rotate_degree.value)
+
+    def send_to_process(self):
+        cp = copy(self)
+        cp.video_frame = None
+        return cp
 
 
 def stream_video(video_adapter: VideoAdapter, source = 0, fps=120, resolution=640):
@@ -56,7 +62,7 @@ def create_camera_streamer(id_camera = 0, fps=120, resolution=640) -> tuple[Proc
     #camera.release()
     video_adapter = VideoAdapter(frame)
     process = Process(target=stream_video,
-                      args=(video_adapter, id_camera, fps, resolution),
+                      args=(video_adapter.send_to_process(), id_camera, fps, resolution),
                       daemon=True)
     process.start()
     return process, video_adapter
