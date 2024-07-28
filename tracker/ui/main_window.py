@@ -1,11 +1,11 @@
 from functools import partial
 
 import numpy
-from PyQt6.QtCore import pyqtSignal, Qt
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QMainWindow, QVBoxLayout, QWidget
 
-from tracker.protocol import BoundingBox
+from tracker.utils.coordinates import BoundingBox
 from tracker.ui.video_label import CallbacksVideoLabel
 
 
@@ -14,6 +14,8 @@ class MainWindow(QMainWindow):
     rotate = pyqtSignal(int)
     start_calibration = pyqtSignal()
     stop_calibration = pyqtSignal()
+    start_recording = pyqtSignal()
+    stop_recording = pyqtSignal()
 
 
     def __init__(self):
@@ -36,14 +38,20 @@ class MainWindow(QMainWindow):
             rotate_image.addAction(rotate)
 
         calibrate_tracker = self.menu_bar.addMenu('Калибровка взгляда')
-
         start_calibrate = QAction('Начать', self)
         start_calibrate.triggered.connect(self.start_calibration)
         end_calibrate = QAction('Остановить', self)
         end_calibrate.triggered.connect(self.stop_calibration)
-
         calibrate_tracker.addAction(start_calibrate)
         calibrate_tracker.addAction(end_calibrate)
+
+        record_video = self.menu_bar.addMenu('Запись видео')
+        start_record = QAction('Начать', self)
+        start_record.triggered.connect(self.start_recording)
+        end_record = QAction('Остановить', self)
+        end_record.triggered.connect(self.stop_recording)
+        record_video.addAction(start_record)
+        record_video.addAction(end_record)
 
         # Добавление layout в основное окно
         self.main_widget = QWidget(self)

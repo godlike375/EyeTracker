@@ -6,7 +6,7 @@ import dlib
 import numpy
 
 from tracker.utils.fps import FPSCounter
-from tracker.protocol import BoundingBox
+from tracker.utils.coordinates import BoundingBox
 from tracker.abstractions import ID
 
 

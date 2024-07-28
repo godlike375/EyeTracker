@@ -1,8 +1,8 @@
-from PyQt6.QtWidgets import QApplication, QLabel, QWidget
-from PyQt6.QtGui import QPainter, QPen, QColor, QPixmap, QPaintEvent
-from PyQt6.QtCore import Qt, QTimerEvent, QRect, QPoint
+from PyQt6.QtWidgets import QWidget
+from PyQt6.QtGui import QPainter, QPen, QColor, QPaintEvent
+from PyQt6.QtCore import Qt, QRect, QPoint
 
-from tracker.protocol import BoundingBox
+from tracker.utils.coordinates import BoundingBox
 
 
 class ObjectsPainter(QWidget):

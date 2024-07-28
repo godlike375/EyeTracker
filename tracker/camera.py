@@ -1,4 +1,6 @@
-from multiprocessing import Process, Value
+from pathlib import Path
+from datetime import datetime
+from multiprocessing import Value
 from multiprocessing.shared_memory import SharedMemory
 from copy import copy
 
@@ -29,12 +31,20 @@ class VideoAdapter:
         return cp
 
 
-def stream_video(video_adapter: VideoAdapter, source = 0, fps=120, resolution=640):
-    camera = cv2.VideoCapture(source)
-    camera.set(cv2.CAP_PROP_FPS, fps)
-    camera.set(cv2.CAP_PROP_FRAME_WIDTH, resolution)
+def start_video_recording(filename, codec, fps, frame_size):
+    fourcc = cv2.VideoWriter_fourcc(*codec)
+    return cv2.VideoWriter(filename, fourcc, fps, frame_size)
+
+
+def stream_video(camera: cv2.VideoCapture, video_adapter: VideoAdapter, recording: Value, source = 0, fps=120, resolution=640):
+    codec = 'XVID'
+    directory = 'video'
+    recorder = None
+    captured, frame = camera.read()
+    if not captured:
+        raise IOError("can't access camera")
     video_adapter.setup_video_frame()
-    camera_fps = FPSCounter()
+    camera_fps = FPSCounter(1.5)
     fps_limit = FPSLimiter(fps)
     while True:
         if not fps_limit.able_to_execute():
@@ -42,29 +52,23 @@ def stream_video(video_adapter: VideoAdapter, source = 0, fps=120, resolution=64
         ret, frame = camera.read()
         try:
             numpy.copyto(video_adapter.video_frame, frame)
+            if recording:
+                if recorder is None:
+                    # TODO: возможно для .exe надо будет тут костыль с путями делать
+                    Path(directory).mkdir(exist_ok=True)
+                    filename = f'{datetime.now().strftime("%d,%m,%Y_%H;%M;%S")}.avi'
+                    full_path = str(Path(directory) / Path(filename))
+                    recorder = start_video_recording(full_path, codec, fps, (video_adapter.width, video_adapter.height))
+                recorder.write(frame)
+            else:
+                if recorder is not None:
+                    recorder.release()
+                    recorder = None
+
+
         except TypeError:
             # the video is over
             camera = cv2.VideoCapture(source)
         camera_fps.count_frame()
         if camera_fps.able_to_calculate():
             print(f'camera fps {camera_fps.calculate()}')
-
-
-def create_camera_streamer(id_camera = 0, fps=120, resolution=640) -> tuple[Process, VideoAdapter]:
-    #image_id: ID = ID(0)
-    # we can't serialize opencv object so we need to use functions
-    camera = cv2.VideoCapture(id_camera)
-    camera.set(cv2.CAP_PROP_FPS, fps)
-    camera.set(cv2.CAP_PROP_FRAME_WIDTH, resolution)
-    captured, frame = camera.read()
-    if not captured:
-        raise IOError("can't access camera")
-    #camera.release()
-    video_adapter = VideoAdapter(frame)
-    process = Process(target=stream_video,
-                      args=(video_adapter.send_to_process(), id_camera, fps, resolution),
-                      daemon=True)
-    process.start()
-    return process, video_adapter
-
-

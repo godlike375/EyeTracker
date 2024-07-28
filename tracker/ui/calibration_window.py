@@ -1,19 +1,14 @@
-from functools import partial
-from multiprocessing import Array, Value
 
-import numpy
 from PyQt6.QtCore import Qt, QPoint, pyqtSlot
-from PyQt6.QtCore import pyqtSignal, QTimerEvent
-from PyQt6.QtGui import QAction
-from PyQt6.QtWidgets import QMainWindow, QVBoxLayout, QWidget, QApplication, QPushButton
+from PyQt6.QtCore import QTimerEvent
+from PyQt6.QtWidgets import QMainWindow, QApplication, QPushButton
 
 from tracker.utils.fps import FPS_120, MSEC_IN_SEC
-from tracker.protocol import BoundingBox
-from tracker.ui.video_label import CallbacksVideoLabel
+from tracker.utils.shared_objects import SharedFlag, SharedPoint
 
 
 class CalibrationWindow(QMainWindow):
-    def __init__(self, target_coordinates: Array, target_clicked: Value):
+    def __init__(self, target_coordinates: SharedPoint, target_clicked: SharedFlag):
         super().__init__()
         self.target_coordinates = target_coordinates
         self.target_clicked = target_clicked
@@ -39,10 +34,10 @@ class CalibrationWindow(QMainWindow):
 
     @pyqtSlot()
     def on_clicked(self):
-        self.target_clicked.value = True
+        self.target_clicked.set(True)
 
     def timerEvent(self, a0: QTimerEvent):
-        self.button.move(QPoint(*self.target_coordinates[:]))
+        self.button.move(QPoint(*self.target_coordinates.array[:]))
         # TODO: paint figure at coordinates from GazePredictor
 
 

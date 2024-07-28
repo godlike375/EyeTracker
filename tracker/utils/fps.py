@@ -35,7 +35,7 @@ class FPSCounter:
 class FPSLimiter:
     def __init__(self, fps_limit: int = 60):
         self.start_time = time.time()
-        self.limit_time = 1 / fps_limit
+        self.limit_time = 1 / (fps_limit + 1)
 
     def able_to_execute(self):
         current_time = time.time()
@@ -45,12 +45,12 @@ class FPSLimiter:
             return True
         return False
 
-    def throttle(self):
+    def throttle(self, multiplier: float = 1.45):
         current_time = time.time()
         elapsed_time = current_time - self.start_time
         if elapsed_time < self.limit_time:
             throttle_time = self.limit_time - elapsed_time
-            time.sleep(throttle_time)
+            time.sleep(throttle_time * multiplier)
 
 
 FPS_50 = 1 / 50

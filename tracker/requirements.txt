@@ -3,3 +3,4 @@ PyQt6
 dlib
 opencv-python
 scikit-learn
+mediapipe

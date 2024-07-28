@@ -1,12 +1,10 @@
-from abc import ABC
 from typing import Callable
 
 import cv2
 
 from tracker.utils.coordinates import Point
-from tracker.abstractions import RectBased, DrawnObject, ProcessBased
+from tracker.abstractions import DrawnObject, ProcessBased
 from tracker.utils.logger import logger
-from eye_tracker.view.drawing import Processor
 
 LEFT_CLICK = 'left_click'
 LEFT_DOWN = 'left_down'

@@ -7,6 +7,7 @@ from typing import Optional
 import numpy
 
 from tracker.abstractions import ID
+from tracker.utils.coordinates import BoundingBox
 
 
 class Commands(Enum):
@@ -19,14 +20,6 @@ class Commands(Enum):
 class Coordinates:
     x: int = 0
     y: int = 0
-
-
-@dataclass
-class BoundingBox:
-    x1: int = 0
-    y1: int = 0
-    x2: int = 0
-    y2: int = 0
 
 
 @dataclass

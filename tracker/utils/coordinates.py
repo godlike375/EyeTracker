@@ -127,3 +127,36 @@ def translate_coordinates(translation_matrix, point: Point):
     X = (m[0, 0] * x + m[0, 1] * y + m[0, 2]) / common_denominator
     Y = (m[1, 0] * x + m[1, 1] * y + m[1, 2]) / common_denominator
     return Point(int(X), int(Y))
+
+
+def avg(a, b):
+    return (a + b) / 2
+
+
+def int_avg(a, b):
+    return int(avg(a, b))
+
+
+def close_to(a, b, multiplier=2):
+    return (min(a, b) * multiplier + max(a, b)) // (multiplier + 1)
+
+
+@dataclass
+class BoundingBox:
+    x1: int = 0
+    y1: int = 0
+    x2: int = 0
+    y2: int = 0
+
+    @property
+    def height(self):
+        return abs(self.y2 - self.y1)
+
+    @property
+    def width(self):
+        return abs(self.x2 - self.x1)
+
+def enclosing_box_of(points: list[Point]):
+    left_top = Point(min(points, key=lambda p: p.x).x, min(points, key=lambda p: p.y).y)
+    right_bottom = Point(max(points, key=lambda p: p.x).x, max(points, key=lambda p: p.y).y)
+    return BoundingBox(*left_top, *right_bottom)

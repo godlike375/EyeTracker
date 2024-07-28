@@ -1,0 +1,9 @@
+.idea
+__pycache__
+/tests/config/*
+config/*
+output/*
+logs
+dist
+build
+*.spec

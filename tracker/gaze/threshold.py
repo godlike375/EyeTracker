@@ -11,7 +11,7 @@ def update_threshold(val):
 cv2.namedWindow("Thresholded Image")
 cv2.createTrackbar("Threshold", "Thresholded Image", 0, 255, update_threshold)
 
-cap = cv2.VideoCapture(1)  # Открываем веб-камеру
+cap = cv2.VideoCapture(0)  # Открываем веб-камеру
 
 
 def remove_zeroes_and_take_percentile(hist, percent):

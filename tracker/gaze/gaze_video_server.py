@@ -10,7 +10,8 @@ from websockets import WebSocketServerProtocol
 sys.path.append('../..')
 
 from tracker.image import CompressedImage, PREFER_PERFORMANCE_OVER_QUALITY
-from tracker.protocol import BoundingBox, ImageWithCoordinates
+from tracker.protocol import ImageWithCoordinates
+from tracker.utils.coordinates import BoundingBox
 from tracker.utils.fps import FPSCounter, FPS_120
 from time import sleep
 

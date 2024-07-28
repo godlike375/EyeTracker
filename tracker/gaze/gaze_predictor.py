@@ -1,21 +1,84 @@
 import sys
-from multiprocessing import Process, Array, Value
+from multiprocessing import Process
 
-import numpy
+import numpy as np
 from PyQt6.QtWidgets import QApplication
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error
-from sklearn.model_selection import train_test_split
-from sklearn.neighbors import KNeighborsRegressor
 
+from tracker.detectors.manager import DetectorsManager
 from tracker.ui.calibration_window import CalibrationWindow
-from tracker.utils.coordinates import Point, calc_center
+from tracker.utils.coordinates import Point, calc_center, get_translation_maxtix, translate_coordinates
 from tracker.utils.fps import FPSLimiter
+from tracker.utils.shared_objects import SharedVector, SharedFlag, SharedPoint
 
 sys.path.append('../..')
 
 
-def start_calibration(target_coordinates: Array, target_clicked: Value):
+def plane_from_points(points):
+    """
+    Вычисляет уравнение плоскости по 4 точкам.
+    Возвращает коэффициенты A, B, C, D уравнения Ax + By + Cz + D = 0
+    """
+    p1, p2, p3 = points
+    v1 = p2 - p1
+    v2 = p3 - p1
+    normal = np.cross(v1, v2)
+    A, B, C = normal
+    D = -np.dot(normal, p1)
+    return A, B, C, D
+
+
+def center_of_points(points):
+    """Вычисляет центр множества точек"""
+    return np.mean(points, axis=0)
+
+
+def ray_end_point(points, distance, center):
+    """
+    Вычисляет конечную точку луча, ортогонального центру плоскости,
+    на заданном расстоянии
+    """
+    # Вычисляем уравнение плоскости
+    A, B, C, D = plane_from_points(points)
+    normal = np.array([A, B, C])
+
+    # Нормализуем вектор нормали
+    normal_unit = normal / np.linalg.norm(normal)
+
+    # Вычисляем конечную точку луча
+    end_point = center + distance * normal_unit
+
+    return end_point
+
+
+def closest_points_between_rays(O1: np.ndarray, D1: np.ndarray,
+                                O2: np.ndarray, D2: np.ndarray):
+    """
+    Находит ближайшие точки между двумя лучами и их середину.
+
+    :param O1: Начальная точка первого луча
+    :param D1: Направляющий вектор первого луча
+    :param O2: Начальная точка второго луча
+    :param D2: Направляющий вектор второго луча
+    :return: Точку между двумя ближайшими точками на лучах
+    """
+    # Строим матрицу системы
+    A = np.array([D1, -D2]).T
+    b = O2 - O1
+
+    # Решаем систему уравнений методом наименьших квадратов
+    t1, t2 = np.linalg.lstsq(A, b, rcond=None)[0]
+
+    # Находим ближайшие точки на каждом луче
+    P1 = O1 + t1 * D1
+    P2 = O2 + t2 * D2
+
+    # Находим середину между этими точками
+    midpoint = (P1 + P2) / 2
+
+    return midpoint
+
+
+def start_calibration(target_coordinates: SharedPoint, target_clicked: SharedFlag):
     app = QApplication(sys.argv)
     window = CalibrationWindow(target_coordinates, target_clicked)
     window.show()
@@ -23,76 +86,66 @@ def start_calibration(target_coordinates: Array, target_clicked: Value):
 
 
 class GazePredictor:
-    def __init__(self, gaze_coordinates: Array, eye_coordinates: Array, pupil_coordinates: Array):
-        self.target_coordinates = Array('i', [0]*2)
-        self.target_clicked = Value('b', False)
+    def __init__(self, gaze_coordinates: SharedPoint, detectors_manager: DetectorsManager):
+        self.target_coordinates = SharedPoint('i', 0)
+        self.target_clicked = SharedFlag()
         self.gaze_coordinates = gaze_coordinates
-        self.eye_coordinates = eye_coordinates
-        self.pupil_coordinates = pupil_coordinates
+        self.detectors = detectors_manager
+
+        self.gaze_origin = SharedVector('f', -1)
+        self.gaze_direction = SharedVector('f', -1)
+
         self.calibration_window = Process(target=start_calibration,
                                           args=(self.target_coordinates, self.target_clicked),
                                           daemon=True)
         self.calibration_process = Process(target=self.calibrate, daemon=True)
         available = QApplication.screens()[-1].availableGeometry()
-        self.parts = 6
-        self.step_x = available.width() // self.parts
-        self.step_y = available.height() // self.parts
+        self.screen_width = available.width()
+        self.screen_height = available.height()
 
         self.calibration_process.start()
         self.calibration_window.start()
 
     def calibrate(self):
         fps = FPSLimiter(120)
-        eye = numpy.empty(shape=(0, 4), dtype=int)
-        pupil = numpy.empty(shape=(0, 2), dtype=int)
-        gaze_x = numpy.empty(shape=(0,), dtype=int)
-        gaze_y = numpy.empty(shape=(0,), dtype=int)
-        for i in range(self.parts):
-            self.target_coordinates[1] = self.step_y * i
-            for j in range(self.parts):
-                self.target_coordinates[0] = self.step_x * j
-                while not self.target_clicked.value:
-                    if not fps.able_to_execute():
-                        fps.throttle()
-                    continue
-                eye_left_top, eye_right_bottom = Point(*self.eye_coordinates[:2]), Point(*self.eye_coordinates[2:])
-                eye_center = calc_center(eye_left_top, eye_right_bottom)
-                eye_width_height = eye_right_bottom - eye_left_top
-                normalized_pupil = ((eye_center - Point(*self.pupil_coordinates[:])) )#/ eye_width_height) * 25
-                pupil = numpy.append(pupil, numpy.array([[*normalized_pupil]]), axis=0)
 
-                eye = numpy.append(eye, numpy.array([self.eye_coordinates[:]]), axis=0)
-                gaze_x = numpy.append(gaze_x, numpy.array([self.target_coordinates[0]+35]), axis=0)
-                gaze_y = numpy.append(gaze_y, numpy.array([self.target_coordinates[1]+7]), axis=0)
-                self.target_clicked.value = False
+        left_top = Point(0, 0)
+        right_top = Point(self.screen_width, 0)
+        right_bottom = Point(self.screen_width, self.screen_height)
+        left_bottom = Point(0, self.screen_height)
 
-        train_pupil, test_pupil, train_gaze_x, test_gaze_x = train_test_split(pupil, gaze_x, test_size=0.125)
-        train_pupil2, test_pupil2, train_gaze_y, test_gaze_y = train_test_split(pupil, gaze_y, test_size=0.125)
-        rfx = KNeighborsRegressor(n_neighbors=9)
-        rfx.fit(train_pupil, train_gaze_x)
-        rf_pred = rfx.predict(test_pupil)
-        res = numpy.sqrt(mean_squared_error(test_gaze_x, rf_pred))
-        print(f'X error = {res}, predicted = {rf_pred}, actual = {test_gaze_x}')
+        gaze_coords: list[Point] = [left_top, right_top, right_bottom, left_bottom]
 
-        rfy = KNeighborsRegressor(n_neighbors=9)
-        rfy.fit(train_pupil2, train_gaze_y)
-        rf_pred = rfy.predict(test_pupil2)
-        res = numpy.sqrt(mean_squared_error(test_gaze_y, rf_pred))
-        print(f'Y error = {res}, predicted = {rf_pred}, actual = {test_gaze_y}')
+        pupil_coords = []
+
+        for coords in gaze_coords:
+            self.target_coordinates.array[:] = coords.x, coords.y
+            while not self.target_clicked:
+                if not fps.able_to_execute():
+                    fps.throttle()
+                continue
+            self.target_clicked.set(False)
+            eye_left_top, eye_right_bottom = Point(*self.eye_coordinates[:2]), Point(*self.eye_coordinates[2:])
+            eye_center = calc_center(eye_left_top, eye_right_bottom)
+            # eye_width_height = eye_right_bottom - eye_left_top
+            normalized_pupil = ((eye_center - Point(*self.pupil_coordinates[:])))  # / eye_width_height) * 25
+            pupil_coords.append(normalized_pupil)
+
+        pupil_to_gaze = get_translation_maxtix(pupil_coords, gaze_coords)
 
         while True:
             if not fps.able_to_execute():
                 fps.throttle()
             eye_left_top, eye_right_bottom = Point(*self.eye_coordinates[:2]), Point(*self.eye_coordinates[2:])
             eye_center = calc_center(eye_left_top, eye_right_bottom)
-            eye_width_height = eye_right_bottom - eye_left_top
-            normalized_pupil = ((eye_center - Point(*self.pupil_coordinates[:])) )#/ eye_width_height) * 25
-            pupil = numpy.array([[*normalized_pupil]])
-            self.gaze_coordinates[0] = rfx.predict(pupil).astype(numpy.int64)[0]
-            self.gaze_coordinates[1] = rfy.predict(pupil).astype(numpy.int64)[0]
-            self.target_clicked.value = False
-            self.target_coordinates[0] = self.gaze_coordinates[0]
-            self.target_coordinates[1] = self.gaze_coordinates[1]
+            # eye_width_height = eye_right_bottom - eye_left_top
+            normalized_pupil = ((eye_center - Point(*self.pupil_coordinates[:])) )  #/ eye_width_height) * 25
+            predicted = translate_coordinates(pupil_to_gaze, normalized_pupil)
+            self.gaze_coordinates.x = predicted.x
+            self.gaze_coordinates.y = predicted.y
+
+            self.target_coordinates.x = self.gaze_coordinates[0]
+            self.target_coordinates.y = self.gaze_coordinates[1]
 
 
         # TODO: фактическое разрешение учитывать

@@ -1,12 +1,14 @@
 from collections import deque
 from dataclasses import dataclass
+from multiprocessing import Array
 
 import cv2
 import numpy
 
-from tracker.detectors.detectors import EyeDetector
-from tracker.utils.coordinates import Point
+from tracker.detectors.detectors import Detector, EyeDetector
+from tracker.utils.coordinates import Point, int_avg, close_to
 from tracker.utils.denoise import MovingAverageDenoiser
+from tracker.utils.shared_objects import SharedBox
 
 
 @dataclass
@@ -15,21 +17,37 @@ class HaarModel:
     scale_factor: float
     neighbours: int
 
+@dataclass
+class EyeAveragedBox:
+    x1: MovingAverageDenoiser = MovingAverageDenoiser(2)
+    x2: MovingAverageDenoiser = MovingAverageDenoiser(2)
+    y1: MovingAverageDenoiser = MovingAverageDenoiser(2)
+    y2: MovingAverageDenoiser = MovingAverageDenoiser(2)
 
-class HaarHoughEyeDetector(EyeDetector):
+    def add_if_diff_from_avg(self, x, y, w, h):
+        self.x1.add_if_diff_from_avg(x)
+        self.y1.add_if_diff_from_avg(y)
+        self.x2.add_if_diff_from_avg(w)
+        self.y2.add_if_diff_from_avg(h)
+
+    @property
+    def left_top(self):
+        return self.x1, self.y1
+
+    @property
+    def right_bottom(self):
+        return self.x2, self.y2
+
+
+class HaarEyeValidator(EyeDetector):
     def mainloop(self):
-        self.x1 = MovingAverageDenoiser(0, 10)
-        self.x2 = MovingAverageDenoiser(0, 10)
-        self.y1 = MovingAverageDenoiser(0, 10)
-        self.y2 = MovingAverageDenoiser(0, 10)
+        self.left_box = EyeAveragedBox()
+        self.right_box = EyeAveragedBox()
         self.eye_cascade = cv2.CascadeClassifier('haarcascade_eye.xml')
         self.models = [HaarModel(19, 2.65, 1), HaarModel(22, 1.35, 2)] #, , , ] HaarModel(33, 1.65, 1)
-        self.frames_count = 7
+        self.frames_count = 14
         self.previous_eyes = deque(maxlen=self.frames_count)
         self.previous_eyes_levels = deque(maxlen=self.frames_count)
-        manual_x, manual_y, manual_x2, manual_y2 = self.eye_box[0], self.eye_box[1], self.eye_box[2], self.eye_box[3]
-        self.eye_coordinates[0], self.eye_coordinates[1], self.eye_coordinates[2], self.eye_coordinates[3] = \
-            manual_x, manual_y, manual_x2, manual_y2
         super().mainloop()
 
     def get_outer_boxes(self, eyes):
@@ -94,26 +112,32 @@ class HaarHoughEyeDetector(EyeDetector):
         for i, (ex, ey, ew, eh, confidence) in enumerate(zipped):
             merged = False
             for j, (mx, my, mw, mh, mconfidence) in enumerate(merged_boxes):
+                center = Point(int_avg(ex, ew), int_avg(ey, eh))
+                mcenter = Point(int_avg(mx, mw), int_avg(my, mh))
+                distance = center.calc_distance(mcenter)
+
                 if ex >= mx and ey >= my and ex + ew <= mx + mw and ey + eh <= my + mh:
                     merged = True
                     # if i < frame_eyes.size:
-                    merged_boxes[j] = (ex, ey, ew, eh, (confidence + mconfidence) * 6)
+                    if distance < (ew + eh + mw + mh) / 3.25:
+                        merged_boxes[j] = (ex, ey, ew, eh, (confidence + mconfidence) * 10)
+                    else:
+                        merged_boxes[j] = (int_avg(ex, mx), int_avg(ey, my), int_avg(ew, mw), int_avg(eh, mh),
+                                           (confidence + mconfidence) * 6.5)
                     # else:
                     #     merged_boxes[j] = (mx, my, mw, mh, (confidence + mconfidence) * 3)
                     # break
-                # TODO: можно в близких рамках брать минимальные по размеру, т.к. они более точные и тогда меньше будут прыгать
-                center = Point(ex + ew // 2, ey + eh // 2)
-                mcenter = Point(mx + mw // 2, my + mh // 2)
-                distance = center.calc_distance(mcenter)
-                if distance < (ew + eh + mw + mh) / 5:
+                if distance < (ew + eh + mw + mh) / 4.25:
                     if i < frame_eyes.size:
                         merged_boxes[j] = (
-                            (ex if ew < mw else mx), (ey if eh < mh else my), min(ew, mw), min(eh, mh),
-                            (confidence + mconfidence) * 3)
+                            (ex if ew < mw else mx), (ey if eh < mh else my),
+                            close_to(ew, mw, 3), close_to(eh, mh, 3),
+                            (confidence + mconfidence) * 5)
                     else:
-                        if distance < (ew + eh + mw + mh) / self.frames_count * 3:
+                        if distance < (ew + eh + mw + mh) / (self.frames_count / 1.25):
                             merged_boxes[j] = (
-                                mx, my, mw, mh, (confidence + mconfidence) * 2)
+                                close_to(ex, mx), close_to(ey, my), close_to(ew, mw), close_to(eh, mh),
+                                (confidence + mconfidence) * 1.75)
                     merged = True
                     break
             if not merged:
@@ -121,17 +145,23 @@ class HaarHoughEyeDetector(EyeDetector):
 
         sorted_boxes = sorted(merged_boxes, key=lambda i: i[4], reverse=True)
 
-        best_length = min(1, len(sorted_boxes))
-        final_boxes = sorted_boxes[:best_length]
-        manual_x, manual_y, manual_x2, manual_y2 = self.eye_box[0], self.eye_box[1], self.eye_box[2], self.eye_box[3]
-        if final_boxes:
-            eye_box = final_boxes[0]
-            self.x1.add(manual_x+eye_box[0])
-            self.y1.add(manual_y+eye_box[1])
-            self.x2.add(manual_x + eye_box[0] + eye_box[2])
-            self.y2.add(manual_y + eye_box[1] + eye_box[3])
-            self.eye_coordinates[:] = int(self.x1.get()), int(self.y1.get()), int(self.x2.get()), int(self.y2.get())
+        final_boxes = sorted_boxes[:2]
+        if len(final_boxes) == 2:
+            left_eye = final_boxes[0] if final_boxes[0][0] < final_boxes[1][0] else final_boxes[1]
+            right_eye = final_boxes[0] if final_boxes[0][0] > final_boxes[1][0] else final_boxes[1]
+            self.left_box.add_if_diff_from_avg(*left_eye[:-1])
+            self.right_box.add_if_diff_from_avg(*right_eye[:-1])
+
+            x1, y1 = self.left_box.left_top
+            x2, y2 = self.left_box.right_bottom
+            self.left_eye.left_top.array[:] = int(x1.get()), int(y1.get())
+            self.left_eye.right_bottom.array[:] = int(x2.get()), int(y2.get())
+
+            x1, y1 = self.right_box.left_top
+            x2, y2 = self.right_box.right_bottom
+            self.right_eye.left_top.array[:] = int(x1.get()), int(y1.get())
+            self.right_eye.right_bottom.array[:] = int(x2.get()), int(y2.get())
         else:
-            self.eye_coordinates[0], self.eye_coordinates[1], self.eye_coordinates[2], self.eye_coordinates[3] =\
-            manual_x, manual_y, manual_x2, manual_y2
+            self.left_eye.invalidate()
+            self.right_eye.invalidate()
 
