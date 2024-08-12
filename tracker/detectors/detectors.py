@@ -12,6 +12,9 @@ from tracker.utils.fps import FPSLimiter, FPS_120
 from tracker.utils.shared_objects import SharedBox, SharedPoint, SharedVector, INVALID_VALUE
 
 
+MESH_POINTS_COUNT = 478
+
+
 class Detector(ProcessBased):
     def __init__(self, detect_area: SharedBox, video_adapter: VideoAdapter, target_fps: int):
         super().__init__()
@@ -121,7 +124,7 @@ class BothPupilDetector(Detector):
 
 class FaceMeshDetector(BothPupilDetector, EyeDetector):
     def __init__(self, *args, **kwargs):
-        self.mesh: list[SharedVector] = [SharedVector('f', -1) for _ in range(478)]
+        self.mesh: list[SharedVector] = [SharedVector('f', -1) for _ in range(MESH_POINTS_COUNT)]
         self.left_pupil = SharedPoint('i', INVALID_VALUE)
         self.right_pupil = SharedPoint('i', INVALID_VALUE)
         EyeDetector.__init__(self, *args, **kwargs)

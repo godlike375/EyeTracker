@@ -16,7 +16,7 @@ class DetectorsManager:
                  mesh_detector: MediapipeMeshDetector):#, dark_area_detector: DarkAreaPupilDetector):
         self.detect_area = detect_area
         #self.haar = haar_validator
-        self.mesh = mesh_detector
+        self.mesh: MediapipeMeshDetector = mesh_detector
         #self.dark = dark_area_detector
         self.left_eye = SharedBox('i', -1)
         self.right_eye = SharedBox('i', -1)

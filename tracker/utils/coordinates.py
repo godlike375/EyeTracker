@@ -160,3 +160,10 @@ def enclosing_box_of(points: list[Point]):
     left_top = Point(min(points, key=lambda p: p.x).x, min(points, key=lambda p: p.y).y)
     right_bottom = Point(max(points, key=lambda p: p.x).x, max(points, key=lambda p: p.y).y)
     return BoundingBox(*left_top, *right_bottom)
+
+
+@dataclass
+class Vector:
+    x: float
+    y: float
+    z: float

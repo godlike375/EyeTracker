@@ -113,9 +113,9 @@ with mp_face_mesh.FaceMesh(
             # top_of_right = 475 # 257
             # bottom_of_right = 253
 
-            right_of_right = 265 # 446
-            left_of_right = 464
-            top_of_right = 257 # 443
+            right_of_right = 359 # 446
+            left_of_right = 463
+            top_of_right = 386 # 443
             bottom_of_right = 374
 
             right_of_left = 133
@@ -138,12 +138,12 @@ with mp_face_mesh.FaceMesh(
             # for i in mesh_points[LEFT_EYE]:
             #     cv.circle(frame, i, 1, (255, 255, 0), 2, cv.LINE_AA)
 
-            # for i, cords in enumerate(mesh_points):
-            #     cy = int(cords[1])
-            #     cx = int(cords[0])
-            #     cv.circle(frame, (cx, cy), 1, (205, 0, 255), 1, cv.LINE_AA)
-            #
-            #     draw_text(frame, str(i), Point(cx, cy), 0.26)
+            for i, cords in enumerate(mesh_points):
+                cy = int(cords[1])
+                cx = int(cords[0])
+                cv.circle(frame, (cx, cy), 1, (205, 0, 255), 1, cv.LINE_AA)
+
+                draw_text(frame, str(i), Point(cx, cy), 0.26)
 
         # Пример использования
         #     points = np.array([mesh_points[i] for i in [right_of_right,

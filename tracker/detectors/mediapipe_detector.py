@@ -89,3 +89,6 @@ class MediapipeMeshDetector(FaceMeshDetector):
         # TODO: reset detector
 
     def detect_pupils(self) -> tuple[SharedPoint, SharedPoint]: return self.left_pupil, self.right_pupil
+
+    def calculate_gaze_vectors(self):
+        return
