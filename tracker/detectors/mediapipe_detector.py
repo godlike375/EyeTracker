@@ -34,8 +34,6 @@ right_pupil = 473
 class MediapipeMeshDetector(FaceMeshDetector):
 
     def mainloop(self):
-        self.left = [MovingAverageDenoiser(2), MovingAverageDenoiser(2), MovingAverageDenoiser(2), MovingAverageDenoiser(2)]
-        self.right = [MovingAverageDenoiser(2), MovingAverageDenoiser(2), MovingAverageDenoiser(2), MovingAverageDenoiser(2)]
         self.detector = face_detector.FaceMesh(
             max_num_faces=1,
             refine_landmarks=True,
@@ -46,6 +44,8 @@ class MediapipeMeshDetector(FaceMeshDetector):
 
     def detect(self, raw: numpy.ndarray):
         frame = self.get_eye_rgb_frame(raw)
+        self.detector.reset()
+        # TODO: reset when necessary
         img_h, img_w = frame.shape[:2]
         #frame.flags.writable = False
         results = self.detector.process(frame)

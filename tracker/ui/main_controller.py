@@ -38,6 +38,7 @@ class MainController(QObject):
         self.on_screen_gaze_point = SharedPoint('i', 0)
         self.gaze_server: GazeVideoServer = None # GazeVideoServer(self.gaze_coordinates, self.video_adapter)
         self.gaze_predictor: GazePredictor = None # GazePredictor(self.gaze_coordinates, self.
+        self.target_sight_accepted: SharedFlag = SharedFlag()
 
         self.window = parent
 
@@ -141,7 +142,7 @@ class MainController(QObject):
         if not self.detector_manager:
             QMessageBox.warning(None, 'Ошибка', 'Необходимо выделить приблизительную область нахождения глаза')
             return
-        self.gaze_predictor = GazePredictor(self.on_screen_gaze_point, self.detector_manager.eye_coordinates)
+        self.gaze_predictor = GazePredictor(self.target_sight_accepted, self.on_screen_gaze_point, self.detector_manager)
 
     @pyqtSlot()
     def on_calibration_stopped(self):

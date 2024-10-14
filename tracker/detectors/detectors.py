@@ -13,6 +13,7 @@ from tracker.utils.shared_objects import SharedBox, SharedPoint, SharedVector, I
 
 
 MESH_POINTS_COUNT = 478
+MESH_FACE_POINTS_COUNT = 468
 
 
 class Detector(ProcessBased):

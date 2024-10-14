@@ -4,6 +4,7 @@ from typing import List
 
 import cv2
 import numpy as np
+from scipy.optimize import minimize
 
 
 @dataclass(slots=True)
@@ -167,3 +168,25 @@ class Vector:
     x: float
     y: float
     z: float
+
+
+def distance(a: np.ndarray, b: np.ndarray):
+    return np.linalg.norm(a - b)
+
+
+def point_to_line_distance(point, start, direction):
+    vec_point_to_start = point - start
+    distance = np.linalg.norm(np.cross(vec_point_to_start, direction)) / np.linalg.norm(direction)
+    return distance
+
+
+def find_cross_point(crossing_rays: list[tuple[np.ndarray, np.ndarray]]):
+    # Функция для минимизации ошибки (сумма расстояний от точки до каждого луча)
+    def error_function(point):
+        total_error = sum((point_to_line_distance(point, start, direction) for start, direction in crossing_rays))
+        return total_error
+
+    initial_guess = np.array([0, 0, 0])
+
+    # Минимизация функции ошибки для нахождения ближайшей точки
+    return minimize(error_function, initial_guess)

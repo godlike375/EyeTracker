@@ -7,3 +7,8 @@ logs
 dist
 build
 *.spec
+*.jpg
+*.npy
+*.mp4
+*.avi
+*.xml

@@ -4,6 +4,7 @@ import numpy
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QMainWindow, QVBoxLayout, QWidget
+from PyQt6.uic.properties import QtGui
 
 from tracker.utils.coordinates import BoundingBox
 from tracker.ui.video_label import CallbacksVideoLabel
@@ -67,3 +68,4 @@ class MainWindow(QMainWindow):
 
     def keyPressEvent(self, event):
         self.video_label.keyPressEvent(event)
+        self.main_widget.keyPressEvent(event)
