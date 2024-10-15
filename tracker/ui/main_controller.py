@@ -159,8 +159,8 @@ class MainController(QObject):
 
     @pyqtSlot()
     def on_recording_started(self):
-        self.recording.value = True
+        self.recording.flag.value = True
 
     @pyqtSlot()
     def on_recording_stopped(self):
-        self.recording.value = False
+        self.recording.flag.value = False

@@ -9,6 +9,7 @@ import numpy
 
 from tracker.utils.fps import FPSCounter, FPSLimiter
 from tracker.utils.image_processing import rotate_frame
+from tracker.utils.shared_objects import SharedFlag
 
 
 class VideoAdapter:
@@ -36,7 +37,7 @@ def start_video_recording(filename, codec, fps, frame_size):
     return cv2.VideoWriter(filename, fourcc, fps, frame_size)
 
 
-def stream_video(camera: cv2.VideoCapture, video_adapter: VideoAdapter, recording: Value, source = 0, fps=120, resolution=640):
+def stream_video(camera: cv2.VideoCapture, video_adapter: VideoAdapter, recording: SharedFlag, source = 0, fps=120, resolution=640):
     codec = 'XVID'
     directory = 'video'
     recorder = None
