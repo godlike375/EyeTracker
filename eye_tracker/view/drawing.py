@@ -1,4 +1,5 @@
 import cv2
+import numpy
 import numpy as np
 from PIL import Image
 
@@ -83,7 +84,7 @@ class Processor:
             return False
         one = cls.resize_frame_relative(one, settings.DOWNSCALE_FACTOR)
         another = cls.resize_frame_relative(another, settings.DOWNSCALE_FACTOR)
-        return all(i.mean() > settings.SAME_FRAMES_THRESHOLD for i in np.split((one == another), SPLIT_PARTS))
+        return numpy.array_equal(one, another)
 
     @classmethod
     def load_color(cls):

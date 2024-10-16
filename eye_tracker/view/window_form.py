@@ -177,7 +177,7 @@ class View:
         # WARNING: Выносить процесс отрисовки в исполнение команд от модели - плохая идея
         #  Так сбиваются тайминги отрисовки и сбросов кадра (image_alive_ref = None становится не None и картинка
         #  не полностью переворачивается. Очень трудновоспроизводимый баг, рандомный
-        if image is None or image == self._previous_image:
+        if image is None: #or image == self._previous_image:
             return
 
         self._previous_image = image

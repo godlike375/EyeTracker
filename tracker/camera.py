@@ -41,16 +41,15 @@ def stream_video(camera: cv2.VideoCapture, video_adapter: VideoAdapter, recordin
     codec = 'XVID'
     directory = 'video'
     recorder = None
-    captured, frame = camera.read()
-    if not captured:
-        raise IOError("can't access camera")
     video_adapter.setup_video_frame()
     camera_fps = FPSCounter(1.5)
     fps_limit = FPSLimiter(fps)
     while True:
         if not fps_limit.able_to_execute():
             fps_limit.throttle()
-        ret, frame = camera.read()
+        captured, frame = camera.read()
+        if not captured:
+            raise IOError("can't access camera")
         try:
             numpy.copyto(video_adapter.video_frame, frame)
             if recording:

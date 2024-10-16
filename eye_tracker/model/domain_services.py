@@ -112,9 +112,10 @@ class Orchestrator(ThreadLoopable):
 
     def _processing_loop(self):
         frame = self.camera.extract_frame()
-        self.raw_frame = frame
-        if self.selecting.selecting_in_progress(OBJECT)\
-                or not Processor.frames_are_same(frame, self.current_frame):
+        passed = time() - self.second_timer
+        if self.selecting.selecting_in_progress(OBJECT) \
+                or not Processor.frames_are_same(frame, self.current_frame) or passed > 0.2:
+            self.raw_frame = frame
             if self.tracker.in_progress:
                 self._tracking(frame)
                 self.frames_count += 1
@@ -122,7 +123,6 @@ class Orchestrator(ThreadLoopable):
                 if time() - self._throttle_to_fps_viewed < 1 / settings.FPS_VIEWED:
                     return
 
-                passed = time() - self.second_timer
                 if passed > 1:
                     self.fps = self.frames_count / passed
                     self.second_timer = time()
@@ -138,7 +138,7 @@ class Orchestrator(ThreadLoopable):
                frame = self.crop_zoomer.crop_zoom_frame(frame)
             processed_image = self.screen.prepare_image(frame)
             self._view_model.on_image_ready(processed_image)
-        self.current_frame = frame
+            self.current_frame = frame
 
     def _calibrating_in_progress(self):
         return any([i.in_progress for i in self.calibrators.values()])
@@ -316,4 +316,4 @@ class Orchestrator(ThreadLoopable):
         cancel_all_calibrators = [i.cancel() for i in self.calibrators.values()]
         self.laser.center_laser()
         self.laser.stop_thread()
-        super(Orchestrator, self).stop_thread()
+        super().stop_thread()

@@ -110,15 +110,15 @@ class Settings:
     def __init__(self):
         self.CAMERA_ID = 0
         self.CAMERA_MAX_RESOLUTION = 640
-        self.FPS_VIEWED = 19
-        self.FPS_PROCESSED = 76
+        self.FPS_VIEWED = 30
+        self.FPS_PROCESSED = 90
         self.SERIAL_PORT = 1
         self.MEAN_COORDINATES_FRAME_COUNT = 3
         self.NOISE_THRESHOLD_RANGE = 0.0
         self.THRESHOLD_CALIBRATION_DURATION = 4  # в секундах
         self.STABLE_POSITION_DURATION = 0.67
-        self.DOWNSCALE_FACTOR = 0.25  # чем ниже значение, тем выше производительность, но ниже точность трекинга
-        self.SAME_FRAMES_THRESHOLD = 0.53  # в полной темноте начиная с такого значения обновляется картинка
+        self.DOWNSCALE_FACTOR = 0.5  # чем ниже значение, тем выше производительность, но ниже точность трекинга
+        self.SAME_FRAMES_THRESHOLD = 0.85  # в полной темноте начиная с такого значения обновляется картинка
 
     def __setattr__(self, key, value):
         try:
