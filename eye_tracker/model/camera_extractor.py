@@ -41,9 +41,8 @@ def stream_loop(video_adapter: VideoAdapter, source = 0, fps=120, resolution=640
 
             if not captured:
                 raise IOError('Не удалось получить изображение с камеры')
-                initialized = False
                 break
-
+            initialized = True
         captured, frame = camera.read()
         if not captured:
             raise IOError('Не удалось получить изображение с камеры')
