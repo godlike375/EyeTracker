@@ -1,3 +1,4 @@
+from tkinter.messagebox import showerror
 from multiprocessing import Process
 
 import cv2
@@ -40,8 +41,8 @@ def stream_loop(video_adapter: VideoAdapter, source = 0, fps=120, resolution=640
             captured, frame = camera.read()
 
             if not captured:
+                showerror(title='Ошибка', message='Не удалось получить изображение с камеры')
                 raise IOError('Не удалось получить изображение с камеры')
-                break
             initialized = True
         captured, frame = camera.read()
         if not captured:
@@ -73,9 +74,6 @@ class CameraService(Initializable):
                                    args=(self.video_adapter, camera_id,
                                          settings.FPS_PROCESSED, settings.CAMERA_MAX_RESOLUTION,))
             self.process.start()
-
-
-
 
     def try_set_camera(self, camera_id):
         self._camera = cv2.VideoCapture(camera_id)
