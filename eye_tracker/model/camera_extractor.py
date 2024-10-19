@@ -121,7 +121,7 @@ class CameraService(Initializable):
             return cv2.flip(frame, side)
 
     def extract_frame(self):
-        return self.video_adapter.get_video_frame()
+        return numpy.copy(self.video_adapter.get_video_frame())
         # _, frame = self._camera.read()
         # if frame is None:
         #     raise NoneFrameException('Не удалось получить кадр с камеры')

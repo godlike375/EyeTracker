@@ -26,6 +26,7 @@ class Detector(ProcessBased):
     def start_process(self):
         process = Process(target=self.mainloop, daemon=True)
         process.start()
+        self.start()
         return process
 
     @abstractmethod

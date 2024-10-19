@@ -89,7 +89,7 @@ class Tracker(RectBased, Drawable, ProcessBased):
 
     def draw_on_frame(self, frame):
         frame = Processor.draw_rectangle(frame, self.left_top, self.right_bottom)
-        return Processor.draw_circle(frame, self.center)
+        return frame #Processor.draw_circle(frame, self.center)
 
 
 class Denoiser:

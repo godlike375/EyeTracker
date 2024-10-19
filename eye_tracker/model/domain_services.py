@@ -15,6 +15,8 @@ from eye_tracker.model.other_services import SelectingService, StateMachine, OnS
 from eye_tracker.view import view_output
 from eye_tracker.view.drawing import Processor
 from eye_tracker.view.view_model import ViewModel
+from tracker.detectors.pupil_detectors import DarkAreaPupilDetector
+from tracker.utils.shared_objects import SharedBox
 
 
 # WARNING: Пробовал увеличивать количество потоков в программе до 4-х (+ экстрактор + трекер в своих потоках)
@@ -84,6 +86,7 @@ class Orchestrator(ThreadLoopable):
         self.crop_zoomer = CropZoomer(self)
 
         self.current_frame = None
+        self.raw_frame = None
 
         self.calibrators = {'noise threshold': NoiseThresholdCalibrator(self, self._view_model),
                             'coordinate system': CoordinateSystemCalibrator(self, self._view_model)}
@@ -108,32 +111,42 @@ class Orchestrator(ThreadLoopable):
         self.second_timer = time()
         self.fps = 30
 
+        self.detect_area = SharedBox('i', -1)
+
+        self.pupil_detector = DarkAreaPupilDetector(detect_area=self.detect_area, video_adapter=self.camera.video_adapter,
+                                                    target_fps=settings.FPS_VIEWED)
+
         super().__init__(self._processing_loop, self._frame_interval, run_immediately)
 
     def _processing_loop(self):
         frame = self.camera.extract_frame()
         passed = time() - self.second_timer
         if self.selecting.selecting_in_progress(OBJECT) \
-                or not Processor.frames_are_same(frame, self.current_frame) or passed > 0.2:
+                or not Processor.frames_are_same(frame, self.raw_frame) or passed > 0.2:
             self.raw_frame = frame
             if self.tracker.in_progress:
                 self._tracking(frame)
                 self.frames_count += 1
 
-                if time() - self._throttle_to_fps_viewed < 1 / settings.FPS_VIEWED:
-                    return
+                # if time() - self._throttle_to_fps_viewed < 1 / settings.FPS_VIEWED:
+                #     return
 
-                if passed > 1:
-                    self.fps = self.frames_count / passed
-                    self.second_timer = time()
-                    self.fps_time = time()
+                # if passed > 1:
+                #     self.fps = self.frames_count / passed
+                #     self.second_timer = time()
+                #     self.fps_time = time()
+                #
+                #     self.frames_count = 0
 
-                    self.frames_count = 0
-
-                frame = Processor.draw_text(frame, f'fps: {round(self.fps, 1)}',
-                                            Point(8, 16), 0.5)
+                # frame = Processor.draw_text(frame, f'fps: {round(self.fps, 1)}',
+                #                             Point(8, 16), 0.5)
 
             frame = self.screen.common_processing(frame)
+            if self.pupil_detector.in_progress:
+                self.detect_area.left_top.array[:] = [self.tracker.left_top.x, self.tracker.left_top.y]
+                self.detect_area.right_bottom.array[:] = [self.tracker.right_bottom.x, self.tracker.right_bottom.y]
+                frame = Processor.draw_circle(frame, Point(self.pupil_detector.pupil.x + self.tracker.left_top.x,
+                                                           self.pupil_detector.pupil.y + self.tracker.left_top.y))
             if self.crop_zoomer.can_crop():
                frame = self.crop_zoomer.crop_zoom_frame(frame)
             processed_image = self.screen.prepare_image(frame)
@@ -198,6 +211,7 @@ class Orchestrator(ThreadLoopable):
             if out_of_area:
                 view_output.show_error('Невозможно выделить объект за границами области слежения.')
                 self.screen.remove_selector(OBJECT)
+            self.pupil_detector.start_process()
 
         if not selected or out_of_area:
             self._view_model.new_selection(OBJECT, reselect_while_calibrating=True,
@@ -317,3 +331,4 @@ class Orchestrator(ThreadLoopable):
         self.laser.center_laser()
         self.laser.stop_thread()
         super().stop_thread()
+        # TODO: stop processes
