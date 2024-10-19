@@ -113,8 +113,7 @@ class Orchestrator(ThreadLoopable):
 
         self.detect_area = SharedBox('i', -1)
 
-        self.pupil_detector = DarkAreaPupilDetector(detect_area=self.detect_area, video_adapter=self.camera.video_adapter,
-                                                    target_fps=settings.FPS_VIEWED)
+        self.pupil_detector = None
 
         super().__init__(self._processing_loop, self._frame_interval, run_immediately)
 
@@ -142,7 +141,7 @@ class Orchestrator(ThreadLoopable):
                 #                             Point(8, 16), 0.5)
 
             frame = self.screen.common_processing(frame)
-            if self.pupil_detector.in_progress:
+            if self.pupil_detector and self.pupil_detector.in_progress:
                 self.detect_area.left_top.array[:] = [self.tracker.left_top.x, self.tracker.left_top.y]
                 self.detect_area.right_bottom.array[:] = [self.tracker.right_bottom.x, self.tracker.right_bottom.y]
                 frame = Processor.draw_circle(frame, Point(self.pupil_detector.pupil.x + self.tracker.left_top.x,
@@ -211,6 +210,8 @@ class Orchestrator(ThreadLoopable):
             if out_of_area:
                 view_output.show_error('Невозможно выделить объект за границами области слежения.')
                 self.screen.remove_selector(OBJECT)
+            self.pupil_detector = DarkAreaPupilDetector(detect_area=self.detect_area, video_adapter=self.camera.video_adapter,
+                                                    target_fps=settings.FPS_VIEWED)
             self.pupil_detector.start_process()
 
         if not selected or out_of_area:
