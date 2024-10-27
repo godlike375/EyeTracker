@@ -14,80 +14,102 @@ from tracker.utils.coordinates import Point
 class DarkAreaPupilDetector(PupilDetector):
     def mainloop(self):
         self.threshold = MovingAverageDenoiser(3)
-        self.x = MovingAverageDenoiser(2)
-        self.y = MovingAverageDenoiser(2)
+        self.x = MovingAverageDenoiser(4)
+        self.y = MovingAverageDenoiser(4)
         super().mainloop()
 
-    def negative_half_square(self, a):
-        if a<0:
-            return -(a*a)*1.695
-        return a*a*1.695
+    def stick_close_brightness(self, pairs, stick_threshold = 1, stick_count = 3):
+        sticked_pairs = []
+        # TODO: уменьшать разрешение, чтобы убирать шумы, обобщать контуры
+        i = 0
+        while i < len(pairs) - 1:
+            start = i
+            end = i
+            while i < len(pairs) - 1 and end - start < stick_count and abs(pairs[i][0] - pairs[i + 1][0]) <= stick_threshold:
+                i+= 1
+                end = i
+            if start != end:
+                sticked = (pairs[end][0], sum(value for brightness, value in pairs[start:end]))
+                sticked_pairs.append(sticked)
+            else:
+                sticked_pairs.append(pairs[i])
+            i+=1
+        return sticked_pairs
 
-    def remove_zeroes_and_take_percentile(self, hist, percent):
-        pairs = [(i, int(hist[i][0])) for i in range(len(hist))]
-        pairs.sort(key=lambda x: x[1])
-        pairs = [(i, v) for (i, v) in pairs if v > 0]
+    def remove_zeroes_and_take_darkest(self, hist, mean_brightness=None):
+        brightness_count = [(i, int(hist[i][0])) for i in range(len(hist))]
+        brightness_count.sort(key=lambda x: x[0])
+        brightness_count = [(i, v) for (i, v) in brightness_count if v > 0]
+        dynamic_range = len(brightness_count)
+        shade_step = int(dynamic_range ** 0.25)
 
-        # TODO: возможно стоит реализовать склейку взвешенных пар по яркости
-        #  (если яркость +- 1 у соседа, то склеиваем их вместе и складываем или умножаем веса)
-        base_threshold = 117
-        weights = [int(self.negative_half_square(base_threshold - i) * (v ** 0.123)) for (i, v) in pairs]
-        weighted = [(pair, weight) for pair, weight in zip(pairs, weights) if weight > 0]
+        brightness_count = self.stick_close_brightness(brightness_count, stick_count=shade_step) or brightness_count
+        brightness_count.sort(key=lambda x: x[1])
+        # TODO: base каким сделать, чтобы не сливались области, когда всё темно?
+        base_threshold = mean_brightness or 117
+        max_intensity = max(brightness_count, key=lambda x: x[0])[0] + 1
+        weights = [int(v / ((i+1)/max_intensity) ** 15) for (i, v) in brightness_count]
+        weighted = [(pair, weight) for pair, weight in zip(brightness_count, weights) if weight > 0]
         weighted.sort(key=lambda x: x[1], reverse=True)
-
-        percentile = int(len(weighted) * percent / 100)
-        try:
-            return max(weighted[:percentile], key=lambda x: x[0][0])[0][0]
-        except:
+        if weighted:
+            return weighted[0][0][0]
+        else:
             return base_threshold
 
-    def find_optimal_threshold(self, blurred, base_factor=None):
+    def find_optimal_threshold(self, blurred):
+        blurred = cv2.resize(blurred, (blurred.shape[0] // 2, blurred.shape[1] // 2))
         hist = cv2.calcHist([blurred], [0], None, [256], [0, 256])
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(blurred)
         # the coefficients are optimal in most scenarios
-        threshold = self.remove_zeroes_and_take_percentile(hist, percent=8.2)
+        #mean_brightness = numpy.mean(blurred, axis=(0, 1))
+        threshold = self.remove_zeroes_and_take_darkest(hist, 64)
         return max(threshold, min_val)
 
     def detect_contours(self, eye_thresholded):
         pupil = None
         eye_contours, _ = cv2.findContours(eye_thresholded, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        largest_area = 1 
+        largest_area = 1
+        best_circularity = 0.00001
         px, py, pw, ph = None, None, None, None
         for contour in eye_contours:
-            M = cv2.moments(contour)
-            area = M['m00']
-            if area >= largest_area:
-                px, py, pw, ph = cv2.boundingRect(contour)
-                cx = int(M["m10"] / area)
-                cy = int(M["m01"] / area)
-                largest_area = area
-                pupil = (cx, cy)
-
+            perimeter = cv2.arcLength(contour, True)
+            if perimeter > 0:  # чтобы избежать деления на ноль
+                area = cv2.contourArea(contour)
+                circularity = 4 * 3.14159 * (area / (perimeter**2))
+                if circularity > best_circularity and circularity > 0.825: # 0.85+ типично для зрачка
+                    M = cv2.moments(contour)
+                    #area = M['m00']
+                    #if area >= largest_area:
+                    px, py, pw, ph = cv2.boundingRect(contour)
+                    cx = int(M["m10"] / area)
+                    cy = int(M["m01"] / area)
+                    largest_area = area
+                    pupil = (cx, cy)
         return pupil, px, py, pw, ph, largest_area
 
     def detect(self, raw: numpy.ndarray):
         gray = self.get_eye_frame(raw)
-
         # blurred = self.blur_image(gray, blur=7)
         # blurred = self.blur_image(blurred, erode=2)
         # blurred = self.blur_image(blurred, blur=3)
         # blurred = self.blur_image(blurred, erode=2)
 
-        blurred = self.blur_image(gray, blur=7)
-        blurred = self.blur_image(blurred, blur=3)
+        blurred = self.blur_image(gray, blur=9)
+        #blurred = self.blur_image(blurred, blur=3)
         blurred = self.blur_image(blurred, dilate=2)
         blurred = self.blur_image(blurred, blur=3)
-        blurred = self.blur_image(blurred, erode=3)
+        blurred = self.blur_image(blurred, erode=4)
+        blurred = self.blur_image(blurred, blur=3)
 
         #blurred = self.contrast_image(blurred, contrast=1.47, brightness=-3)
         threshold = self.find_optimal_threshold(blurred)
         self.threshold.add(threshold)
         thresholded_img = cv2.threshold(blurred, self.threshold.get(), 255, cv2.THRESH_BINARY_INV)[1]
         pupil_by_contours, px, py, pw, ph, area = self.detect_contours(thresholded_img)
-        cv2.imshow('threshold', thresholded_img)
-        cv2.waitKey(1)
-        cv2.imshow('blur', blurred)
-        cv2.waitKey(1)
+        # cv2.imshow('threshold', thresholded_img)
+        # cv2.waitKey(1)
+        # cv2.imshow('blur', blurred)
+        # cv2.waitKey(1)
 
         if pupil_by_contours is not None:
             self.x.add_if_diff_from_avg(pupil_by_contours[0])

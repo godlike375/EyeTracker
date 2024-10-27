@@ -190,3 +190,6 @@ def find_cross_point(crossing_rays: list[tuple[np.ndarray, np.ndarray]]):
 
     # Минимизация функции ошибки для нахождения ближайшей точки
     return minimize(error_function, initial_guess)
+
+def n_largest_indices(arr, n):
+    return np.argpartition(arr, -n)[-n:]

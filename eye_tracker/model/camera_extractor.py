@@ -122,7 +122,7 @@ class CameraService(Initializable):
 
     def extract_frame(self):
         if self.video_adapter:
-            return numpy.copy(self.video_adapter.get_video_frame())
+            return numpy.copy(self.video_adapter.get_ref_video_frame())
         raise Exception('Не удалось получить доступ к камере')
         # _, frame = self._camera.read()
         # if frame is None:

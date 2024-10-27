@@ -174,7 +174,7 @@ class StateMachine:
             EventCheck('camera connected', False, 'Подключите камеру'),
             EventCheck('laser connected', False, 'Подключите контроллер лазера'),
             EventCheck('laser calibrated', False, 'Откалибруйте лазер'),
-            EventCheck('noise threshold calibrated', False, 'Откалибруйте шумоподавление'),
+            #EventCheck('noise threshold calibrated', False, 'Откалибруйте шумоподавление'),
             EventCheck('coordinate system calibrated', False,
                        'Откалибруйте координатную систему или выделите область вручную'),
             EventCheck('object selected', False, 'Выделите объект слежения')

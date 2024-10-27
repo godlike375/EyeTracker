@@ -19,7 +19,7 @@ class MovingAverageDenoiser:
         self._sum += elem - self._buffer.popleft()
         self._buffer.append(elem)
 
-    def add_if_diff_from_avg(self, elem, diff_by: float = 0.33333):
+    def add_if_diff_from_avg(self, elem, diff_by: float = 0.4):
         if not self._buffer:
             self._buffer = deque(repeat(elem, self._count))
             self._sum = sum(self._buffer)

@@ -23,8 +23,11 @@ class VideoAdapter:
     def setup_video_frame(self):
         self.video_frame = numpy.ndarray((self.height, self.width, 3), dtype=numpy.uint8, buffer=self.shared_memory.buf)
 
-    def get_video_frame(self):
+    def get_ref_video_frame(self):
         return rotate_frame(self.video_frame, self.rotate_degree.value)
+
+    def get_copy_video_frame(self):
+        return numpy.copy(self.get_ref_video_frame())
 
     def send_to_process(self):
         cp = copy(self)

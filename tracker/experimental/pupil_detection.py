@@ -19,10 +19,14 @@ class HaarModel:
     scale_factor: float
     neighbours: int
 
-frames_count = 3
+frames_count = 6
 previous_eyes = deque(maxlen=frames_count)
 previous_eyes_levels = deque(maxlen=frames_count)
 models = [ HaarModel(19, 2.65, 1), HaarModel(22, 1.35, 2) ]#,  ]#, , , ] HaarModel(33, 1.65, 1)
+
+
+def n_largest_indices(arr, n):
+    return np.argpartition(arr, -n)[-n:]
 
 while True:
     # Захват кадра
@@ -41,14 +45,18 @@ while True:
                                                         scaleFactor=model.scale_factor, minNeighbors=model.neighbours,
                                                         minSize=(actual_min_size, actual_min_size),
                                                         outputRejectLevels=True)
-
+        if len(new_eye_levels) > 2:
+            max_ind = n_largest_indices(new_eye_levels, 2)
+            new_eyes = new_eyes[max_ind]
+            new_eye_levels = new_eye_levels[max_ind]
         if type(new_eyes) is tuple:
             continue # Не нашли глаз
 
         try:
             frame_eyes = numpy.append(frame_eyes, new_eyes.astype(int), axis=0)
             frame_eye_levels = numpy.append(frame_eye_levels, new_eye_levels, axis=0)
-        except:
+        except Exception as e:
+            print(e)
             continue
 
     total_eyes = frame_eyes
@@ -104,7 +112,7 @@ while True:
     # Отображение только половины самых надежных по количеству слияний boxes
     # half_length = len(sorted_boxes) // 2
     # half_length = max(half_length, 3)
-    best_length = min(1, len(sorted_boxes))
+    best_length = min(2, len(sorted_boxes))
     final_boxes = sorted_boxes[:best_length]
     # Отображение boxes на изображении
     for i, (ex, ey, ew, eh, confidence) in enumerate(final_boxes):

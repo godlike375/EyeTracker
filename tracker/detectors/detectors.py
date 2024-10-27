@@ -62,7 +62,7 @@ class Detector(ProcessBased):
         while True:
             if not self.fps.able_to_execute():
                 self.fps.throttle()
-            self.detect(self.video_adapter.get_video_frame())
+            self.detect(self.video_adapter.get_copy_video_frame())
 
     def get_eye_rgb_frame(self, raw: numpy.ndarray):
         return raw[self._detect_area.y1: self._detect_area.y2, self._detect_area.x1: self._detect_area.x2]

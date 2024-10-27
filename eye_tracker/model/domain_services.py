@@ -15,6 +15,7 @@ from eye_tracker.model.other_services import SelectingService, StateMachine, OnS
 from eye_tracker.view import view_output
 from eye_tracker.view.drawing import Processor
 from eye_tracker.view.view_model import ViewModel
+from tracker.detectors.haar_eye_detector import HaarEyeValidator
 from tracker.detectors.pupil_detectors import DarkAreaPupilDetector
 from tracker.utils.shared_objects import SharedBox
 
@@ -85,9 +86,6 @@ class Orchestrator(ThreadLoopable):
         self.laser = laser or MoveController(self._on_laser_error, debug_on=debug_on)
         self.crop_zoomer = CropZoomer(self)
 
-        self.current_frame = None
-        self.raw_frame = None
-
         self.calibrators = {'noise threshold': NoiseThresholdCalibrator(self, self._view_model),
                             'coordinate system': CoordinateSystemCalibrator(self, self._view_model)}
 
@@ -103,7 +101,13 @@ class Orchestrator(ThreadLoopable):
             self.state_control.change_state('camera connected')
         if self.laser.initialized:
             self.state_control.change_state('laser connected')
+
+        sleep(0.25) # loading area needs the current frame to initialize crop zoom
+        self.current_frame = self.camera.extract_frame()
+        self.raw_frame = None
+
         self._processing_loop()
+
         if area is not None:
             self.selecting.load_selected_area(area)
 
@@ -111,9 +115,11 @@ class Orchestrator(ThreadLoopable):
         self.second_timer = time()
         self.fps = 30
 
-        self.detect_area = SharedBox('i', -1)
+        self.crop_detect_area = SharedBox('i', -1)
+        self.eye_detect_area = SharedBox('i', -1)
 
-        self.pupil_detector = None
+        self.pupil_detector: DarkAreaPupilDetector = None
+        self.eye_detector: HaarEyeValidator = None
 
         super().__init__(self._processing_loop, self._frame_interval, run_immediately)
 
@@ -123,7 +129,7 @@ class Orchestrator(ThreadLoopable):
         if self.selecting.selecting_in_progress(OBJECT) \
                 or not Processor.frames_are_same(frame, self.raw_frame) or passed > 0.2:
             self.raw_frame = frame
-            if self.tracker.in_progress:
+            if self.tracker.in_progress and self._calibrating_in_progress():
                 self._tracking(frame)
                 self.frames_count += 1
 
@@ -141,11 +147,21 @@ class Orchestrator(ThreadLoopable):
                 #                             Point(8, 16), 0.5)
 
             frame = self.screen.common_processing(frame)
-            if self.pupil_detector and self.pupil_detector.in_progress:
-                self.detect_area.left_top.array[:] = [self.tracker.left_top.x, self.tracker.left_top.y]
-                self.detect_area.right_bottom.array[:] = [self.tracker.right_bottom.x, self.tracker.right_bottom.y]
-                frame = Processor.draw_circle(frame, Point(self.pupil_detector.pupil.x + self.tracker.left_top.x,
-                                                           self.pupil_detector.pupil.y + self.tracker.left_top.y))
+
+            if not self._calibrating_in_progress():
+                if self.eye_detector and self.eye_detector.in_progress:
+                    self.crop_detect_area.left_top.array[:] = [0, 0]#[*self.tracker.left_top]
+                    self.crop_detect_area.right_bottom.array[:] = [frame.shape[1], frame.shape[0]]#[*self.tracker.right_bottom]
+                    eye_lt = Point(*self.eye_detector.left_eye.left_top.array[:])# + self.tracker.left_top
+                    eye_rb = Point(*self.eye_detector.left_eye.right_bottom.array[:])# + self.tracker.left_top
+                    frame = Processor.draw_rectangle(frame, eye_lt, eye_rb)
+
+                if self.pupil_detector and self.pupil_detector.in_progress:
+                    self.eye_detect_area.left_top.array[:] = [*eye_lt]
+                    self.eye_detect_area.right_bottom.array[:] = [*eye_rb]
+                    frame = Processor.draw_circle(frame, Point(self.pupil_detector.pupil.x + eye_lt.x,
+                                                               self.pupil_detector.pupil.y + eye_lt.y))
+
             if self.crop_zoomer.can_crop():
                frame = self.crop_zoomer.crop_zoom_frame(frame)
             processed_image = self.screen.prepare_image(frame)
@@ -173,7 +189,7 @@ class Orchestrator(ThreadLoopable):
         if self.previous_area is not None:
             self.screen.add_selector(self.previous_area, AREA)
             self.area_controller.set_area(self.previous_area, self.laser.laser_borders)
-            self.crop_zoomer.set_zoom_area(self.previous_area)
+            #self.crop_zoomer.set_zoom_area(self.previous_area)
         self._view_model.progress_bar_set_visibility(False)
 
     def _move_to_relative_cords(self, center):
@@ -199,7 +215,7 @@ class Orchestrator(ThreadLoopable):
         self._view_model.set_menu_state('all', 'normal')
         self.previous_area = area
         self.area_controller.set_area(area, self.laser.laser_borders)
-        self.crop_zoomer.set_zoom_area(area)
+        #self.crop_zoomer.set_zoom_area(area)
         self.state_control.change_state('coordinate system calibrated')
 
     def _on_object_selected(self, run_thread_after=None):
@@ -210,9 +226,12 @@ class Orchestrator(ThreadLoopable):
             if out_of_area:
                 view_output.show_error('Невозможно выделить объект за границами области слежения.')
                 self.screen.remove_selector(OBJECT)
-            self.pupil_detector = DarkAreaPupilDetector(detect_area=self.detect_area, video_adapter=self.camera.video_adapter,
-                                                    target_fps=settings.FPS_VIEWED)
+            self.pupil_detector = DarkAreaPupilDetector(detect_area=self.eye_detect_area, video_adapter=self.camera.video_adapter,
+                                                        target_fps=settings.FPS_PROCESSED)
             self.pupil_detector.start_process()
+            self.eye_detector = HaarEyeValidator(detect_area=self.crop_detect_area, video_adapter=self.camera.video_adapter,
+                                                 target_fps=settings.FPS_PROCESSED, eyes_count=1)
+            self.eye_detector.start_process()
 
         if not selected or out_of_area:
             self._view_model.new_selection(OBJECT, reselect_while_calibrating=True,

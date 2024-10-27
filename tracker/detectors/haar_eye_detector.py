@@ -6,7 +6,7 @@ import cv2
 import numpy
 
 from tracker.detectors.detectors import Detector, EyeDetector
-from tracker.utils.coordinates import Point, int_avg, close_to
+from tracker.utils.coordinates import Point, int_avg, close_to, n_largest_indices
 from tracker.utils.denoise import MovingAverageDenoiser
 from tracker.utils.shared_objects import SharedBox
 
@@ -19,16 +19,16 @@ class HaarModel:
 
 @dataclass
 class EyeAveragedBox:
-    x1: MovingAverageDenoiser = MovingAverageDenoiser(2)
-    x2: MovingAverageDenoiser = MovingAverageDenoiser(2)
-    y1: MovingAverageDenoiser = MovingAverageDenoiser(2)
-    y2: MovingAverageDenoiser = MovingAverageDenoiser(2)
+    x1: MovingAverageDenoiser = MovingAverageDenoiser(3)
+    x2: MovingAverageDenoiser = MovingAverageDenoiser(3)
+    y1: MovingAverageDenoiser = MovingAverageDenoiser(3)
+    y2: MovingAverageDenoiser = MovingAverageDenoiser(3)
 
-    def add_if_diff_from_avg(self, x, y, w, h):
-        self.x1.add_if_diff_from_avg(x)
-        self.y1.add_if_diff_from_avg(y)
-        self.x2.add_if_diff_from_avg(w)
-        self.y2.add_if_diff_from_avg(h)
+    def add_if_diff_from_avg(self, x, y, w, h, diff_by=0.4):
+        self.x1.add_if_diff_from_avg(x, diff_by)
+        self.y1.add_if_diff_from_avg(y, diff_by)
+        self.x2.add_if_diff_from_avg(w, diff_by)
+        self.y2.add_if_diff_from_avg(h, diff_by)
 
     @property
     def left_top(self):
@@ -40,12 +40,16 @@ class EyeAveragedBox:
 
 
 class HaarEyeValidator(EyeDetector):
+    def __init__(self, eyes_count = 2, averaging_frames_count = 6, *args, **kwargs):
+        self.eyes_count = eyes_count
+        self.frames_count = averaging_frames_count
+        super().__init__(*args, **kwargs)
+
     def mainloop(self):
         self.left_box = EyeAveragedBox()
         self.right_box = EyeAveragedBox()
         self.eye_cascade = cv2.CascadeClassifier('haarcascade_eye.xml')
-        self.models = [HaarModel(19, 2.65, 1), HaarModel(22, 1.35, 2)] #, , , ] HaarModel(33, 1.65, 1)
-        self.frames_count = 14
+        self.models = [HaarModel(19, 2.65, 1), HaarModel(22, 1.3, 2)] #, , , ] HaarModel(33, 1.65, 1)
         self.previous_eyes = deque(maxlen=self.frames_count)
         self.previous_eyes_levels = deque(maxlen=self.frames_count)
         super().mainloop()
@@ -80,6 +84,11 @@ class HaarEyeValidator(EyeDetector):
                                                                              minSize=(actual_min_size, actual_min_size),
                                                                              outputRejectLevels=True)
 
+            if len(new_eye_levels) > self.eyes_count:
+                max_ind = n_largest_indices(new_eye_levels, self.eyes_count)
+                new_eyes = new_eyes[max_ind]
+                new_eye_levels = new_eye_levels[max_ind]
+
             if type(new_eyes) is tuple:
                 continue  # Не нашли глаз
 
@@ -93,6 +102,9 @@ class HaarEyeValidator(EyeDetector):
 
     def detect(self, raw: numpy.ndarray):
         gray = self.get_eye_frame(raw)
+        gray = self.blur_image(gray, blur=9)
+        #cv2.imshow('haar_input', gray)
+        #cv2.waitKey(1)
         frame_eyes, frame_eye_levels = self.haar_detect(gray)
         total_eyes, total_eye_levels = frame_eyes.copy(), frame_eye_levels.copy()
         for eyes in self.previous_eyes:
@@ -145,22 +157,34 @@ class HaarEyeValidator(EyeDetector):
 
         sorted_boxes = sorted(merged_boxes, key=lambda i: i[4], reverse=True)
 
-        final_boxes = sorted_boxes[:2]
-        if len(final_boxes) == 2:
-            left_eye = final_boxes[0] if final_boxes[0][0] < final_boxes[1][0] else final_boxes[1]
-            right_eye = final_boxes[0] if final_boxes[0][0] > final_boxes[1][0] else final_boxes[1]
-            self.left_box.add_if_diff_from_avg(*left_eye[:-1])
-            self.right_box.add_if_diff_from_avg(*right_eye[:-1])
+        final_boxes = sorted_boxes[:self.eyes_count]
+        if self.eyes_count == 1:
+            if len(final_boxes) == self.eyes_count:
+                left_eye = final_boxes[0]
+                self.left_box.add_if_diff_from_avg(*left_eye[:-1])
 
-            x1, y1 = self.left_box.left_top
-            x2, y2 = self.left_box.right_bottom
-            self.left_eye.left_top.array[:] = int(x1.get()), int(y1.get())
-            self.left_eye.right_bottom.array[:] = int(x2.get()), int(y2.get())
+                x1, y1 = self.left_box.left_top
+                x2, y2 = self.left_box.right_bottom
+                self.left_eye.left_top.array[:] = int(x1.get()), int(y1.get())
+                self.left_eye.right_bottom.array[:] = int(x1.get()) + int(x2.get()), int(y1.get()) + int(y2.get())
+                self.right_eye.invalidate()
+        elif self.eyes_count == 2:
+            if len(final_boxes) == self.eyes_count:
+                left_eye = final_boxes[0] if final_boxes[0][0] < final_boxes[1][0] else final_boxes[1]
+                right_eye = final_boxes[0] if final_boxes[0][0] > final_boxes[1][0] else final_boxes[1]
+                self.left_box.add_if_diff_from_avg(*left_eye[:-1])
+                self.right_box.add_if_diff_from_avg(*right_eye[:-1])
 
-            x1, y1 = self.right_box.left_top
-            x2, y2 = self.right_box.right_bottom
-            self.right_eye.left_top.array[:] = int(x1.get()), int(y1.get())
-            self.right_eye.right_bottom.array[:] = int(x2.get()), int(y2.get())
+                x1, y1 = self.left_box.left_top
+                x2, y2 = self.left_box.right_bottom
+                self.left_eye.left_top.array[:] = int(x1.get()), int(y1.get())
+                self.left_eye.right_bottom.array[:] = int(x1.get()) + int(x2.get()), int(y1.get()) + int(y2.get())
+
+                x1, y1 = self.right_box.left_top
+                x2, y2 = self.right_box.right_bottom
+                self.right_eye.left_top.array[:] = int(x1.get()), int(y1.get())
+                self.right_eye.right_bottom.array[:] = int(x1.get()) + int(x2.get()), int(y1.get()) + int(y2.get())
+
         else:
             self.left_eye.invalidate()
             self.right_eye.invalidate()

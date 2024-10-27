@@ -53,7 +53,7 @@ class MainController(QObject):
         #  возможно стоит брать половину от средней задержки (количество кадров)
         #  и выводить просто кадры с опозданием, тогда будет слаженная информация на кадре
         coords = [BoundingBox(*t.coordinates_memory[:]) for t in self.trackers.values()]
-        frame = numpy.copy(self.video_adapter.get_video_frame())
+        frame = self.video_adapter.get_copy_video_frame()
         for c in coords:
             frame = cv2.rectangle(frame, (int(c.x1), int(c.y1)), (int(c.x2), int(c.y2)), color=(255, 0, 0),
                                   thickness=2)
