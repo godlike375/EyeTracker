@@ -19,12 +19,12 @@ class HaarModel:
 
 @dataclass
 class EyeAveragedBox:
-    x1: MovingAverageDenoiser = MovingAverageDenoiser(3)
-    x2: MovingAverageDenoiser = MovingAverageDenoiser(3)
-    y1: MovingAverageDenoiser = MovingAverageDenoiser(3)
-    y2: MovingAverageDenoiser = MovingAverageDenoiser(3)
+    x1: MovingAverageDenoiser = MovingAverageDenoiser(4)
+    x2: MovingAverageDenoiser = MovingAverageDenoiser(4)
+    y1: MovingAverageDenoiser = MovingAverageDenoiser(4)
+    y2: MovingAverageDenoiser = MovingAverageDenoiser(4)
 
-    def add_if_diff_from_avg(self, x, y, w, h, diff_by=0.4):
+    def add_if_diff_from_avg(self, x, y, w, h, diff_by=0.375):
         self.x1.add_if_diff_from_avg(x, diff_by)
         self.y1.add_if_diff_from_avg(y, diff_by)
         self.x2.add_if_diff_from_avg(w, diff_by)
