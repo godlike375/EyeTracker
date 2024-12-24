@@ -2,7 +2,7 @@ from multiprocessing import Process
 from statistics import mean
 
 from tracker.detectors.detectors import Detector
-from tracker.detectors.haar_eye_detector import HaarEyeValidator
+from tracker.detectors.haar_eye_detector import HaarCorrelationEyeValidator
 from tracker.detectors.mediapipe_detector import MediapipeMeshDetector
 from tracker.detectors.pupil_detectors import DarkAreaPupilDetector
 from tracker.utils.coordinates import Point, calc_center, BoundingBox
@@ -23,11 +23,16 @@ class DetectorsManager:
         self.left_pupil = SharedPoint('i', -1)
         self.right_pupil = SharedPoint('i', -1)
         self.fps = FPSLimiter(target_fps)
+        self.process = None
 
     def start_process(self):
-        process = Process(target=self.mainloop, daemon=True)
-        process.start()
-        return process
+        self.process = Process(target=self.mainloop, daemon=True)
+        self.process.start()
+        return self.process
+
+    def stop_process(self):
+        if self.process is not None:
+            self.process.kill()
 
     def mainloop(self):
         while True:

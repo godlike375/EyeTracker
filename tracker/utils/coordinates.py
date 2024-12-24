@@ -138,7 +138,7 @@ def int_avg(a, b):
     return int(avg(a, b))
 
 
-def close_to(a, b, multiplier=2):
+def avg_closer_to_min(a, b, multiplier=2):
     return (min(a, b) * multiplier + max(a, b)) // (multiplier + 1)
 
 

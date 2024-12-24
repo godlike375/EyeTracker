@@ -46,7 +46,3 @@ class CompressedImage(Packable):
                                int(datetime.timestamp(datetime.now()) * MSEC_IN_SEC))
 
 
-def resize_frame_relative(frame: numpy.ndarray, percent):
-    width = int(frame.shape[1] * percent)
-    height = int(frame.shape[0] * percent)
-    return cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)

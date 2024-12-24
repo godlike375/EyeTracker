@@ -139,6 +139,10 @@ class MoveController(Initializable, ThreadLoopable):
         self._current_position = position
         self._next_command_point = (position, COMMAND_MOVE)
 
+    @property
+    def current_position(self):
+        return self._current_position
+
     def calibrate_laser(self):
         logger.debug('laser calibrated')
         self._errored = False

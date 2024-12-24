@@ -14,7 +14,7 @@ from eye_tracker.common.settings import (
 )
 from eye_tracker.model.command_processor import CommandExecutor
 from eye_tracker.view.view_model import (
-    CALIBRATION_MENU_NAME, SELECTION_MENU_NAME, ROTATION_MENU_NAME,
+    CALIBRATION_MENU_NAME, START_TRACKING_MENU_NAME, ROTATION_MENU_NAME,
     FLIP_MENU_NAME, MANUAL_MENU_NAME, ABORT_MENU_NAME
 )
 from eye_tracker.view.window_settings import WindowSettings
@@ -61,8 +61,8 @@ class View:
         calibration_menu = self.setup_calibration_menu()
         main_menu.add_cascade(label=CALIBRATION_MENU_NAME, menu=calibration_menu)
 
-        object_callback = partial(self._view_model.new_selection, OBJECT)
-        main_menu.add_command(label=SELECTION_MENU_NAME, command=object_callback)
+        object_callback = partial(self._view_model.detect_eye_start_tracking)
+        main_menu.add_command(label=START_TRACKING_MENU_NAME, command=object_callback)
 
         main_menu.add_command(label=ABORT_MENU_NAME, command=self._view_model.cancel_active_process)
 

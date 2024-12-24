@@ -12,11 +12,11 @@ from tracker.utils.coordinates import Point
 
 
 class DarkAreaPupilDetector(PupilDetector):
-    def mainloop(self):
-        self.dark_threshold = MovingAverageDenoiser(4)
+    def in_process_init(self):
+        self.dark_threshold = MovingAverageDenoiser(10)
         self.x = MovingAverageDenoiser(4)
         self.y = MovingAverageDenoiser(4)
-        super().mainloop()
+        super().in_process_init()
 
     def stick_close_brightness(self, pairs, stick_threshold = 1, stick_count = 3):
         sticked_pairs = []
@@ -38,21 +38,25 @@ class DarkAreaPupilDetector(PupilDetector):
 
     def find_darkest_area(self, brightness_count, mean_brightness=None):
         dynamic_range = len(brightness_count)
-        shade_step = int(dynamic_range ** 0.27)
+        shade_step = int(dynamic_range ** 0.4)
 
         brightness_count = self.stick_close_brightness(brightness_count, stick_count=shade_step) or brightness_count
         brightness_count.sort(key=lambda x: x[1])
         # TODO: base каким сделать, чтобы не сливались области, когда всё темно?
         base_threshold = mean_brightness or 117
         brightest = max(brightness_count, key=lambda x: x[0])[0] + 1
-        darkest_weights = [int(v / ((i+1)/brightest) ** 14) for (i, v) in brightness_count]
+        darkest_weights = [int(v ** 2 * (brightest - i + 1) ** 13) for (i, v) in brightness_count]
         darkest_weighted = [(pair, weight) for pair, weight in zip(brightness_count, darkest_weights)]
         darkest_weighted.sort(key=lambda x: x[1], reverse=True)
         dark_threshold = darkest_weighted[0][0][0] if darkest_weighted else base_threshold
         return dark_threshold
 
     def find_optimal_threshold(self, blurred):
-        blurred = cv2.resize(blurred, (blurred.shape[0] // 2, blurred.shape[1] // 2))
+        resized = (blurred.shape[0] // 2, blurred.shape[1] // 2)
+        if resized[0] < 5 or resized[1] < 5:
+            self.pupil.invalidate()
+            return 64
+        blurred = cv2.resize(blurred, resized)
         hist = cv2.calcHist([blurred], [0], None, [256], [0, 256])
         # the coefficients are optimal in most scenarios
         #mean_brightness = numpy.mean(blurred, axis=(0, 1))
@@ -99,7 +103,11 @@ class DarkAreaPupilDetector(PupilDetector):
         return pupil, px, py, pw, ph, largest_area
 
     def detect(self, raw: numpy.ndarray):
-        gray = self.get_eye_frame(raw)
+        try:
+            gray = self.get_eye_frame(raw)
+        except:
+            self.pupil.invalidate()
+            return
         # blurred = self.blur_image(gray, blur=7)
         # blurred = self.blur_image(blurred, erode=2)
         # blurred = self.blur_image(blurred, blur=3)
@@ -124,15 +132,18 @@ class DarkAreaPupilDetector(PupilDetector):
         if pupil_by_contours is not None:
             self.x.add_if_diff_from_avg(pupil_by_contours[0])
             self.y.add_if_diff_from_avg(pupil_by_contours[1])
-            self.pupil.array[:] = int(self.x.get()), int(self.y.get())
+            self.pupil.array[:] = int(self.x.get() + self.detect_area.x1), int(self.y.get() + self.detect_area.y1)
         else:
-            self.pupil.invalidate()
+            # PROBABLY BLINKED
+            ...
+        # else:
+        #     self.pupil.invalidate()
 
 
 class HoughCirclesPupilDetector(PupilDetector):
     def detect(self, raw):
         gray = self.get_eye_frame(raw)
-        ex, ey = self._detect_area[0], self._detect_area[1]
+        ex, ey = self.detect_area[0], self.detect_area[1]
         center = self.detect_circles(self.blur_image(gray, blur=7, dilate=5))
         self.pupil.array[:] = center.x + ex, center.y + ey
 
@@ -161,5 +172,5 @@ class PupilLibraryDetector(PupilDetector):
     def detect(self, raw: numpy.ndarray):
         gray = self.get_eye_frame(raw)
         result = self.detector.locate(gray)
-        self.pupil.array[:] = int(result[1] + self._detect_area[0]),\
-                                                               int(result[0] + self._detect_area[1])
+        self.pupil.array[:] = int(result[1] + self.detect_area[0]),\
+                                                               int(result[0] + self.detect_area[1])

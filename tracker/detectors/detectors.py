@@ -9,7 +9,7 @@ import numpy as np
 from tracker.abstractions import ProcessBased
 from tracker.camera import VideoAdapter
 from tracker.utils.fps import FPSLimiter, FPS_120
-from tracker.utils.shared_objects import SharedBox, SharedPoint, SharedVector, INVALID_VALUE
+from tracker.utils.shared_objects import SharedBox, SharedPoint, SharedVector, INITIAL_VALUE
 
 
 MESH_POINTS_COUNT = 478
@@ -17,17 +17,28 @@ MESH_FACE_POINTS_COUNT = 468
 
 
 class Detector(ProcessBased):
-    def __init__(self, detect_area: SharedBox, video_adapter: VideoAdapter, target_fps: int):
+    def __init__(self, detect_area: SharedBox, video_adapter: VideoAdapter, target_fps: int, new_process: bool = True):
         super().__init__()
         self.video_adapter = video_adapter.send_to_process()
-        self._detect_area = detect_area
+        self.detect_area = detect_area
         self.fps = FPSLimiter(target_fps)
+        self.process = None
+        self.new_process = new_process
+
+    def in_process_init(self):
+        if self.new_process:
+            self.mainloop()
 
     def start_process(self):
-        process = Process(target=self.mainloop, daemon=True)
-        process.start()
+        self.process = Process(target=self.in_process_init, daemon=True)
+        self.process.start()
         self.start()
-        return process
+        return self.process
+
+    def stop_process(self):
+        if self.process is not None:
+            self.process.kill()
+        self.process = None
 
     @abstractmethod
     def detect(self, raw: numpy.ndarray):
@@ -65,17 +76,18 @@ class Detector(ProcessBased):
             self.detect(self.video_adapter.get_copy_video_frame())
 
     def get_eye_rgb_frame(self, raw: numpy.ndarray):
-        return raw[self._detect_area.y1: self._detect_area.y2, self._detect_area.x1: self._detect_area.x2]
+        return raw[self.detect_area.y1: self.detect_area.y2, self.detect_area.x1: self.detect_area.x2]
 
     def get_eye_frame(self, raw: numpy.ndarray):
-        while True:
-            eye_frame = self.get_eye_rgb_frame(raw)
-            try:
-                gray = cv2.cvtColor(eye_frame, cv2.COLOR_BGR2GRAY)
-                return gray
-            except:
-                sleep(FPS_120)
-                continue
+        eye_frame = self.get_eye_rgb_frame(raw)
+        try:
+            gray = cv2.cvtColor(eye_frame, cv2.COLOR_BGR2GRAY)
+            return gray
+        except:
+            print(self.detect_area.left_top.array[:], self.detect_area.right_bottom.array[:])
+            #sleep(FPS_120)
+            #continue
+        raise Exception('wrong detection area')
 
     def blur_image(self, gray: numpy.ndarray, blur=0, dilate=0, erode=0):
         blurred = gray
@@ -95,8 +107,8 @@ class Detector(ProcessBased):
 
 class EyeDetector(Detector):
     def __init__(self, *args, **kwargs):
-        self.left_eye = SharedBox('i', INVALID_VALUE)
-        self.right_eye = SharedBox('i', INVALID_VALUE)
+        self.left_eye = SharedBox('i', INITIAL_VALUE)
+        self.right_eye = SharedBox('i', INITIAL_VALUE)
         super().__init__(*args, **kwargs)
 
 
@@ -106,7 +118,7 @@ class EyeDetector(Detector):
 
 class PupilDetector(Detector):
     def __init__(self, *args, **kwargs):
-        self.pupil = SharedPoint('i', -1)
+        self.pupil = SharedPoint('i', INITIAL_VALUE)
         super().__init__(*args, **kwargs)
 
     def can_detect_pupil(self): return True
@@ -126,9 +138,9 @@ class BothPupilDetector(Detector):
 
 class FaceMeshDetector(BothPupilDetector, EyeDetector):
     def __init__(self, *args, **kwargs):
-        self.mesh: list[SharedVector] = [SharedVector('f', -1) for _ in range(MESH_POINTS_COUNT)]
-        self.left_pupil = SharedPoint('i', INVALID_VALUE)
-        self.right_pupil = SharedPoint('i', INVALID_VALUE)
+        self.mesh: list[SharedVector] = [SharedVector('f', INITIAL_VALUE) for _ in range(MESH_POINTS_COUNT)]
+        self.left_pupil = SharedPoint('i', INITIAL_VALUE)
+        self.right_pupil = SharedPoint('i', INITIAL_VALUE)
         EyeDetector.__init__(self, *args, **kwargs)
 
     def can_detect_mesh(self) -> bool: return True

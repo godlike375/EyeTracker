@@ -1,4 +1,5 @@
 import sys
+from functools import partial
 from time import time, sleep
 
 from eye_tracker.common.coordinates import Point
@@ -12,12 +13,14 @@ from eye_tracker.model.frame_processing import Tracker, CropZoomer
 from eye_tracker.model.move_controller import MoveController
 from eye_tracker.model.other_services import SelectingService, StateMachine, OnScreenService, \
     NoiseThresholdCalibrator, CoordinateSystemCalibrator
+from eye_tracker.model.selector import ObjectSelector
 from eye_tracker.view import view_output
 from eye_tracker.view.drawing import Processor
 from eye_tracker.view.view_model import ViewModel
-from tracker.detectors.haar_eye_detector import HaarEyeValidator
+from tracker.detectors.eye_pupil_detector import EyePupilDetector
+from tracker.detectors.haar_eye_detector import HaarCorrelationEyeValidator
 from tracker.detectors.pupil_detectors import DarkAreaPupilDetector
-from tracker.utils.shared_objects import SharedBox
+from tracker.utils.shared_objects import SharedBox, INVALID_VALUE
 
 
 # WARNING: Пробовал увеличивать количество потоков в программе до 4-х (+ экстрактор + трекер в своих потоках)
@@ -115,11 +118,9 @@ class Orchestrator(ThreadLoopable):
         self.second_timer = time()
         self.fps = 30
 
-        self.crop_detect_area = SharedBox('i', -1)
         self.eye_detect_area = SharedBox('i', -1)
 
-        self.pupil_detector: DarkAreaPupilDetector = None
-        self.eye_detector: HaarEyeValidator = None
+        self.detector: EyePupilDetector = None
 
         super().__init__(self._processing_loop, self._frame_interval, run_immediately)
 
@@ -129,9 +130,10 @@ class Orchestrator(ThreadLoopable):
         if self.selecting.selecting_in_progress(OBJECT) \
                 or not Processor.frames_are_same(frame, self.raw_frame) or passed > 0.2:
             self.raw_frame = frame
-            if self.tracker.in_progress and self._calibrating_in_progress():
-                self._tracking(frame)
-                self.frames_count += 1
+            if self.tracker.in_progress:# and self._calibrating_in_progress():
+                self.tracker.get_tracked_position(frame)
+            #    self._tracking(frame)
+            #    self.frames_count += 1
 
                 # if time() - self._throttle_to_fps_viewed < 1 / settings.FPS_VIEWED:
                 #     return
@@ -147,20 +149,26 @@ class Orchestrator(ThreadLoopable):
                 #                             Point(8, 16), 0.5)
 
             frame = self.screen.common_processing(frame)
+              # [*self.tracker.left_top]
 
             if not self._calibrating_in_progress():
-                if self.eye_detector and self.eye_detector.in_progress:
-                    self.crop_detect_area.left_top.array[:] = [0, 0]#[*self.tracker.left_top]
-                    self.crop_detect_area.right_bottom.array[:] = [frame.shape[1], frame.shape[0]]#[*self.tracker.right_bottom]
-                    eye_lt = Point(*self.eye_detector.left_eye.left_top.array[:])# + self.tracker.left_top
-                    eye_rb = Point(*self.eye_detector.left_eye.right_bottom.array[:])# + self.tracker.left_top
-                    frame = Processor.draw_rectangle(frame, eye_lt, eye_rb)
+                if self.detector and self.detector.process is not None:
+                    area = self.screen.get_selector(AREA)
+                    pts = area.calculate_correct_square_points()
+                    self.eye_detect_area.left_top.array[:] = [pts[0].x, pts[0].y]
+                    self.eye_detect_area.right_bottom.array[:] = [pts[1].x, pts[1].y]
 
-                if self.pupil_detector and self.pupil_detector.in_progress:
-                    self.eye_detect_area.left_top.array[:] = [*eye_lt]
-                    self.eye_detect_area.right_bottom.array[:] = [*eye_rb]
-                    frame = Processor.draw_circle(frame, Point(self.pupil_detector.pupil.x + eye_lt.x,
-                                                               self.pupil_detector.pupil.y + eye_lt.y))
+                    eye_lt = Point(*self.detector.eye_detector.left_eye.left_top.array[:])
+                    eye_rb = Point(*self.detector.eye_detector.left_eye.right_bottom.array[:])
+                    frame = Processor.draw_rectangle(frame, eye_lt, eye_rb)
+                    eye_center = Point(self.detector.pupil_detector.pupil.x,
+                                       self.detector.pupil_detector.pupil.y)
+                    if eye_center.x < 0 or eye_center.y < 0 or eye_lt.x < 0 or eye_lt.y < 0:
+                        self.cancel_active_process(False)
+                        view_output.show_error('Объект слежения был потерян. Пожалуйста, разместите объект'
+                                               'в выделенной зоне и начните трекинг заново')
+                    self._tracking(eye_center)
+                    frame = Processor.draw_circle(frame, eye_center)#eye_lt.y))
 
             if self.crop_zoomer.can_crop():
                frame = self.crop_zoomer.crop_zoom_frame(frame)
@@ -171,8 +179,7 @@ class Orchestrator(ThreadLoopable):
     def _calibrating_in_progress(self):
         return any([i.in_progress for i in self.calibrators.values()])
 
-    def _tracking(self, frame):
-        center = self.tracker.get_tracked_position(frame)
+    def _tracking(self, center):
         if self._calibrating_in_progress():
             return
         object_relative_coords = self._move_to_relative_cords(center)
@@ -216,7 +223,22 @@ class Orchestrator(ThreadLoopable):
         self.previous_area = area
         self.area_controller.set_area(area, self.laser.laser_borders)
         #self.crop_zoomer.set_zoom_area(area)
+        self.state_control.change_state('enter pressed')
         self.state_control.change_state('coordinate system calibrated')
+        self.state_control.change_state('object selected', False)
+
+    def detect_eye_start_tracking(self):
+        if self.detector is not None and self.detector.process is not None:
+            self.detector.stop_process()
+        self.detector = EyePupilDetector(eyes_count=1, averaging_frames_count=16,
+                                         eye_detect_area=self.eye_detect_area,
+                                         video_adapter=self.camera.video_adapter,
+                                         target_fps=settings.FPS_PROCESSED)
+        self.detector.start_process()
+
+        self._frame_interval.value = 1 / settings.FPS_PROCESSED
+        self._view_model.set_menu_state('all', 'disabled')
+        self.state_control.change_state('object selected')
 
     def _on_object_selected(self, run_thread_after=None):
         selected, object = self.selecting.check_selected_correctly(OBJECT)
@@ -226,23 +248,19 @@ class Orchestrator(ThreadLoopable):
             if out_of_area:
                 view_output.show_error('Невозможно выделить объект за границами области слежения.')
                 self.screen.remove_selector(OBJECT)
-            self.pupil_detector = DarkAreaPupilDetector(detect_area=self.eye_detect_area, video_adapter=self.camera.video_adapter,
-                                                        target_fps=settings.FPS_PROCESSED)
-            self.pupil_detector.start_process()
-            self.eye_detector = HaarEyeValidator(detect_area=self.crop_detect_area, video_adapter=self.camera.video_adapter,
-                                                 target_fps=settings.FPS_PROCESSED, eyes_count=1)
-            self.eye_detector.start_process()
 
         if not selected or out_of_area:
             self._view_model.new_selection(OBJECT, reselect_while_calibrating=True,
                                            additional_callback=run_thread_after)
             return
 
-        cropped_width = int(self.current_frame.shape[1])
-        cropped_height = int(self.current_frame.shape[0])
+        if self._calibrating_in_progress():
+            cropped_width = int(self.current_frame.shape[1])
+            cropped_height = int(self.current_frame.shape[0])
 
-        self.tracker.start_tracking(self.raw_frame, object.left_top, object.right_bottom, cropped_width, cropped_height)
-        self.screen.add_selector(self.tracker, OBJECT)
+            self.tracker.start_tracking(self.raw_frame, object.left_top, object.right_bottom, cropped_width, cropped_height)
+            self.screen.add_selector(self.tracker, OBJECT)
+
         self._frame_interval.value = 1 / settings.FPS_PROCESSED
         self._view_model.set_menu_state('all', 'disabled')
         self.state_control.change_state('object selected')
@@ -258,8 +276,21 @@ class Orchestrator(ThreadLoopable):
         calibrator = self.calibrators[name]
 
         calibrator.start()
-        self._view_model.new_selection(OBJECT, reselect_while_calibrating=True,
-                                       additional_callback=calibrator.calibrate)
+
+        if name == 'coordinate system':
+            left_top, right_bottom = calibrator.find_laser_coordinates()
+            on_selected = partial(self._on_object_selected, calibrator.calibrate)
+            selector = ObjectSelector(OBJECT, on_selected)
+            self.selecting._screen.add_selector(selector, OBJECT)
+            selector._left_top, selector._right_bottom = left_top, right_bottom
+            selector._points = [left_top, right_bottom]
+            selector.finish_selecting()
+            calibrator.calibrate()
+            self.state_control.change_state('enter pressed')
+            self.state_control.change_state('object selected')
+        else:
+            self._view_model.new_selection(OBJECT, reselect_while_calibrating=True,
+                                           additional_callback=calibrator.calibrate)
         self._view_model.progress_bar_set_visibility(True)
         self._view_model.set_progress(0)
 
@@ -290,7 +321,8 @@ class Orchestrator(ThreadLoopable):
         is_calibrating = self._calibrating_in_progress()
         is_selecting_in_progress = self.selecting.selecting_in_progress(AREA) or \
                                    self.selecting.selecting_in_progress(OBJECT)
-        is_active_process = is_selecting_in_progress or self.tracker.in_progress or is_calibrating
+        is_active_process = is_selecting_in_progress or self.tracker.in_progress\
+                            or is_calibrating or self.detector.process is not None
         if not is_active_process:
             return
         if need_confirm:
@@ -300,6 +332,8 @@ class Orchestrator(ThreadLoopable):
                     return
         if self.tracker.in_progress:
             self.screen.remove_selector(OBJECT)
+        if self.detector and self.detector.process:
+            self.detector.stop_process()
         self.selecting.cancel()
         cancel_all_calibrators = [i.cancel() for i in self.calibrators.values()]
         self._frame_interval.value = 1 / settings.FPS_VIEWED

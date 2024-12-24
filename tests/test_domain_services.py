@@ -2,7 +2,7 @@ from unittest.mock import Mock
 from time import sleep
 
 from eye_tracker.common.settings import settings, OBJECT, AREA, MAX_LASER_RANGE
-from eye_tracker.view.view_model import SELECTION_MENU_NAME
+from eye_tracker.view.view_model import START_TRACKING_MENU_NAME
 from eye_tracker.model.domain_services import ErrorHandler
 from eye_tracker.common.settings import FLIP_SIDE_NONE, FLIP_SIDE_VERTICAL
 from eye_tracker.common.coordinates import Point
@@ -49,12 +49,12 @@ def test_correct_tip_switch(fake_model, fake_area):
 
 def test_correct_menu_items_hidden(fake_model, fake_area):
     view_model = fake_model._view_model
-    assert view_model.menu_state == [('all', 'normal'), (SELECTION_MENU_NAME, 'disabled'),
-                                     (SELECTION_MENU_NAME, 'disabled'), (SELECTION_MENU_NAME, 'disabled')]
+    assert view_model.menu_state == [('all', 'normal'), (START_TRACKING_MENU_NAME, 'disabled'),
+                                     (START_TRACKING_MENU_NAME, 'disabled'), (START_TRACKING_MENU_NAME, 'disabled')]
     view_model.menu_state.clear()
 
     fake_model.calibrate_laser()
-    assert view_model.menu_state == [(SELECTION_MENU_NAME, 'disabled')]
+    assert view_model.menu_state == [(START_TRACKING_MENU_NAME, 'disabled')]
     view_model.menu_state.clear()
 
     settings.THRESHOLD_CALIBRATION_DURATION = 0
@@ -63,12 +63,12 @@ def test_correct_menu_items_hidden(fake_model, fake_area):
     fake_model.calibrate_noise_threshold()
     fake_model.selecting.try_create_selector(name=OBJECT, reselect_while_calibrating=True,
                                              additional_callback=thresh_calibrator.calibrate)
-    assert view_model.menu_state == [(SELECTION_MENU_NAME, 'disabled'), ('all', 'disabled')]
+    assert view_model.menu_state == [(START_TRACKING_MENU_NAME, 'disabled'), ('all', 'disabled')]
     view_model.menu_state.clear()
     thresh_calibrator.finish()
     thresh_calibrator._on_calibrated()
-    assert view_model.menu_state == [(SELECTION_MENU_NAME, 'disabled'), ('all', 'normal'),
-                                     (SELECTION_MENU_NAME, 'disabled'), (SELECTION_MENU_NAME, 'disabled')]
+    assert view_model.menu_state == [(START_TRACKING_MENU_NAME, 'disabled'), ('all', 'normal'),
+                                     (START_TRACKING_MENU_NAME, 'disabled'), (START_TRACKING_MENU_NAME, 'disabled')]
     view_model.menu_state.clear()
 
     fake_model.area_controller.set_area = Mock()
@@ -79,16 +79,16 @@ def test_correct_menu_items_hidden(fake_model, fake_area):
     fake_model.calibrate_coordinate_system()
     fake_model.selecting.try_create_selector(name=OBJECT, reselect_while_calibrating=True,
                                              additional_callback=coord_calibrator.calibrate)
-    assert view_model.menu_state == [(SELECTION_MENU_NAME, 'disabled'), ('all', 'disabled')]
+    assert view_model.menu_state == [(START_TRACKING_MENU_NAME, 'disabled'), ('all', 'disabled')]
     view_model.menu_state.clear()
 
     coord_calibrator._on_calibrated()
-    assert view_model.menu_state == [(SELECTION_MENU_NAME, 'disabled'), (SELECTION_MENU_NAME, 'disabled'),
-                                      (SELECTION_MENU_NAME, 'disabled'), ('all', 'normal')]
+    assert view_model.menu_state == [(START_TRACKING_MENU_NAME, 'disabled'), (START_TRACKING_MENU_NAME, 'disabled'),
+                                     (START_TRACKING_MENU_NAME, 'disabled'), ('all', 'normal')]
     view_model.menu_state.clear()
 
     fake_model._on_area_selected()
-    assert view_model.menu_state == [('all', 'normal'), (SELECTION_MENU_NAME, 'disabled')]
+    assert view_model.menu_state == [('all', 'normal'), (START_TRACKING_MENU_NAME, 'disabled')]
     view_model.menu_state.clear()
 
 

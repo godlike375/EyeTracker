@@ -32,15 +32,14 @@ right_pupil = 473
 
 
 class MediapipeMeshDetector(FaceMeshDetector):
-
-    def mainloop(self):
+    def in_process_init(self):
         self.detector = face_detector.FaceMesh(
             max_num_faces=1,
             refine_landmarks=True,
             min_detection_confidence=0.0000001,
             min_tracking_confidence=0.0000001
         )
-        super().mainloop()
+        super().in_process_init()
 
     def detect(self, raw: numpy.ndarray):
         frame = self.get_eye_rgb_frame(raw)

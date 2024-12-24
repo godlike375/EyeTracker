@@ -9,7 +9,7 @@ from eye_tracker.view import view_output
 from eye_tracker.view.drawing import Processor
 
 CALIBRATION_MENU_NAME = 'Откалибровать'
-SELECTION_MENU_NAME = 'Выделить объект'
+START_TRACKING_MENU_NAME = 'Начать трекинг'
 ROTATION_MENU_NAME = 'Повернуть'
 FLIP_MENU_NAME = 'Отразить'
 MANUAL_MENU_NAME = 'Ручное управление'
@@ -89,6 +89,9 @@ class ViewModel:
         elif event.keysym == 'Return':  # (enter)
             object_selector.finish_selecting()
             self._model.state_control.change_state('enter pressed')
+
+    def detect_eye_start_tracking(self):
+        self._model.detect_eye_start_tracking()
 
     def new_selection(self, name, reselect_while_calibrating=False, additional_callback=None, selector=None):
         # TODO: кроме name параметры нужны только чтобы передать их в new_selection модели
@@ -206,10 +209,11 @@ class ViewModel:
             for i in SAME_RULES_CHANGEABLE:
                 self.execute_command(partial(self._view._menu.entryconfig, i, state=state))
             if state == 'disabled':
-                self.set_menu_state(SELECTION_MENU_NAME, 'disabled')
+                self.set_menu_state(START_TRACKING_MENU_NAME, 'disabled')
                 self.set_menu_state(ABORT_MENU_NAME, 'normal')
             elif state == 'normal':
                 self.set_menu_state(ABORT_MENU_NAME, 'disabled')
+                self.set_menu_state(START_TRACKING_MENU_NAME, 'normal')
             return
 
         self.execute_command(partial(self._view._menu.entryconfig, label, state=state))

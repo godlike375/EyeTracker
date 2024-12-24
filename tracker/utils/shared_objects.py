@@ -2,11 +2,12 @@ from multiprocessing import Array, Value
 
 from tracker.utils.coordinates import calc_center, Point, BoundingBox
 
+INITIAL_VALUE = 0
 INVALID_VALUE = -1
 
 
 class SharedPoint:
-    def __init__(self, type: str = 'i', initial_value = INVALID_VALUE):
+    def __init__(self, type: str = 'i', initial_value = INITIAL_VALUE):
         self.array = Array(type, [initial_value] * 2)
 
     def invalidate(self):
@@ -30,18 +31,18 @@ class SharedPoint:
 
     @property
     def is_valid(self):
-        return self.x != INVALID_VALUE and self.y != INVALID_VALUE
+        return self.x != INITIAL_VALUE and self.y != INITIAL_VALUE
 
     def __add__(self, other):
         return Point(self.x + other.x, self.y + other.y)
 
 
 class SharedVector:
-    def __init__(self, type: str = 'f', initial_value = INVALID_VALUE):
+    def __init__(self, type: str = 'f', initial_value = INITIAL_VALUE):
         self.array = Array(type, [initial_value] * 3)
 
     def invalidate(self):
-        self.array[:] = INVALID_VALUE, INVALID_VALUE, INVALID_VALUE
+        self.array[:] = INITIAL_VALUE, INITIAL_VALUE, INITIAL_VALUE
 
     @property
     def x(self):
@@ -72,14 +73,14 @@ class SharedVector:
 
     @property
     def is_valid(self):
-        return self.x != INVALID_VALUE and self.y != INVALID_VALUE and self.z != INVALID_VALUE
+        return self.x != INITIAL_VALUE and self.y != INITIAL_VALUE and self.z != INITIAL_VALUE
 
     def to_point(self) -> Point:
         return Point(self.x, self.y)
 
 
 class SharedBox:
-    def __init__(self, type: str = 'i', initial_value = INVALID_VALUE):
+    def __init__(self, type: str = 'i', initial_value = INITIAL_VALUE):
         self.left_top = SharedPoint(type, initial_value)
         self.right_bottom = SharedPoint(type, initial_value)
 
