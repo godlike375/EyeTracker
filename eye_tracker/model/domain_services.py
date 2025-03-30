@@ -17,8 +17,6 @@ from eye_tracker.model.selector import ObjectSelector
 from eye_tracker.view import view_output
 from eye_tracker.view.drawing import Processor
 from eye_tracker.view.view_model import ViewModel
-from tracker.detectors.eye_pupil_detector import EyePupilDetector
-from tracker.detectors.haar_eye_detector import HaarCorrelationEyeValidator
 from tracker.detectors.pupil_detectors import DarkAreaPupilDetector
 from tracker.utils.shared_objects import SharedBox, INVALID_VALUE
 
@@ -120,7 +118,7 @@ class Orchestrator(ThreadLoopable):
 
         self.eye_detect_area = SharedBox('i', -1)
 
-        self.detector: EyePupilDetector = None
+        self.detector: DarkAreaPupilDetector = None
 
         super().__init__(self._processing_loop, self._frame_interval, run_immediately)
 
@@ -157,13 +155,9 @@ class Orchestrator(ThreadLoopable):
                     pts = area.calculate_correct_square_points()
                     self.eye_detect_area.left_top.array[:] = [pts[0].x, pts[0].y]
                     self.eye_detect_area.right_bottom.array[:] = [pts[1].x, pts[1].y]
-
-                    eye_lt = Point(*self.detector.eye_detector.left_eye.left_top.array[:])
-                    eye_rb = Point(*self.detector.eye_detector.left_eye.right_bottom.array[:])
-                    frame = Processor.draw_rectangle(frame, eye_lt, eye_rb)
-                    eye_center = Point(self.detector.pupil_detector.pupil.x,
-                                       self.detector.pupil_detector.pupil.y)
-                    if eye_center.x < 0 or eye_center.y < 0 or eye_lt.x < 0 or eye_lt.y < 0:
+                    eye_center = Point(self.detector.pupil.x,
+                                       self.detector.pupil.y)
+                    if eye_center.x < 0 or eye_center.y < 0:
                         self.cancel_active_process(False)
                         view_output.show_error('Объект слежения был потерян. Пожалуйста, разместите объект'
                                                'в выделенной зоне и начните трекинг заново')
@@ -230,10 +224,10 @@ class Orchestrator(ThreadLoopable):
     def detect_eye_start_tracking(self):
         if self.detector is not None and self.detector.process is not None:
             self.detector.stop_process()
-        self.detector = EyePupilDetector(eyes_count=1, averaging_frames_count=16,
-                                         eye_detect_area=self.eye_detect_area,
-                                         video_adapter=self.camera.video_adapter,
-                                         target_fps=settings.FPS_PROCESSED)
+        self.detector = DarkAreaPupilDetector(
+            detect_area=self.eye_detect_area,
+            video_adapter=self.camera.video_adapter,
+            target_fps=settings.FPS_PROCESSED)
         self.detector.start_process()
 
         self._frame_interval.value = 1 / settings.FPS_PROCESSED

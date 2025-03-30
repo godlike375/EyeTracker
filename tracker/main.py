@@ -28,7 +28,10 @@ def main(video_adapter: VideoAdapter, args, recording: SharedFlag):
     window.show()
     code = app.exec()
     for p in frontend.processes:
-        p.kill()
+        self.process.terminate()
+        self.process.join(timeout=2)
+        if self.process.is_alive():
+            self.process.kill()
     sys.exit(code)
 
 

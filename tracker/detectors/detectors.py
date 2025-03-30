@@ -37,7 +37,10 @@ class Detector(ProcessBased):
 
     def stop_process(self):
         if self.process is not None:
-            self.process.kill()
+            self.process.terminate()
+            self.process.join(timeout=2)
+            if self.process.is_alive():
+                self.process.kill()
         self.process = None
 
     @abstractmethod
@@ -81,10 +84,10 @@ class Detector(ProcessBased):
     def get_eye_frame(self, raw: numpy.ndarray):
         eye_frame = self.get_eye_rgb_frame(raw)
         try:
-            gray = cv2.cvtColor(eye_frame, cv2.COLOR_BGR2GRAY)
-            return gray
-        except:
-            print(self.detect_area.left_top.array[:], self.detect_area.right_bottom.array[:])
+            return cv2.cvtColor(eye_frame, cv2.COLOR_BGR2GRAY)
+        except cv2.error:
+            print(f'Некорректная область: {self.detect_area.left_top.array[:]},'
+                  f' {self.detect_area.right_bottom.array[:]}')
             #sleep(FPS_120)
             #continue
         raise Exception('wrong detection area')
@@ -101,7 +104,7 @@ class Detector(ProcessBased):
             blurred = cv2.erode(blurred, kernel, iterations=1)
         return blurred
 
-    def contrast_image(self, frame: numpy.ndarray, contrast=1.3, brightness = -60):
+    def contrast_image(self, frame: numpy.ndarray, contrast=1, brightness = 0):
         return cv2.addWeighted(frame, contrast, numpy.zeros(frame.shape, frame.dtype), 0, brightness)
 
 

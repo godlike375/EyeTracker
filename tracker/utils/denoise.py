@@ -3,7 +3,7 @@ from itertools import repeat
 
 
 def max_min_diff(a, b):
-    return abs(abs(max(a, b)) - abs(min(a, b)))
+    return max(a, b) - min(a, b)
 
 
 class MovingAverageDenoiser:
@@ -19,7 +19,7 @@ class MovingAverageDenoiser:
         self._sum += elem - self._buffer.popleft()
         self._buffer.append(elem)
 
-    def add_if_diff_from_avg(self, elem, diff_by: float = 0.375):
+    def add_if_diff_from_avg(self, elem, diff_by: float = 0.5):
         if not self._buffer:
             self._buffer = deque(repeat(elem, self._count))
             self._sum = sum(self._buffer)
@@ -44,7 +44,7 @@ class MovingAverageDenoiser2D:
         self.x_denoiser.add(elem[0])
         self.y_denoiser.add(elem[1])
 
-    def add_if_diff_from_avg(self, elem, diff_by: float = 0.33333):
+    def add_if_diff_from_avg(self, elem, diff_by: float = 0.5):
         self.x_denoiser.add_if_diff_from_avg(elem[0], diff_by)
         self.y_denoiser.add_if_diff_from_avg(elem[1], diff_by)
 
@@ -62,7 +62,7 @@ class MovingAverageDenoiser3D:
         self.y_denoiser.add(elem[1])
         self.z_denoiser.add(elem[2])
 
-    def add_if_diff_from_avg(self, elem, diff_by: float = 0.33333):
+    def add_if_diff_from_avg(self, elem, diff_by: float = 0.5):
         self.x_denoiser.add_if_diff_from_avg(elem[0], diff_by)
         self.y_denoiser.add_if_diff_from_avg(elem[1], diff_by)
         self.z_denoiser.add_if_diff_from_avg(elem[2], diff_by)

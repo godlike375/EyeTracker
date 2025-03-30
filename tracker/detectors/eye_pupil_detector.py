@@ -29,7 +29,10 @@ class EyePupilDetector:
 
     def stop_process(self):
         if self.process is not None:
-            self.process.kill()
+            self.process.terminate()
+            self.process.join(timeout=2)
+            if self.process.is_alive():
+                self.process.kill()
         self.process = None
 
     def in_process_init(self):

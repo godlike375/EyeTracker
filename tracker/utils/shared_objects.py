@@ -31,7 +31,7 @@ class SharedPoint:
 
     @property
     def is_valid(self):
-        return self.x != INITIAL_VALUE and self.y != INITIAL_VALUE
+        return self.x != INVALID_VALUE and self.y != INVALID_VALUE
 
     def __add__(self, other):
         return Point(self.x + other.x, self.y + other.y)
@@ -73,7 +73,7 @@ class SharedVector:
 
     @property
     def is_valid(self):
-        return self.x != INITIAL_VALUE and self.y != INITIAL_VALUE and self.z != INITIAL_VALUE
+        return self.x != INVALID_VALUE and self.y != INVALID_VALUE and self.z != INVALID_VALUE
 
     def to_point(self) -> Point:
         return Point(self.x, self.y)

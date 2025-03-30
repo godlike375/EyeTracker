@@ -77,5 +77,5 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Object Tracking Program')
     parser.add_argument('--root_dir', type=str, help='Root directory of the program')
     parser.add_argument('--debug', help='Simulate laser controller connection for debug purpose', action='store_true')
-    args = parser.parse_args()
+    args = parser.parse_args(sys.argv[1:])
     main(args)

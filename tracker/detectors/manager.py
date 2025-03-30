@@ -32,7 +32,10 @@ class DetectorsManager:
 
     def stop_process(self):
         if self.process is not None:
-            self.process.kill()
+            self.process.terminate()
+            self.process.join(timeout=2)
+            if self.process.is_alive():
+                self.process.kill()
 
     def mainloop(self):
         while True:

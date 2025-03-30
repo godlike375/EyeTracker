@@ -10,6 +10,8 @@ import numpy as np
 from fastdtw import fastdtw
 from scipy.spatial.distance import euclidean
 from scipy.stats import stats
+from scipy.spatial.distance import directed_hausdorff
+from sklearn.cluster import DBSCAN
 
 from eye_tracker.common.abstractions import ProcessBased, Calibrator
 from eye_tracker.common.coordinates import Point
@@ -488,6 +490,24 @@ class CoordinateSystemCalibrator(ProcessBased, Calibrator):
     def get_object_center(self, object):
         return object.center
 
+    def extract_contours(self, start_threshold, step, frames):
+        extracted_contours = []
+        for frame in frames:
+            mask = cv2.threshold(np.copy(frame), start_threshold, 255, cv2.THRESH_BINARY)[1]
+            if mask.max() == 0:
+                start_threshold -= step
+                print(start_threshold)
+                break
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (13, 13))
+            mask = cv2.erode(mask, kernel, iterations=1)
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (13, 13))
+            mask = cv2.dilate(mask, kernel, iterations=1)
+            # cv2.imshow('test', frame)
+            # cv2.waitKey(1)
+            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            extracted_contours.append(contours)
+        return start_threshold, step, extracted_contours
+
     def find_laser_coordinates(self):
         current_point = self._model.laser.current_position
         max_dist_point = max(self._laser_borders, key=lambda x: x.calc_distance(current_point))
@@ -499,27 +519,13 @@ class CoordinateSystemCalibrator(ProcessBased, Calibrator):
             frame = cv2.medianBlur(frame, 3)
             recorded_frames.append(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
             sleep(self._delay_sec)
+
+        sticked_objects = None
         start_threshold = 243
         step = 3
-        objects = {}
-        sticked_objects = None
-
         while start_threshold > 96:
-            extracted_contours = []
-            for frame in recorded_frames:
-                mask = cv2.threshold(np.copy(frame), start_threshold, 255, cv2.THRESH_BINARY)[1]
-                if mask.max() == 0:
-                    start_threshold -= step
-                    print(start_threshold)
-                    break
-                kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (13, 13))
-                mask = cv2.erode(mask, kernel, iterations=1)
-                kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (13, 13))
-                mask = cv2.dilate(mask, kernel, iterations=1)
-                #cv2.imshow('test', frame)
-                #cv2.waitKey(1)
-                contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                extracted_contours.append(contours)
+            start_threshold, step, extracted_contours = self.extract_contours(start_threshold, step, recorded_frames)
+
             tr = ContourTracker()
             objects = tr.track_moving_objects(extracted_contours)
             tr.calculate_objects_characteristics(objects)

@@ -148,11 +148,18 @@ class MainController(QObject):
     def on_calibration_stopped(self):
         if self.gaze_predictor:
             try:
-                self.gaze_predictor.calibration_process.kill()
+                self.gaze_predictor.calibration_process.terminate()
+                self.gaze_predictor.calibration_process.join(timeout=2)
+                if self.gaze_predictor.calibration_process.is_alive():
+                    self.gaze_predictor.calibration_process.kill()
             except:
                 ...
             try:
-                self.gaze_predictor.calibration_window.kill()
+                self.gaze_predictor.calibration_window.terminate()
+                self.gaze_predictor.calibration_window.terminate()
+                self.gaze_predictor.calibration_window.join(timeout=2)
+                if self.gaze_predictor.calibration_window.is_alive():
+                    self.gaze_predictor.calibration_window.kill()
             except:
                 ...
 
