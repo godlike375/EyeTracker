@@ -4,3 +4,4 @@ dlib
 opencv-python
 scikit-learn
 mediapipe
+msvc-runtime

@@ -6,12 +6,13 @@ from multiprocessing import Process
 import cv2
 from PyQt6.QtWidgets import QApplication
 
+sys.path.append('..')
+
 from tracker.camera import VideoAdapter, stream_video
 from tracker.ui.main_controller import MainController
 from tracker.ui.main_window import MainWindow
 from tracker.utils.shared_objects import SharedFlag
 
-sys.path.append('..')
 
 
 def main(video_adapter: VideoAdapter, args, recording: SharedFlag):
