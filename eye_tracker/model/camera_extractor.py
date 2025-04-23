@@ -7,8 +7,7 @@ import numpy as np
 
 from eye_tracker.common.abstractions import Initializable
 from eye_tracker.common.settings import settings, private_settings, FLIP_SIDE_NONE
-from eye_tracker.view import view_output
-from tracker.camera import VideoAdapter, stream_video
+from tracker.camera import VideoAdapter
 from tracker.utils.fps import FPSLimiter
 
 DEGREE_TO_CV2_MAP = {
@@ -60,8 +59,9 @@ def stream_loop(video_adapter: VideoAdapter, source = 0, fps=120, resolution=640
 
 
 class CameraService(Initializable):
-    def __init__(self, camera_id: int = settings.CAMERA_ID, auto_set=True):
+    def __init__(self, view_model: 'ViewModel', camera_id: int = settings.CAMERA_ID, auto_set=True):
         super().__init__(initialized=True)
+        self._view_model = view_model
         self._frame_rotate_degree = private_settings.ROTATION_ANGLE
         self._frame_flip_side = private_settings.FLIP_SIDE
         self.video_adapter: VideoAdapter = None
@@ -91,7 +91,7 @@ class CameraService(Initializable):
         if not self.try_set_camera(source):
             if not self.try_set_camera(DEFAULT_CAMERA_ID):
                 self.init_error()
-                view_output.show_error(
+                self._view_model.show_error(
                     f'Не удалось открыть заданную настройкой CAMERA_ID камеру '
                     f'{source}, а так же не удалось определить подходящую камеру автоматически. '
                     f'Программа продолжит работать без контроллера камеры.'

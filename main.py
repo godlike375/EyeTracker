@@ -4,6 +4,7 @@ from tkinter import Tk
 
 import eye_tracker.common.settings
 from eye_tracker.common.logger import logger, turn_logging_on
+from eye_tracker.common.native_rpc import RPCObjectServer
 from eye_tracker.common.program import save_data, exit_program
 from eye_tracker.common.settings import settings, SelectedArea, private_settings
 from eye_tracker.model.domain_services import Orchestrator
@@ -24,15 +25,17 @@ def main(args):
         eye_tracker.common.settings.ROOT_DIR = args.root_dir
     root = Tk()
     model_core = None
-    view_model = None
     try:
-        view_model = ViewModel(root)
-        form = View(root, view_model)
+        form = View(root)
+        vm = RPCObjectServer(use_thread=True)
+        view_model = ViewModel(form)
+        vm_proxy = vm.add_object('vm', view_model)
         view_output._view = form
-        view_model.set_view(form)
         settings.load()
         private_settings.load()
         Processor.load_color()
+        form.set_view_model(view_model)
+        form.setup()
     except Exception as e:
         view_output.show_error(title='Ошибка загрузки конфигурации',
                                message=f'{e} \nРабота программы будет продолжена, но возможны сбои в работе.'
@@ -48,8 +51,10 @@ def main(args):
         SelectedArea.remove()
     logger.debug('settings loaded')
     try:
-        model_core = Orchestrator(view_model, area=area, debug_on=args.debug)
-        view_model.set_model(model_core)
+        model_core = RPCObjectServer()
+        model_core.instantiate_object_from_class('model', Orchestrator, vm_proxy, area=area, debug_on=args.debug)
+
+        vm_proxy.set_model(model_core.model)
         logger.debug('mainloop started')
         def correctly_destroy_window():
             root.after_cancel(form._planned_task_id)
@@ -65,12 +70,12 @@ def main(args):
                                f'Работа программы не может быть продолжена. '
                                f'Будет произведена попытка сохранения данных')
         logger.exception(e)
-        save_data(model_core)
+        save_data(model_core.model)
         return
     except KeyboardInterrupt:
         logger.debug('interrupted using KeyboardInterrupt')
     logger.debug('mainloop finished')
-    exit_program(model_core)
+    exit_program(model_core.model)
 
 
 if __name__ == '__main__':

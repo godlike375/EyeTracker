@@ -14,7 +14,6 @@ from eye_tracker.model.move_controller import MoveController
 from eye_tracker.model.other_services import SelectingService, StateMachine, OnScreenService, \
     NoiseThresholdCalibrator, CoordinateSystemCalibrator
 from eye_tracker.model.selector import ObjectSelector
-from eye_tracker.view import view_output
 from eye_tracker.view.drawing import Processor
 from eye_tracker.view.view_model import ViewModel
 from tracker.detectors.pupil_detectors import DarkAreaPupilDetector
@@ -28,16 +27,16 @@ from tracker.utils.shared_objects import SharedBox, INVALID_VALUE
 
 class ErrorHandler:
     RESTART_IN_TIME_SEC = 10
+    fatal_error_repeat_count = 0
 
     def __init__(self, view_model, model):
-        self._fatal_error_count_repeatedly = 0
         self._view_model = view_model
         self._model = model
 
     def _handle_fatal_error(self, error):
-        self._fatal_error_count_repeatedly += 1
-        if self._fatal_error_count_repeatedly > 2:
-            view_output.show_error \
+        self.fatal_error_repeat_count += 1
+        if self.fatal_error_repeat_count > 2:
+            self._view_model.show_error \
                     (
                     f'В связи с множественными внутренними ошибками вида:\n\n'
                     f'[ {error} ] работа программы не может быть продолжена.\n\n'
@@ -51,10 +50,11 @@ class ErrorHandler:
             logger.debug('fatal error')
             exit_program(self._model, restart=True)
 
-    def handle_exceptions(self, func):
-        def wrapper(*args, **kwargs):
+    @staticmethod
+    def handle_exceptions(func):
+        def wrapper(self, *args, **kwargs):
             try:
-                func(*args, **kwargs)
+                return func(self, *args, **kwargs)
             except Exception as e:
                 if 'dictionary changed size during iteration' in str(e):
                     return
@@ -62,8 +62,8 @@ class ErrorHandler:
                     return
                 logger.exception('Unexpected exception:')
                 self._handle_fatal_error(e)
-            else:
-                self._fatal_error_count_repeatedly = 0
+            #else:
+            #    self.fatal_error_repeat_count = 0
 
         return wrapper
 
@@ -74,9 +74,9 @@ class Orchestrator(ThreadLoopable):
                  camera=None, laser=None):
         self._view_model = view_model
         self._error_handler = ErrorHandler(view_model, self)
-        self._processing_loop = self._error_handler.handle_exceptions(self._processing_loop)  # manual decoration
-
-        self.camera = camera or CameraService(settings.CAMERA_ID)
+        #self._processing_loop = self._error_handler.handle_exceptions(self._processing_loop)  # manual decoration
+        self.second_timer = time()
+        self.camera = camera or CameraService(self._view_model, settings.CAMERA_ID)
         self.area_controller = AreaController(min_xy=-MAX_LASER_RANGE,
                                               max_xy=MAX_LASER_RANGE)
         self.tracker = Tracker(settings.MEAN_COORDINATES_FRAME_COUNT)
@@ -84,7 +84,7 @@ class Orchestrator(ThreadLoopable):
         self.screen = OnScreenService(self)
         self.selecting = SelectingService(self._on_area_selected, self._on_object_selected, self, self.screen,
                                           self._view_model)
-        self.laser = laser or MoveController(self._on_laser_error, debug_on=debug_on)
+        self.laser = laser or MoveController(self._view_model, self._on_laser_error, debug_on=debug_on)
         self.crop_zoomer = CropZoomer(self)
 
         self.calibrators = {'noise threshold': NoiseThresholdCalibrator(self, self._view_model),
@@ -107,18 +107,17 @@ class Orchestrator(ThreadLoopable):
         self.current_frame = self.camera.extract_frame()
         self.raw_frame = None
 
-        self._processing_loop()
+        self.detector: DarkAreaPupilDetector = None
 
         if area is not None:
             self.selecting.load_selected_area(area)
 
         self.calibrate_laser()
-        self.second_timer = time()
         self.fps = 30
 
         self.eye_detect_area = SharedBox('i', -1)
 
-        self.detector: DarkAreaPupilDetector = None
+        self._processing_loop()
 
         super().__init__(self._processing_loop, self._frame_interval, run_immediately)
 
@@ -159,7 +158,7 @@ class Orchestrator(ThreadLoopable):
                                        self.detector.pupil.y)
                     if eye_center.x < 0 or eye_center.y < 0:
                         self.cancel_active_process(False)
-                        view_output.show_error('Объект слежения был потерян. Пожалуйста, разместите объект'
+                        self._view_model.show_error('Объект слежения был потерян. Пожалуйста, разместите объект'
                                                'в выделенной зоне и начните трекинг заново')
                     self._tracking(eye_center)
                     frame = Processor.draw_circle(frame, eye_center)#eye_lt.y))
@@ -240,7 +239,7 @@ class Orchestrator(ThreadLoopable):
         if selected and not (self._calibrating_in_progress()):
             out_of_area = self.area_controller.point_is_out_of_area(object.center)
             if out_of_area:
-                view_output.show_error('Невозможно выделить объект за границами области слежения.')
+                self._view_model.show_error('Невозможно выделить объект за границами области слежения.')
                 self.screen.remove_selector(OBJECT)
 
         if not selected or out_of_area:
@@ -321,7 +320,7 @@ class Orchestrator(ThreadLoopable):
             return
         if need_confirm:
             if is_active_process:
-                need_confirm = view_output.ask_confirmation('Прервать активный процесс?')
+                need_confirm = self._view_model.ask_confirmation('Прервать активный процесс?')
                 if not need_confirm:
                     return
         if self.tracker.in_progress:
@@ -341,7 +340,7 @@ class Orchestrator(ThreadLoopable):
             return
 
         if self.selecting.selecting_is_done(AREA):
-            confirm = view_output.ask_confirmation('Выделенная область будет стёрта. Продолжить?')
+            confirm = self._view_model.ask_confirmation('Выделенная область будет стёрта. Продолжить?')
             if not confirm:
                 return
 
@@ -362,7 +361,7 @@ class Orchestrator(ThreadLoopable):
             return
 
         if self.selecting.selecting_is_done(AREA):
-            confirm = view_output.ask_confirmation('Выделенная область будет стёрта. Продолжить?')
+            confirm = self._view_model.ask_confirmation('Выделенная область будет стёрта. Продолжить?')
             if not confirm:
                 return
 

@@ -1,4 +1,5 @@
 from functools import partial
+from threading import Thread
 from tkinter import (
     Label, Tk, Frame, Menu,
     TOP, BOTTOM, X, W, IntVar
@@ -26,9 +27,9 @@ REQUIRED_MENU_WIDTH = 780
 
 
 class View:
-    def __init__(self, tk: Tk, view_model):
-        self._root = tk
-        self._view_model = view_model
+    def __init__(self, root: Tk):
+        self._root = root
+        self._view_model = None
         self._image_alive_ref = None
         self._current_image = None
         self._previous_image = None
@@ -40,7 +41,7 @@ class View:
         self._indicators_frame = Frame(self._video_frame)
         self._tip = Label(self._indicators_frame, text='Подсказка: ')
         self._progress_bar = Progressbar(self._indicators_frame)
-        self._settings = WindowSettings(self._root, self._view_model)
+        self._settings = None
 
         self._commands = CommandExecutor()
 
@@ -50,8 +51,16 @@ class View:
         self._planned_task_id = None
         self._visible_messageboxes = []
 
+    def setup(self):
         self.setup_menus()
+        self.init_settings_window()
         self.setup_layout()
+
+    def init_settings_window(self):
+        self._settings = WindowSettings(self._root, self._view_model)
+
+    def set_view_model(self, view_model):
+        self._view_model = view_model
 
     def setup_menus(self):
         main_menu = Menu(self._root)
@@ -84,11 +93,17 @@ class View:
 
     def setup_calibration_menu(self):
         calibration_menu = Menu(tearoff=False)
-        calibration_menu.add_command(label='Лазер', command=self._view_model.calibrate_laser, activebackground='black')
+        def test():
+            ...
+        calibration_menu.add_command(label='Лазер', command=test, activebackground='black')
         calibration_menu.add_command(label='Шумоподавление',
-                                     command=self._view_model.calibrate_noise_threshold, activebackground='black')
-        calibration_menu.add_command(label='Координатную систему',
-                                     command=self._view_model.calibrate_coordinate_system, activebackground='black')
+                                     command=test, activebackground='black')
+        calibration_menu.add_command(label='Координатную систему', command=test, activebackground='black')
+        #calibration_menu.add_command(label='Лазер', command=self._view_model.calibrate_laser, activebackground='black')
+        # calibration_menu.add_command(label='Шумоподавление',
+        #                              command=self._view_model.calibrate_noise_threshold, activebackground='black')
+        # calibration_menu.add_command(label='Координатную систему',
+        #                              command=self._view_model.calibrate_coordinate_system, activebackground='black')
         return calibration_menu
 
     def setup_rotation_menu(self):

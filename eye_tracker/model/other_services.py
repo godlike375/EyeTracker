@@ -10,9 +10,6 @@ import numpy as np
 from fastdtw import fastdtw
 from scipy.spatial.distance import euclidean
 from scipy.stats import stats
-from scipy.spatial.distance import directed_hausdorff
-from sklearn.cluster import DBSCAN
-
 from eye_tracker.common.abstractions import ProcessBased, Calibrator
 from eye_tracker.common.coordinates import Point
 
@@ -20,7 +17,6 @@ from eye_tracker.common.logger import logger
 from eye_tracker.common.settings import AREA, OBJECT, settings, MIN_THROTTLE_DIFFERENCE
 from eye_tracker.common.thread_helpers import threaded
 from eye_tracker.model.selector import AreaSelector, ObjectSelector
-from eye_tracker.view import view_output
 from eye_tracker.view.view_model import START_TRACKING_MENU_NAME
 from eye_tracker.view.drawing import Processor
 from tracker.utils.image_processing import resize_frame_relative
@@ -84,7 +80,7 @@ class SelectingService(ProcessBased):
     def check_emptiness(self, selector, name):
         if selector is None or selector.is_empty:
             logger.warning('selected area is too small in size')
-            view_output.show_error('Выделенная область слишком мала или некорректно выделена.', 'Ошибка')
+            self._view_model.show_error('Выделенная область слишком мала или некорректно выделена.', 'Ошибка')
             self._screen.remove_selector(name)
 
     def create_selector(self, name, call_func_after_selection=None):
@@ -127,7 +123,7 @@ class SelectingService(ProcessBased):
             return True
 
         if self.selecting_is_done(OBJECT):
-            confirm = view_output.ask_confirmation('Выделенный объект перестанет отслеживаться. Продолжить?')
+            confirm = self._view_model.ask_confirmation('Выделенный объект перестанет отслеживаться. Продолжить?')
             if not confirm:
                 return False
 
@@ -142,7 +138,7 @@ class SelectingService(ProcessBased):
         if self.selecting_is_done(OBJECT):
             tracking_stop_question = 'Слежение за целью будет остановлено. '
         if self.selecting_is_done(AREA):
-            confirm = view_output.ask_confirmation(f'{tracking_stop_question}'
+            confirm = self._view_model.ask_confirmation(f'{tracking_stop_question}'
                                                    f'Выделенная область будет стёрта. Продолжить?')
             if not confirm:
                 return False
@@ -278,7 +274,7 @@ class NoiseThresholdCalibrator(ProcessBased, Calibrator):
         self._model.try_restore_previous_area()
         self._model.state_control.change_state('noise threshold calibrated')
         settings.NOISE_THRESHOLD_RANGE = round(settings.NOISE_THRESHOLD_RANGE, 3)
-        view_output.show_message('Калибровка шумоподавления успешно завершена.')
+        self._view_model.show_message('Калибровка шумоподавления успешно завершена.')
 
     def cancel(self):
         if not self.in_progress:
@@ -543,7 +539,7 @@ class CoordinateSystemCalibrator(ProcessBased, Calibrator):
                 start_threshold -= step
 
         if not sticked_objects:
-            view_output.show_error('Не удалось автоматически определить позицию лазера на основе имеющихся изображений')
+            self._view_model.show_error('Не удалось автоматически определить позицию лазера на основе имеющихся изображений')
             raise Exception('Не удалось автоматически определить позицию лазера на основе имеющихся изображений')
         ids = list(sticked_objects.keys())
         ids.extend([id for id in sticked_objects[ids[0]]])
@@ -588,13 +584,13 @@ class CoordinateSystemCalibrator(ProcessBased, Calibrator):
         self._view_model.progress_bar_set_visibility(False)
         self._model.state_control.change_state('object selected', happened=False)
         if self._area.is_empty:
-            view_output.show_error('Необходимо повторить калибровку на более близком расстоянии '
+            self._view_model.show_error('Необходимо повторить калибровку на более близком расстоянии '
                                    'камеры от области лазера.')
             self.cancel()
             return
 
         self._model.area_controller.set_area(self._area, self._laser_borders)
-        view_output.show_message('Калибровка координатной системы успешно завершена.')
+        self._view_model.show_message('Калибровка координатной системы успешно завершена.')
         self.finish()
         self._model.center_laser()
 

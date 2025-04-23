@@ -8,7 +8,6 @@ from eye_tracker.common.coordinates import Point
 from eye_tracker.common.logger import logger
 from eye_tracker.common.settings import settings, CALIBRATE_LASER_COMMAND, MAX_LASER_RANGE
 from eye_tracker.common.thread_helpers import ThreadLoopable, MutableValue
-from eye_tracker.view import view_output
 
 READY = 'ready'
 ERRORED = 'error'
@@ -20,9 +19,9 @@ SERIAL_TIMEOUT = 0.1
 
 class MoveController(Initializable, ThreadLoopable):
 
-    def __init__(self, on_laser_error, manual_port=None, baud_rate=None, debug_on=False, run_immediately=True):
+    def __init__(self, view_model: 'ViewModel', on_laser_error, manual_port=None, baud_rate=None, debug_on=False, run_immediately=True):
         Initializable.__init__(self, initialized=True)
-
+        self._view_model = view_model
         manual_port = manual_port or f'COM{settings.SERIAL_PORT}'
         baud_rate = baud_rate or DEFAULT_BAUD_RATE
         self._stable_position_timer = 0
@@ -42,7 +41,7 @@ class MoveController(Initializable, ThreadLoopable):
         self.laser_borders = [left_top, right_top, right_bottom, left_bottom]
 
         if debug_on:
-            view_output.show_warning('Последовательный порт используется в режиме отладки')
+            self._view_model.show_warning('Последовательный порт используется в режиме отладки')
             ThreadLoopable.__init__(self, self._processing_loop, self._pool_interval, run_immediately=run_immediately)
             return
 
@@ -52,7 +51,7 @@ class MoveController(Initializable, ThreadLoopable):
             if manual_port not in ports_names or ports_names[manual_port] != LASER_DEVICE_NAME:
                 predicate = [(LASER_DEVICE_NAME in description) for description in ports_descriptions]
                 if not any(predicate):
-                    view_output.show_error(
+                    self._view_model.show_error(
                         f'Не удалось открыть заданный настройкой SERIAL_PORT последовательный порт'
                         f' {manual_port}, а так же не удалось определить подходящий порт автоматически.'
                         f' Программа продолжит работать без контроллера лазера.')
@@ -78,7 +77,7 @@ class MoveController(Initializable, ThreadLoopable):
         self._ready = self._ready or READY in str(serial_data)
 
         if new_errored and self._errored != new_errored:
-            view_output.show_error('Контроллер лазера внезапно дошёл до предельных координат. \n'
+            self._view_model.show_error('Контроллер лазера внезапно дошёл до предельных координат. \n'
                                    'Необходимо откалибровать контроллер лазера повторно. '
                                    'До этого момента слежение за объектом невозможно')
             self._errored = new_errored

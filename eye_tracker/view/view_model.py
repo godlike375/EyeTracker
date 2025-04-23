@@ -1,11 +1,12 @@
 from functools import partial
-from tkinter import Tk, END, colorchooser
+from tkinter import Tk, END, colorchooser, messagebox
+
+from eye_tracker.common.logger import logger
 
 from eye_tracker.common.program import exit_program
 from eye_tracker.common.coordinates import Point
 from eye_tracker.common.settings import settings, private_settings
 from eye_tracker.model.selector import LEFT_CLICK, LEFT_DOWN, LEFT_UP
-from eye_tracker.view import view_output
 from eye_tracker.view.drawing import Processor
 
 CALIBRATION_MENU_NAME = 'Откалибровать'
@@ -24,18 +25,17 @@ B_INDEX = 2
 PARAMETERS_APPLIED_AFTER_RESTART = 'Большинство параметров будут применены после перезапуска программы. ' \
                                    'Желаете перезапустить программу сейчас?'
 
+DEFAULT_TIMEOUT_MS = 8500
+
 
 class ViewModel:
-    def __init__(self, root: Tk):
-        self._root = root
+    def __init__(self, view: 'View'):
+        self._root = view._root
         self._model = None
-        self._view = None
+        self._view = view
 
     def set_model(self, model):
         self._model = model
-
-    def set_view(self, view):
-        self._view = view
 
     def on_image_ready(self, image):
         self._view._current_image = image
@@ -152,31 +152,32 @@ class ViewModel:
                 number_param = float(text_param) if '.' in text_param else int(text_param)
             except ValueError:
                 errored = True
-                view_output.show_error(f'Некорректное значение параметра {name}:'
+                self.show_error(f'Некорректное значение параметра {name}:'
                                        f' ожидалось число, введено "{text_param}". Параметр не применён.')
             else:
                 errored = not settings.__setattr__(name, number_param) or errored
         if errored:
-            self._view.focus_on_settings_window()
+            self._view._commands.queue_command(self._view.focus_on_settings_window)
             return
         settings.save()
-        confirm = view_output.ask_confirmation(PARAMETERS_APPLIED_AFTER_RESTART)
+        confirm = self.ask_confirmation(PARAMETERS_APPLIED_AFTER_RESTART)
         if confirm:
             exit_program(self._model, restart=True)
         else:
-            self._view.destroy_settings_window()
+            self._view._commands.queue_command(self._view.destroy_settings_window)
+
 
     def rotate_image(self, degree):
         self._model.rotate_image(degree)
 
     def set_rotate_angle(self, angle):
-        self._view._rotate_var.set(angle)
+        self._view._commands.queue_command(partial(self._view._rotate_var.set, angle))
 
     def flip_image(self, side):
         self._model.flip_image(side)
 
     def set_flip_side(self, side):
-        self._view._flip_var.set(side)
+        self._view._commands.queue_command(partial(self._view._flip_var.set, side))
 
     def setup_window_geometry(self, reverse):
         self._view._commands.queue_command(partial(self._view.setup_window_geometry, reverse))
@@ -192,13 +193,13 @@ class ViewModel:
         Processor.load_color()
 
     def reset_settings(self):
-        confirm = view_output.ask_confirmation('Вы точно желаете сбросить все настройки до значений по-умолчанию?')
+        confirm = self.ask_confirmation('Вы точно желаете сбросить все настройки до значений по-умолчанию?')
         if not confirm:
             self._view.focus_on_settings_window()
             return
         settings.reset()
         private_settings.reset()
-        confirm = view_output.ask_confirmation(PARAMETERS_APPLIED_AFTER_RESTART)
+        confirm = self.ask_confirmation(PARAMETERS_APPLIED_AFTER_RESTART)
         if confirm:
             exit_program(self._model, restart=True)
         else:
@@ -220,3 +221,41 @@ class ViewModel:
 
     def execute_command(self, command):
         self._view.queue_command(command)
+
+    def create_temp_messagebox(self, title, message, timeout, show_function):
+        root = Tk()
+        root.withdraw()
+        root._planned_task_id = None
+        self._view._visible_messageboxes.append(root)
+
+        def correctly_destroy_window():
+            if not root in self._view._visible_messageboxes:
+                return
+            root.after_cancel(root._planned_task_id)
+            root.destroy()
+            self._view._visible_messageboxes.remove(root)
+
+        root.protocol("WM_DELETE_WINDOW", correctly_destroy_window)
+
+        root._planned_task_id = root.after(timeout, correctly_destroy_window)
+        show_function(title, message, master=root)
+
+    def show_message(self, message: str, title: str = '', timeout=DEFAULT_TIMEOUT_MS):
+        logger.debug(message)
+        self._view.queue_command(partial(self.create_temp_messagebox, title, message, timeout, messagebox.showinfo))
+
+    def show_warning(self, message: str, title: str = 'Предупреждение', timeout=DEFAULT_TIMEOUT_MS):
+        logger.warning(message)
+        self._view.queue_command(partial(self.create_temp_messagebox, title, message, timeout, messagebox.showwarning))
+
+    def show_error(self, message: str, title: str = 'Ошибка', timeout=DEFAULT_TIMEOUT_MS):
+        logger.error(message)
+        self._view.queue_command(partial(self.create_temp_messagebox, title, message, timeout, messagebox.showerror))
+
+    def show_fatal(self, e):
+        self.show_error(title='Ошибка',
+                   message=f'Фатальная ошибка.\n{e}')
+        logger.fatal(e)
+
+    def ask_confirmation(self, question):
+        return messagebox.askyesno(title='Предупреждение', message=question)
