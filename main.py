@@ -1,4 +1,5 @@
 import argparse
+import multiprocessing
 from pathlib import Path
 from tkinter import Tk
 
@@ -19,6 +20,7 @@ sys.setswitchinterval(1 / (settings.FPS_PROCESSED * 1.5))
 
 
 def main(args):
+    multiprocessing.freeze_support()
     turn_logging_on(logger)
     eye_tracker.common.settings.ROOT_DIR = Path(__file__).absolute().parent
     if args.root_dir:
