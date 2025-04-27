@@ -1,5 +1,5 @@
 import traceback
-from multiprocessing import Process, Pipe
+from multiprocessing import Process
 from multiprocessing.connection import Listener, Client, Connection
 from threading import Thread
 from concurrent.futures import ThreadPoolExecutor
@@ -20,7 +20,7 @@ class RPCObjectProxy:
         conn = self._get_conn()
         obj_name = object.__getattribute__(self, '_object_name')
 
-        conn.send({'action': 'is_callable', 'object_name': obj_name, 'attr': name})
+        conn.send({'action': 'is_callable', 'obj_name': obj_name, 'attr': name})
         response = conn.recv()
         if 'error' in response:
             raise AttributeError(response['error'])
@@ -30,7 +30,7 @@ class RPCObjectProxy:
             def method(*args, **kwargs):
                 request = {
                     'action': 'call',
-                    'object_name': obj_name,
+                    'obj_name': obj_name,
                     'method': name,
                     'args': args,
                     'kwargs': kwargs
@@ -43,7 +43,7 @@ class RPCObjectProxy:
                 return response['result']
             return method
         else:
-            conn.send({'action': 'getattr', 'object_name': obj_name, 'attr': name})
+            conn.send({'action': 'getattr', 'obj_name': obj_name, 'attr': name})
             response = conn.recv()
             if 'error' in response:
                 raise AttributeError(response['error'])
@@ -54,7 +54,7 @@ class RPCObjectProxy:
         obj_name = object.__getattribute__(self, '_object_name')
         request = {
             'action': 'setattr',
-            'object_name': obj_name,
+            'obj_name': obj_name,
             'attr': name,
             'value': value
         }
@@ -67,24 +67,25 @@ class RPCObjectProxy:
     def __getstate__(self):
         return {
             'address': object.__getattribute__(self, '_address'),
-            'object_name': object.__getattribute__(self, '_object_name')
+            'obj_name': object.__getattribute__(self, '_object_name')
         }
 
     def __setstate__(self, state):
         object.__setattr__(self, '_address', state['address'])
-        object.__setattr__(self, '_object_name', state['object_name'])
+        object.__setattr__(self, '_object_name', state['obj_name'])
         object.__setattr__(self, '_conn', None)
+
 
 class RPCObjectServer:
     def __init__(self, address: tuple, use_thread: bool = False, start: bool = True):
         self._address = address
         self._use_thread = use_thread
-        self._control_parent_conn, self._control_child_conn = Pipe()
         self._objects = {}  # Shared memory for threading mode
+        self._executor = None
         if use_thread:
-            self._parallel = Thread(target=self.serve_threading, args=(self._address, self._control_child_conn))
+            self._parallel = Thread(target=self.serve, args=(self._address,), daemon=True)
         else:
-            self._parallel = Process(target=self.serve_processing, args=(self._address, self._control_child_conn))
+            self._parallel = Process(target=self.serve, args=(self._address,))
         if start:
             self.start()
 
@@ -94,14 +95,18 @@ class RPCObjectServer:
     def terminate_and_join(self):
         if isinstance(self._parallel, Process):
             self._parallel.terminate()
+        else:
+            self._executor.shutdown(wait=False)
+            exit()
         self._parallel.join()
 
     def add_object(self, name: str, obj: object) -> RPCObjectProxy:
         if self._use_thread:
             self._objects[name] = obj
         else:
-            self._control_parent_conn.send({'action': 'add_object', 'name': name, 'object': obj})
-            response = self._control_parent_conn.recv()
+            conn = Client(self._address)
+            conn.send({'action': 'add_object', 'name': name, 'object': obj})
+            response = conn.recv()
             if 'error' in response:
                 raise Exception(f"Error adding object: {response['error']}")
         return self.get_proxy(name)
@@ -117,8 +122,9 @@ class RPCObjectServer:
                 'args': args,
                 'kwargs': kwargs
             }
-            self._control_parent_conn.send(request)
-            response = self._control_parent_conn.recv()
+            conn = Client(self._address)
+            conn.send(request)
+            response = conn.recv()
             if 'error' in response:
                 raise AttributeError(response['error'])
         return self.get_proxy(name)
@@ -137,93 +143,59 @@ class RPCObjectServer:
         else:
             self.add_object(name, obj)
 
-    def serve_processing(self, address, control_conn: Connection):
-        listener = Listener(address)
+    def serve(self, address):
+        listener = Listener(address, family='AF_INET')
 
         def handle_connection(conn: Connection, objects_dict: dict):
             while True:
                 try:
                     request = conn.recv()
+                    print(request)
                     response = RPCObjectServer.handle_request(request, objects_dict)
                     conn.send(response)
                 except EOFError:
                     break
             conn.close()
 
-        with ThreadPoolExecutor(max_workers=10) as executor:
+        self._executor = ThreadPoolExecutor(max_workers=100)
+        with self._executor as executor:
             while True:
-                if control_conn.poll():
-                    cmd = control_conn.recv()
-                    print(cmd)
-                    if cmd['action'] == 'add_object':
-                        self._objects[cmd['name']] = cmd['object']
-                        control_conn.send({'result': None})
-                    elif cmd['action'] == 'instantiate':
-                        cls = cmd['class']
-                        args = cmd['args']
-                        kwargs = cmd['kwargs']
-                        self._objects[cmd['name']] = cls(*args, **kwargs)
-                        control_conn.send({'result': None})
-
-                conn = listener.accept()
-                executor.submit(handle_connection, conn, self._objects)
-
-    def serve_threading(self, address, control_conn: Connection):
-        listener = Listener(address)
-
-        def handle_connection(conn: Connection, objects_dict: dict):
-            while True:
-                try:
-                    request = conn.recv()
-                    response = RPCObjectServer.handle_request(request, objects_dict)
-                    conn.send(response)
-                except EOFError:
-                    break
-            conn.close()
-
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            while True:
-                if control_conn.poll():
-                    cmd = control_conn.recv()
-                    if cmd['action'] == 'add_object':
-                        self._objects[cmd['name']] = cmd['object']
-                        control_conn.send({'result': None})
-                    elif cmd['action'] == 'instantiate':
-                        cls = cmd['class']
-                        args = cmd['args']
-                        kwargs = cmd['kwargs']
-                        self._objects[cmd['name']] = cls(*args, **kwargs)
-                        control_conn.send({'result': None})
-
                 conn = listener.accept()
                 executor.submit(handle_connection, conn, self._objects)
 
     @staticmethod
     def handle_request(request, objects):
-        action = request.get('action')
+        cmd = request.get('action')
         try:
-            if action == 'call':
-                obj = objects[request['object_name']]
-                method = getattr(obj, request['method'])
-                result = method(*request['args'], **request['kwargs'])
-                return {'result': result}
+            match cmd:
+                case 'call':
+                    obj = objects[request['obj_name']]
+                    method = getattr(obj, request['method'])
+                    result = method(*request['args'], **request['kwargs'])
+                    return {'result': result}
+                case 'getattr':
+                    obj = objects[request['obj_name']]
+                    return {'result': getattr(obj, request['attr'])}
 
-            elif action == 'getattr':
-                obj = objects[request['object_name']]
-                return {'result': getattr(obj, request['attr'])}
-
-            elif action == 'setattr':
-                obj = objects[request['object_name']]
-                setattr(obj, request['attr'], request['value'])
-                return {'result': request['value']}
-
-            elif action == 'is_callable':
-                obj = objects[request['object_name']]
-                attr = getattr(obj, request['attr'])
-                return {'result': callable(attr)}
-
-            else:
-                return {'error': 'Unknown action: ' + str(action)}
+                case 'setattr':
+                    obj = objects[request['obj_name']]
+                    setattr(obj, request['attr'], request['value'])
+                    return {'result': request['value']}
+                case 'is_callable':
+                    obj = objects[request['obj_name']]
+                    attr = getattr(obj, request['attr'])
+                    return {'result': callable(attr)}
+                case 'add_object':
+                    objects[request['name']] = request['object']
+                    return {'result': None}
+                case 'instantiate':
+                    cls = request['class']
+                    args = request['args']
+                    kwargs = request['kwargs']
+                    objects[request['name']] = cls(*args, **kwargs)
+                    return {'result': None}
+                case _:
+                    return {'error': 'Unknown action: ' + str(cmd)}
         except Exception as e:
             return {
                 'error': {
@@ -236,18 +208,20 @@ class RPCObjectServer:
 class B:
     def __init__(self):
         self.a = None
+        self.text = 'test'
 
 class A:
     def __init__(self, b):
         self.b = b
 
 if __name__ == '__main__':
-    server = RPCObjectServer(('localhost', 6000), use_thread=False)
+    server = RPCObjectServer(('localhost', 6000), use_thread=True)
     server.a = A(B())
 
-    server2 = RPCObjectServer(('localhost', 6001), use_thread=False)
-    server2.b = server.a
-    server2.b.a = server.a
+    server2 = RPCObjectServer(('localhost', 6001), use_thread=True)
+    server2.b = server.a.b
+    server2.b.text = 'modified'
+    print(server.a.b.text)
 
     server.terminate_and_join()
     server2.terminate_and_join()

@@ -29,7 +29,7 @@ def main(args):
     model_core = None
     try:
         form = View(root)
-        vm = RPCObjectServer(use_thread=True)
+        vm = RPCObjectServer(('localhost', 6000), use_thread=True)
         view_model = ViewModel(form)
         vm_proxy = vm.add_object('vm', view_model)
         view_output._view = form
@@ -53,7 +53,7 @@ def main(args):
         SelectedArea.remove()
     logger.debug('settings loaded')
     try:
-        model_core = RPCObjectServer()
+        model_core = RPCObjectServer(('localhost', 6001))
         model_core.instantiate_object_from_class('model', Orchestrator, vm_proxy, area=area, debug_on=args.debug)
 
         vm_proxy.set_model(model_core.model)
