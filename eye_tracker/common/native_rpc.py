@@ -84,6 +84,7 @@ class RPCObjectServer:
         self._executor = None
         if use_thread:
             self._parallel = Thread(target=self.serve, args=(self._address,), daemon=True)
+            self._executor = ThreadPoolExecutor(max_workers=100)
         else:
             self._parallel = Process(target=self.serve, args=(self._address,))
         if start:
@@ -95,10 +96,9 @@ class RPCObjectServer:
     def terminate_and_join(self):
         if isinstance(self._parallel, Process):
             self._parallel.terminate()
+            self._parallel.join()
         else:
             self._executor.shutdown(wait=False)
-            exit()
-        self._parallel.join()
 
     def add_object(self, name: str, obj: object) -> RPCObjectProxy:
         if self._use_thread:
@@ -135,6 +135,8 @@ class RPCObjectServer:
     def __getattr__(self, name):
         if name.startswith('_'):
             return super().__getattribute__(name)
+        if self._use_thread:
+            return self._objects[name]
         return self.get_proxy(name)
 
     def __setattr__(self, name, obj):
@@ -150,14 +152,15 @@ class RPCObjectServer:
             while True:
                 try:
                     request = conn.recv()
-                    print(request)
+                    #print(request)
                     response = RPCObjectServer.handle_request(request, objects_dict)
                     conn.send(response)
                 except EOFError:
                     break
             conn.close()
 
-        self._executor = ThreadPoolExecutor(max_workers=100)
+        if not self._use_thread:
+            self._executor = ThreadPoolExecutor(max_workers=100)
         with self._executor as executor:
             while True:
                 conn = listener.accept()
@@ -205,17 +208,18 @@ class RPCObjectServer:
                 }
             }
 
-class B:
-    def __init__(self):
-        self.a = None
-        self.text = 'test'
-
-class A:
-    def __init__(self, b):
-        self.b = b
-
 if __name__ == '__main__':
-    server = RPCObjectServer(('localhost', 6000), use_thread=True)
+    class B:
+        def __init__(self):
+            self.a = None
+            self.text = 'test'
+
+
+    class A:
+        def __init__(self, b):
+            self.b = b
+
+    server = RPCObjectServer(('localhost', 6000), use_thread=False)
     server.a = A(B())
 
     server2 = RPCObjectServer(('localhost', 6001), use_thread=True)
