@@ -208,18 +208,21 @@ class RPCObjectServer:
                 }
             }
 
+
+class B:
+    def __init__(self):
+        self.a = None
+        self.text = 'test'
+
+
+class A:
+    def __init__(self, b):
+        self.b = b
+
+
 if __name__ == '__main__':
-    class B:
-        def __init__(self):
-            self.a = None
-            self.text = 'test'
 
-
-    class A:
-        def __init__(self, b):
-            self.b = b
-
-    server = RPCObjectServer(('localhost', 6000), use_thread=False)
+    server = RPCObjectServer(('localhost', 6000), use_thread=True)
     server.a = A(B())
 
     server2 = RPCObjectServer(('localhost', 6001), use_thread=True)
