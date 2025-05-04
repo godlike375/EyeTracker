@@ -8,104 +8,98 @@ from multiprocessing.shared_memory import SharedMemory
 
 import numpy as np
 import cv2
-from PySide6.QtWidgets import QApplication, QMainWindow, QStackedWidget, QLabel, QVBoxLayout, QInputDialog, QWidget
+from PySide6.QtWidgets import (QApplication, QMainWindow, QStackedWidget, QLabel,
+                               QVBoxLayout, QInputDialog, QWidget)
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QImage, QPixmap, QAction, QSurfaceFormat, QActionGroup
 from OpenGL.GL import *
 from OpenGL.GL import shaders
-from tracker.utils.fps import FPSCounter
+from tracker.utils.fps import FPSCounter # Assuming this path is correct
 
 TARGET_RESOLUTION = (640, 480)
 TARGET_FPS = 45 * 1.05
 CAMERA_INDEX = 0
 SHM_PREFIX = f"webcam_shm_gl_{uuid.uuid4()}"
-QT_TIMER_INTERVAL = round(1000 / TARGET_FPS)
 
 VERTEX_SHADER_SOURCE = """
 #version 330 core
-layout (location = 0) in vec3 aPos; layout (location = 1) in vec2 aTexCoord;
-out vec2 TexCoord; void main() { gl_Position = vec4(aPos, 1.0); TexCoord = aTexCoord; }
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec2 aTexCoord;
+out vec2 TexCoord;
+void main() {
+    gl_Position = vec4(aPos, 1.0);
+    TexCoord = aTexCoord;
+}
 """
 
 FRAGMENT_SHADER_SOURCE = """
 #version 330 core
-out vec4 FragColor; in vec2 TexCoord; uniform sampler2D ourTexture;
-void main() { FragColor = texture(ourTexture, TexCoord); }
+out vec4 FragColor;
+in vec2 TexCoord;
+uniform sampler2D ourTexture;
+void main() {
+    FragColor = texture(ourTexture, TexCoord);
+}
 """
-
 
 def get_frame_props(cam_idx):
     cap = cv2.VideoCapture(cam_idx)
-    if not cap.isOpened(): return None, None, None
-    frame = None
-    for _ in range(5):
-        ret, frame = cap.read()
-        if ret and frame is not None: break
-        time.sleep(0.1)
-    if frame is None: return None, None, None
-    h, w, c = frame.shape
-    dtype = frame.dtype.name
-    size = np.prod((h, w, c)) * np.dtype(dtype).itemsize
+    ret, frame = cap.read()
     cap.release()
-    return (h, w, c), dtype, size
-
+    h, w, _ = frame.shape
+    dtype = np.uint8
+    itemsize = np.dtype(dtype).itemsize
+    size = h * w * 3 * itemsize
+    return (h, w, 3), dtype, size, itemsize
 
 class BaseVideoWidget:
-    def __init__(self, shm_name_data, frame_shape, frame_dtype_name, stop_event):
+    def __init__(self, shm_name_data, frame_shape, frame_dtype, stop_event):
         self.shm_name_data = shm_name_data
         self.frame_shape = frame_shape
         self.frame_height, self.frame_width, self.frame_channels = frame_shape
-        self.frame_dtype = np.dtype(frame_dtype_name)
+        self.frame_dtype = frame_dtype
         self.stop_event = stop_event
-        self.shared_frame_bgr = None
-        self.existing_shm_data = None
         self.fps = FPSCounter()
+        self.frame_nbytes = self.frame_height * self.frame_width * self.frame_channels * np.dtype(self.frame_dtype).itemsize
 
-        self._init_shm()
-        self._init_timer()
+        self.shm = mp.shared_memory.SharedMemory(name=self.shm_name_data)
+        self.frame = np.ndarray(self.frame_shape, dtype=self.frame_dtype, buffer=self.shm.buf)
 
-    def _init_shm(self):
-        try:
-            self.shm = mp.shared_memory.SharedMemory(name=self.shm_name_data)
-            self.frame = np.ndarray(self.frame_shape, dtype=self.frame_dtype, buffer=self.shm.buf)
-        except Exception as e:
-            print(f"Error attaching SHM: {e}")
-            QTimer.singleShot(0, QApplication.instance().quit)
-
-    def _init_timer(self):
         self.timer = QTimer(self)
         self.timer.setTimerType(Qt.TimerType.PreciseTimer)
         self.timer.timeout.connect(self._update)
-        self.set_fps(QT_TIMER_INTERVAL)
+        self.set_fps(int(TARGET_FPS / 1.05)) # Initial FPS
 
     def set_fps(self, fps):
-        if fps > 0:
-            self.timer.setInterval(max(1, int(1000 / fps)))
-            print(f"{self.__class__.__name__} FPS: {fps}")
+        interval = max(1, int(1000 / fps)) if fps > 0 else 1000
+        self.timer.setInterval(interval)
 
     def _update(self):
-        if self.frame is None: return
         self.fps.count_frame()
         if self.fps.able_to_calculate():
-            print(f"{self.__class__.__name__} FPS: {self.fps.calculate():.2f}")
+            print(f"{self.__class__.__name__} Render FPS: {self.fps.calculate():.2f}")
         self.render()
 
     def render(self):
         raise NotImplementedError
 
     def showEvent(self, e):
+        super().showEvent(e)
         self.timer.start()
 
     def hideEvent(self, e):
+        super().hideEvent(e)
         self.timer.stop()
 
     def closeEvent(self, e):
         self._cleanup()
+        super().closeEvent(e)
 
     def _cleanup(self):
         if self.timer.isActive(): self.timer.stop()
-        if self.shm: self.shm.close()
+        if hasattr(self, 'shm') and self.shm:
+            self.shm.close()
         self.frame = None
 
 
@@ -114,84 +108,96 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
         QOpenGLWidget.__init__(self, parent)
         BaseVideoWidget.__init__(self, shm_name, shape, dtype, stop_event)
 
-        # Настройка формата поверхности для OpenGL
         fmt = QSurfaceFormat()
-        fmt.setVersion(3, 3)  # Укажите версию OpenGL, поддерживающую шейдеры
+        fmt.setVersion(3, 3)
         fmt.setProfile(QSurfaceFormat.OpenGLContextProfile.CoreProfile)
-        fmt.setDepthBufferSize(24)
-        fmt.setSwapInterval(0)  # Отключить V-Sync
+        fmt.setSwapBehavior(QSurfaceFormat.SwapBehavior.DoubleBuffer)
+        fmt.setSwapInterval(0)
         self.setFormat(fmt)
 
-        self.rgb_frame = np.zeros((shape[0], shape[1], 3), np.uint8)
         self.tex = None
         self.shader = None
         self.vao = None
         self.vbo = None
+        self.ebo = None
+        self.pbos = [None, None]
+        self.pbo_index = 0
 
     def initializeGL(self):
-        """Вызывается, когда OpenGL-контекст активен"""
         glClearColor(0.0, 0.0, 0.0, 1.0)
-        try:
-            self.shader = shaders.compileProgram(
-                shaders.compileShader(VERTEX_SHADER_SOURCE, GL_VERTEX_SHADER),
-                shaders.compileShader(FRAGMENT_SHADER_SOURCE, GL_FRAGMENT_SHADER)
-            )
-            self._init_buffers()
-            self._init_texture()
-        except Exception as e:
-            print(f"GL error: {e}")
-            QTimer.singleShot(0, QApplication.instance().quit)
+        self.shader = shaders.compileProgram(
+            shaders.compileShader(VERTEX_SHADER_SOURCE, GL_VERTEX_SHADER),
+            shaders.compileShader(FRAGMENT_SHADER_SOURCE, GL_FRAGMENT_SHADER)
+        )
 
-    def _init_buffers(self):
-        vertices = np.array([
-            1, 1, 0, 1, 0,
-            1, -1, 0, 1, 1,
-            -1, -1, 0, 0, 1,
-            -1, 1, 0, 0, 0
-        ], np.float32)
+        vertices = np.array([ 1.0,  1.0, 0.0,  1.0, 0.0,
+                              1.0, -1.0, 0.0,  1.0, 1.0,
+                             -1.0, -1.0, 0.0,  0.0, 1.0,
+                             -1.0,  1.0, 0.0,  0.0, 0.0 ], dtype=np.float32)
+        indices = np.array([ 0, 1, 3, 1, 2, 3 ], dtype=np.uint32)
 
         self.vao = glGenVertexArrays(1)
-        glBindVertexArray(self.vao)
-
         self.vbo = glGenBuffers(1)
+        self.ebo = glGenBuffers(1)
+
+        glBindVertexArray(self.vao)
         glBindBuffer(GL_ARRAY_BUFFER, self.vbo)
         glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices, GL_STATIC_DRAW)
-
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self.ebo)
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.nbytes, indices, GL_STATIC_DRAW)
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * vertices.itemsize, ctypes.c_void_p(0))
         glEnableVertexAttribArray(0)
-        glVertexAttribPointer(0, 3, GL_FLOAT, False, 20, None)
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * vertices.itemsize, ctypes.c_void_p(3 * vertices.itemsize))
         glEnableVertexAttribArray(1)
-        glVertexAttribPointer(1, 2, GL_FLOAT, False, 20, ctypes.c_void_p(12))
-
+        glBindVertexArray(0) # Unbind VAO first
         glBindBuffer(GL_ARRAY_BUFFER, 0)
-        glBindVertexArray(0)
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0)
 
-    def _init_texture(self):
+
         self.tex = glGenTextures(1)
         glBindTexture(GL_TEXTURE_2D, self.tex)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, self.frame_width, self.frame_height, 0, GL_RGB, GL_UNSIGNED_BYTE, None)
         glBindTexture(GL_TEXTURE_2D, 0)
 
-    def paintGL(self):
-        if not all(i is not None for i in [self.shader, self.tex, self.frame]):
-            return
+        self.pbos = glGenBuffers(2)
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, self.pbos[0])
+        glBufferData(GL_PIXEL_UNPACK_BUFFER, self.frame_nbytes, None, GL_STREAM_DRAW)
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, self.pbos[1])
+        glBufferData(GL_PIXEL_UNPACK_BUFFER, self.frame_nbytes, None, GL_STREAM_DRAW)
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0)
 
-        try:
-            cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB, dst=self.rgb_frame)
-            glBindTexture(GL_TEXTURE_2D, self.tex)
-            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, self.frame_width, self.frame_height, GL_RGB, GL_UNSIGNED_BYTE, self.rgb_frame)
-            glBindTexture(GL_TEXTURE_2D, 0)
-        except Exception as e:
-            print(f"GL update error: {e}")
+    def paintGL(self):
+        current_pbo = self.pbos[self.pbo_index]
+        next_pbo = self.pbos[(self.pbo_index + 1) % 2]
+
+        glBindTexture(GL_TEXTURE_2D, self.tex)
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, current_pbo)
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, self.frame_width, self.frame_height, GL_RGB, GL_UNSIGNED_BYTE, ctypes.c_void_p(0))
+
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, next_pbo)
+        ptr = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, self.frame_nbytes, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT)
+        ctypes.memmove(ptr, self.frame.ctypes.data, self.frame.nbytes)
+        glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER)
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0)
 
         glClear(GL_COLOR_BUFFER_BIT)
         glUseProgram(self.shader)
+        glActiveTexture(GL_TEXTURE0)
         glBindTexture(GL_TEXTURE_2D, self.tex)
         glUniform1i(glGetUniformLocation(self.shader, "ourTexture"), 0)
+
         glBindVertexArray(self.vao)
-        glDrawArrays(GL_TRIANGLE_FAN, 0, 4)
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, None)
+
         glBindVertexArray(0)
+        glBindTexture(GL_TEXTURE_2D, 0)
         glUseProgram(0)
+
+        self.pbo_index = (self.pbo_index + 1) % 2
 
     def resizeGL(self, w, h):
         glViewport(0, 0, w, h)
@@ -201,16 +207,16 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
 
     def _cleanup(self):
         self.makeCurrent()
-        if self.tex:
-            glDeleteTextures([self.tex])
-        if self.vbo:
-            glDeleteBuffers(1, [self.vbo])
-        if self.vao:
-            glDeleteVertexArrays(1, [self.vao])
-        if self.shader:
-            glDeleteProgram(self.shader)
+        if self.tex is not None: glDeleteTextures([self.tex])
+        if self.vbo is not None: glDeleteBuffers(1, [self.vbo])
+        if self.ebo is not None: glDeleteBuffers(1, [self.ebo])
+        if self.vao is not None: glDeleteVertexArrays(1, [self.vao])
+        if self.pbos[0] is not None: glDeleteBuffers(2, self.pbos)
+        if self.shader is not None: glDeleteProgram(self.shader)
         self.doneCurrent()
         BaseVideoWidget._cleanup(self)
+        self.tex = self.vbo = self.ebo = self.vao = self.shader = None
+        self.pbos = [None, None]
 
 
 class QLabelVideoWidget(BaseVideoWidget, QWidget):
@@ -224,20 +230,16 @@ class QLabelVideoWidget(BaseVideoWidget, QWidget):
         layout.addWidget(self.label)
 
     def render(self):
-        if self.frame is None: return
-        try:
-            h, w, c = self.frame.shape
-            img = QImage(self.frame.data, w, h, 3 * w, QImage.Format.Format_BGR888)
-            self.label.setPixmap(QPixmap.fromImage(img))
-        except Exception as e:
-            print(f"Label error: {e}")
+        h, w, _ = self.frame.shape
+        img = QImage(self.frame.data, w, h, w * 3, QImage.Format.Format_RGB888)
+        self.label.setPixmap(QPixmap.fromImage(img))
 
 
 class MainWindow(QMainWindow):
     def __init__(self, shm_name, shape, dtype, stop_event):
         super().__init__()
         self.stop_event = stop_event
-        self.setWindowTitle("Веб-камера")
+        self.setWindowTitle("Webcam Viewer")
         self.resize(shape[1], shape[0])
         self.setMinimumSize(320, 240)
 
@@ -248,137 +250,149 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.label)
         self.setCentralWidget(self.stack)
 
-        self.fps = 30
-        self.opengl.set_fps(self.fps)
-        self.label.set_fps(self.fps)
+        self.current_fps = int(TARGET_FPS / 1.05)
+        self._update_widget_fps(self.current_fps)
         self._create_menu()
+        self.stack.setCurrentIndex(0)
 
     def _create_menu(self):
         menu = self.menuBar()
-        file_menu = menu.addMenu("&Файл")
-        exit_action = QAction("&Выход", self)
-        exit_action.triggered.connect(self.close)
+        file_menu = menu.addMenu("&File")
+        exit_action = QAction("&Exit", self, triggered=self.close)
         file_menu.addAction(exit_action)
 
-        view_menu = menu.addMenu("&Вид")
-        self.opengl_act = QAction("OpenGL", self, checkable=True, checked=True)
-        self.label_act = QAction("QLabel", self, checkable=True)
-        group = QActionGroup(self)
-        group.addAction(self.opengl_act)
-        group.addAction(self.label_act)
+        view_menu = menu.addMenu("&View")
+        render_group = QActionGroup(self)
+        render_group.setExclusive(True)
+        self.opengl_act = QAction("OpenGL", self, checkable=True, checked=True, triggered=lambda: self.stack.setCurrentIndex(0))
+        self.label_act = QAction("QLabel", self, checkable=True, triggered=lambda: self.stack.setCurrentIndex(1))
+        render_group.addAction(self.opengl_act)
+        render_group.addAction(self.label_act)
         view_menu.addAction(self.opengl_act)
         view_menu.addAction(self.label_act)
-        self.opengl_act.triggered.connect(lambda: self.stack.setCurrentIndex(0))
-        self.label_act.triggered.connect(lambda: self.stack.setCurrentIndex(1))
 
-        set_fps = QAction("Set FPS", self)
-        set_fps.triggered.connect(self.set_fps)
-        view_menu.addAction(set_fps)
+        set_fps_action = QAction("Set Render FPS", self, triggered=self.show_set_fps_dialog)
+        view_menu.addAction(set_fps_action)
 
-    def set_fps(self):
-        fps, ok = QInputDialog.getInt(self, "FPS", "Enter FPS:", self.fps, 1, 999999)
+    def show_set_fps_dialog(self):
+        fps, ok = QInputDialog.getInt(self, "Set Render FPS", "Enter target render FPS:", self.current_fps, 1, 10000, 1)
         if ok:
-            self.fps = fps
-            self.opengl.set_fps(fps)
-            self.label.set_fps(fps)
+            self.current_fps = fps
+            self._update_widget_fps(self.current_fps)
 
-    def closeEvent(self, e): self.stop_event.set()
+    def _update_widget_fps(self, fps):
+        self.opengl.set_fps(fps)
+        self.label.set_fps(fps)
+
+    def closeEvent(self, e):
+        self.stop_event.set()
+        super().closeEvent(e)
 
 
 def signal_handler(signum, frame, stop_event=None):
     if stop_event: stop_event.set()
-    if QApplication.instance(): QApplication.instance().quit
+    QTimer.singleShot(50, QApplication.quit)
 
 
-def capture_process(shm_name, shape, dtype, stop_event):
+def capture_process(shm_name, shape, dtype, itemsize, stop_event):
     signal.signal(signal.SIGTERM, lambda s, f: signal_handler(s, f, stop_event))
-    try:
-        shm = mp.shared_memory.SharedMemory(name=shm_name)
-        frame = np.ndarray(shape, dtype=dtype, buffer=shm.buf)
-        cap = cv2.VideoCapture(CAMERA_INDEX)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, shape[1])
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, shape[0])
-        cap.set(cv2.CAP_PROP_FPS, TARGET_FPS)
+    signal.signal(signal.SIGINT, lambda s, f: signal_handler(s, f, stop_event))
 
-        while not stop_event.is_set():
-            ret, current = cap.read()
-            if not ret or current is None:
-                time.sleep(0.001)
-                continue
-            if current.shape[:2] != (shape[0], shape[1]):
-                current = cv2.resize(current, (shape[1], shape[0]))
-            np.copyto(frame, current)
-    except Exception as e:
-        print(f"Capture error: {e}")
-    finally:
+    shm = mp.shared_memory.SharedMemory(name=shm_name)
+    frame_buffer = np.ndarray(shape, dtype=dtype, buffer=shm.buf)
+    fps_counter = FPSCounter()
+
+    cap = cv2.VideoCapture(CAMERA_INDEX, cv2.CAP_ANY)
+    if not cap.isOpened(): cap = cv2.VideoCapture(CAMERA_INDEX + cv2.CAP_MSMF)
+    if not cap.isOpened(): cap = cv2.VideoCapture(CAMERA_INDEX + cv2.CAP_DSHOW)
+    if not cap.isOpened():
         stop_event.set()
-        if 'cap' in locals() and cap.isOpened(): cap.release()
-        if 'shm' in locals(): shm.close()
+        shm.close()
+        return # Exit if camera failed
+
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, shape[1])
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, shape[0])
+    cap.set(cv2.CAP_PROP_FPS, TARGET_FPS)
+    actual_w = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+    actual_h = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    needs_resize = not (int(actual_w) == shape[1] and int(actual_h) == shape[0])
+
+    while not stop_event.is_set():
+        ret, current_frame = cap.read()
+        if not ret:
+            time.sleep(0.01)
+            continue
+
+        fps_counter.count_frame()
+        if fps_counter.able_to_calculate():
+             print(f"Capture FPS: {fps_counter.calculate():.2f}")
+
+        if needs_resize:
+            current_frame = cv2.resize(current_frame, (shape[1], shape[0]), interpolation=cv2.INTER_LINEAR)
+
+        rgb_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGR2RGB)
+        np.copyto(frame_buffer, rgb_frame)
+
+    cap.release()
+    shm.close()
 
 
 def display_process(shm_name, shape, dtype, stop_event):
     signal.signal(signal.SIGTERM, lambda s, f: signal_handler(s, f, stop_event))
-    app = QApplication(sys.argv)
-    try:
-        win = MainWindow(shm_name, shape, dtype, stop_event)
-        win.show()
-        sys.exit(app.exec())
-    except Exception as e:
-        print(f"Display error: {e}")
-        stop_event.set()
+    signal.signal(signal.SIGINT, lambda s, f: signal_handler(s, f, stop_event))
 
+    app = QApplication.instance() or QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(True)
+
+    win = MainWindow(shm_name, shape, dtype, stop_event)
+    win.show()
+    exit_code = app.exec()
+    stop_event.set() # Ensure capture process stops if window closed
+    sys.exit(exit_code)
 
 if __name__ == "__main__":
     mp.freeze_support()
-    print("Starting...")
 
-    shape, dtype, size = get_frame_props(CAMERA_INDEX)
-    if shape is None: sys.exit(1)
-
+    shape, dtype, size, itemsize = get_frame_props(CAMERA_INDEX)
     stop_event = mp.Event()
-    shm_data_name = f"{SHM_PREFIX}_data"
+    shm_data_name = f"{SHM_PREFIX}_data_{uuid.uuid4()}"
     shm = None
 
     try:
         shm = SharedMemory(name=shm_data_name, create=True, size=int(size))
-        print(f"SHM {shm_data_name} created")
-    except FileExistsError:
-        try:
-            existing = SharedMemory(name=shm_data_name)
-            existing.unlink()
-            existing.close()
-            shm = mp.shared_memory.SharedMemory(name=shm_data_name, create=True, size=int(size))
-            print("SHM recreated")
-        except Exception as e:
-            print(f"SHM error: {e}")
-            sys.exit(1)
+    except Exception as e:
+        sys.exit(1)
 
-    args = (shm_data_name, shape, dtype, stop_event)
-    capture = mp.Process(target=capture_process, args=args, name="Capture")
-    display = mp.Process(target=display_process, args=args, name="Display")
-    capture.start()
-    display.start()
+    capture_args = (shm_data_name, shape, dtype, itemsize, stop_event)
+    display_args = (shm_data_name, shape, dtype, stop_event)
+
+    capture_proc = mp.Process(target=capture_process, args=capture_args, name="CaptureProcess")
+    display_proc = mp.Process(target=display_process, args=display_args, name="DisplayProcess")
+
+    signal.signal(signal.SIGTERM, lambda s, f: signal_handler(s, f, stop_event))
+    signal.signal(signal.SIGINT, lambda s, f: signal_handler(s, f, stop_event))
 
     try:
-        display.join()
-        stop_event.set()
-        capture.join(timeout=5)
-        if capture.is_alive():
-            capture.terminate()
+        capture_proc.start()
+        display_proc.start()
+        display_proc.join() # Wait for UI process to finish
+
     except KeyboardInterrupt:
         stop_event.set()
-        display.join(timeout=3)
-        capture.join(timeout=5)
-        if display.is_alive(): display.terminate()
-        if capture.is_alive(): capture.terminate()
-
     finally:
-        if shm:
+        if not stop_event.is_set(): stop_event.set()
+        capture_proc.join(timeout=2)
+        if display_proc.is_alive(): display_proc.join(timeout=1) # Should be joined already
+
+        if capture_proc.is_alive(): capture_proc.terminate()
+        if display_proc.is_alive(): display_proc.terminate()
+
+        if shm is not None:
             try:
                 shm.unlink()
-                print("SHM unlinked")
             except FileNotFoundError:
-                pass
-            shm.close()
-        print("Exit")
+                pass # Already unlinked or never created properly
+            finally:
+                 shm.close()
+
         sys.exit(0)
