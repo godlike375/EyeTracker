@@ -46,8 +46,16 @@ void main() {
 
 def get_frame_props(cam_idx):
     cap = cv2.VideoCapture(cam_idx)
+    if not cap.isOpened(): cap = cv2.VideoCapture(cam_idx + cv2.CAP_MSMF)
+    if not cap.isOpened(): cap = cv2.VideoCapture(cam_idx + cv2.CAP_DSHOW)
+    if not cap.isOpened():
+        return None, None, None, None
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, TARGET_RESOLUTION[0])
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, TARGET_RESOLUTION[1])
     ret, frame = cap.read()
     cap.release()
+    if not ret:
+        return None, None, None, None
     h, w, _ = frame.shape
     dtype = np.uint8
     itemsize = np.dtype(dtype).itemsize
@@ -93,18 +101,6 @@ class BaseVideoWidget:
         super().hideEvent(e)
         self.timer.stop()
 
-    # TODO: remove if unused
-    # def closeEvent(self, e):
-    #     self._cleanup()
-    #     super().closeEvent(e)
-    #
-    # def _cleanup(self):
-    #     if self.timer.isActive():
-    #         self.timer.stop()
-    #     if hasattr(self, 'shm') and self.shm:
-    #         self.shm.close()
-    #     self.frame = None
-
 
 class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
     def __init__(self, shm_name, shape, dtype, stop_event, parent=None):
@@ -133,6 +129,11 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
             shaders.compileShader(FRAGMENT_SHADER_SOURCE, GL_FRAGMENT_SHADER)
         )
 
+        glUseProgram(self.shader)
+        self.texture_loc = glGetUniformLocation(self.shader, "ourTexture")
+        glUseProgram(0)
+        glDisable(GL_DEPTH_TEST)
+
         vertices = np.array([ 1.0,  1.0, 0.0,  1.0, 0.0,
                               1.0, -1.0, 0.0,  1.0, 1.0,
                              -1.0, -1.0, 0.0,  0.0, 1.0,
@@ -152,7 +153,7 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
         glEnableVertexAttribArray(0)
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * vertices.itemsize, ctypes.c_void_p(3 * vertices.itemsize))
         glEnableVertexAttribArray(1)
-        glBindVertexArray(0) # Unbind VAO first
+        glBindVertexArray(0)
         glBindBuffer(GL_ARRAY_BUFFER, 0)
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0)
 
@@ -163,7 +164,7 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, self.frame_width, self.frame_height, 0, GL_BGR, GL_UNSIGNED_BYTE, None)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, self.frame_width, self.frame_height, 0, GL_BGR, GL_UNSIGNED_BYTE, None)
         glBindTexture(GL_TEXTURE_2D, 0)
 
         self.pbos = glGenBuffers(2)
@@ -177,28 +178,28 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
         current_pbo = self.pbos[self.pbo_index]
         next_pbo = self.pbos[(self.pbo_index + 1) % 2]
 
-        glBindTexture(GL_TEXTURE_2D, self.tex)
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, current_pbo)
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, self.frame_width, self.frame_height, GL_BGR, GL_UNSIGNED_BYTE, ctypes.c_void_p(0))
-
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, next_pbo)
         ptr = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, self.frame_nbytes, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT)
-        ctypes.memmove(ptr, self.frame.ctypes.data, self.frame.nbytes)
-        glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER)
+        if ptr is not None:
+            ctypes.memmove(ptr, self.frame.ctypes.data, self.frame.nbytes)
+            glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER)
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0)
+
+
+        glBindTexture(GL_TEXTURE_2D, self.tex)
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, next_pbo)
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, self.frame_width, self.frame_height, GL_BGR, GL_UNSIGNED_BYTE, ctypes.c_void_p(0))
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0)
+
 
         glClear(GL_COLOR_BUFFER_BIT)
         glUseProgram(self.shader)
         glActiveTexture(GL_TEXTURE0)
         glBindTexture(GL_TEXTURE_2D, self.tex)
-        glUniform1i(glGetUniformLocation(self.shader, "ourTexture"), 0)
+        glUniform1i(self.texture_loc, 0)
 
         glBindVertexArray(self.vao)
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, None)
-
-        glBindVertexArray(0)
-        glBindTexture(GL_TEXTURE_2D, 0)
-        glUseProgram(0)
 
         self.pbo_index = (self.pbo_index + 1) % 2
 
@@ -207,21 +208,6 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
 
     def render(self):
         self.update()
-
-    # TODO: remove if unused
-    # def _cleanup(self):
-    #     print("OpenGLVideoWidget.closeEvent called")
-    #     self.makeCurrent()
-    #     if self.tex is not None: glDeleteTextures([self.tex])
-    #     if self.vbo is not None: glDeleteBuffers(1, [self.vbo])
-    #     if self.ebo is not None: glDeleteBuffers(1, [self.ebo])
-    #     if self.vao is not None: glDeleteVertexArrays(1, [self.vao])
-    #     if self.pbos[0] is not None: glDeleteBuffers(2, self.pbos)
-    #     if self.shader is not None: glDeleteProgram(self.shader)
-    #     self.doneCurrent()
-    #     BaseVideoWidget._cleanup(self)
-    #     self.tex = self.vbo = self.ebo = self.vao = self.shader = None
-    #     self.pbos = [None, None]
 
 
 class QLabelVideoWidget(BaseVideoWidget, QWidget):
@@ -358,6 +344,10 @@ if __name__ == "__main__":
     mp.freeze_support()
 
     shape, dtype, size, itemsize = get_frame_props(CAMERA_INDEX)
+    if shape is None:
+        print(f"Failed to get frame properties from camera index {CAMERA_INDEX}")
+        sys.exit(1)
+
     stop_event = mp.Event()
     shm_name = f"{SHM_PREFIX}{os.getpid()}"
     shm = None
@@ -385,7 +375,7 @@ if __name__ == "__main__":
     finally:
         stop_event.set()
         capture_proc.join(timeout=2)
-        if display_proc.is_alive(): display_proc.join(timeout=1) # Should be joined already
+        if display_proc.is_alive(): display_proc.join(timeout=1)
 
         if capture_proc.is_alive(): capture_proc.terminate()
         if display_proc.is_alive(): display_proc.terminate()
@@ -393,8 +383,8 @@ if __name__ == "__main__":
         if shm is not None:
             try:
                 shm.unlink()
-            except: ...
+            except: pass
             finally:
-                 shm.close()
+                shm.close()
 
         sys.exit(0)
