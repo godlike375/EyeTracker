@@ -131,7 +131,6 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
 
         glUseProgram(self.shader)
         self.texture_loc = glGetUniformLocation(self.shader, "ourTexture")
-        glUseProgram(0)
         glDisable(GL_DEPTH_TEST)
 
         vertices = np.array([ 1.0,  1.0, 0.0,  1.0, 0.0,
