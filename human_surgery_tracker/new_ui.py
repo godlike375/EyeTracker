@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
+import os
 import signal
 import sys
 import multiprocessing as mp
 import time
-import uuid
+import traceback
 from multiprocessing.shared_memory import SharedMemory
 
 import numpy as np
@@ -15,12 +16,12 @@ from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QImage, QPixmap, QAction, QSurfaceFormat, QActionGroup
 from OpenGL.GL import *
 from OpenGL.GL import shaders
-from tracker.utils.fps import FPSCounter # Assuming this path is correct
+from tracker.utils.fps import FPSCounter
 
 TARGET_RESOLUTION = (640, 480)
-TARGET_FPS = 45 * 1.05
+TARGET_FPS = 45
 CAMERA_INDEX = 0
-SHM_PREFIX = f"webcam_shm_gl_{uuid.uuid4()}"
+SHM_PREFIX = f"tracker_webcam_shm_"
 
 VERTEX_SHADER_SOURCE = """
 #version 330 core
@@ -55,7 +56,7 @@ def get_frame_props(cam_idx):
 
 class BaseVideoWidget:
     def __init__(self, shm_name_data, frame_shape, frame_dtype, stop_event):
-        self.shm_name_data = shm_name_data
+        self.shm_name = shm_name_data
         self.frame_shape = frame_shape
         self.frame_height, self.frame_width, self.frame_channels = frame_shape
         self.frame_dtype = frame_dtype
@@ -63,13 +64,13 @@ class BaseVideoWidget:
         self.fps = FPSCounter()
         self.frame_nbytes = self.frame_height * self.frame_width * self.frame_channels * np.dtype(self.frame_dtype).itemsize
 
-        self.shm = mp.shared_memory.SharedMemory(name=self.shm_name_data)
+        self.shm = mp.shared_memory.SharedMemory(name=self.shm_name)
         self.frame = np.ndarray(self.frame_shape, dtype=self.frame_dtype, buffer=self.shm.buf)
 
         self.timer = QTimer(self)
         self.timer.setTimerType(Qt.TimerType.PreciseTimer)
         self.timer.timeout.connect(self._update)
-        self.set_fps(int(TARGET_FPS / 1.05)) # Initial FPS
+        self.set_fps(int(TARGET_FPS))
 
     def set_fps(self, fps):
         interval = max(1, int(1000 / fps)) if fps > 0 else 1000
@@ -92,15 +93,17 @@ class BaseVideoWidget:
         super().hideEvent(e)
         self.timer.stop()
 
-    def closeEvent(self, e):
-        self._cleanup()
-        super().closeEvent(e)
-
-    def _cleanup(self):
-        if self.timer.isActive(): self.timer.stop()
-        if hasattr(self, 'shm') and self.shm:
-            self.shm.close()
-        self.frame = None
+    # TODO: remove if unused
+    # def closeEvent(self, e):
+    #     self._cleanup()
+    #     super().closeEvent(e)
+    #
+    # def _cleanup(self):
+    #     if self.timer.isActive():
+    #         self.timer.stop()
+    #     if hasattr(self, 'shm') and self.shm:
+    #         self.shm.close()
+    #     self.frame = None
 
 
 class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
@@ -160,7 +163,7 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, self.frame_width, self.frame_height, 0, GL_RGB, GL_UNSIGNED_BYTE, None)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, self.frame_width, self.frame_height, 0, GL_BGR, GL_UNSIGNED_BYTE, None)
         glBindTexture(GL_TEXTURE_2D, 0)
 
         self.pbos = glGenBuffers(2)
@@ -176,7 +179,7 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
 
         glBindTexture(GL_TEXTURE_2D, self.tex)
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, current_pbo)
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, self.frame_width, self.frame_height, GL_RGB, GL_UNSIGNED_BYTE, ctypes.c_void_p(0))
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, self.frame_width, self.frame_height, GL_BGR, GL_UNSIGNED_BYTE, ctypes.c_void_p(0))
 
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, next_pbo)
         ptr = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, self.frame_nbytes, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT)
@@ -205,18 +208,20 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
     def render(self):
         self.update()
 
-    def _cleanup(self):
-        self.makeCurrent()
-        if self.tex is not None: glDeleteTextures([self.tex])
-        if self.vbo is not None: glDeleteBuffers(1, [self.vbo])
-        if self.ebo is not None: glDeleteBuffers(1, [self.ebo])
-        if self.vao is not None: glDeleteVertexArrays(1, [self.vao])
-        if self.pbos[0] is not None: glDeleteBuffers(2, self.pbos)
-        if self.shader is not None: glDeleteProgram(self.shader)
-        self.doneCurrent()
-        BaseVideoWidget._cleanup(self)
-        self.tex = self.vbo = self.ebo = self.vao = self.shader = None
-        self.pbos = [None, None]
+    # TODO: remove if unused
+    # def _cleanup(self):
+    #     print("OpenGLVideoWidget.closeEvent called")
+    #     self.makeCurrent()
+    #     if self.tex is not None: glDeleteTextures([self.tex])
+    #     if self.vbo is not None: glDeleteBuffers(1, [self.vbo])
+    #     if self.ebo is not None: glDeleteBuffers(1, [self.ebo])
+    #     if self.vao is not None: glDeleteVertexArrays(1, [self.vao])
+    #     if self.pbos[0] is not None: glDeleteBuffers(2, self.pbos)
+    #     if self.shader is not None: glDeleteProgram(self.shader)
+    #     self.doneCurrent()
+    #     BaseVideoWidget._cleanup(self)
+    #     self.tex = self.vbo = self.ebo = self.vao = self.shader = None
+    #     self.pbos = [None, None]
 
 
 class QLabelVideoWidget(BaseVideoWidget, QWidget):
@@ -231,7 +236,7 @@ class QLabelVideoWidget(BaseVideoWidget, QWidget):
 
     def render(self):
         h, w, _ = self.frame.shape
-        img = QImage(self.frame.data, w, h, w * 3, QImage.Format.Format_RGB888)
+        img = QImage(self.frame.data, w, h, w * 3, QImage.Format.Format_BGR888)
         self.label.setPixmap(QPixmap.fromImage(img))
 
 
@@ -250,7 +255,7 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.label)
         self.setCentralWidget(self.stack)
 
-        self.current_fps = int(TARGET_FPS / 1.05)
+        self.current_fps = int(TARGET_FPS)
         self._update_widget_fps(self.current_fps)
         self._create_menu()
         self.stack.setCurrentIndex(0)
@@ -289,14 +294,15 @@ class MainWindow(QMainWindow):
         super().closeEvent(e)
 
 
-def signal_handler(signum, frame, stop_event=None):
-    if stop_event: stop_event.set()
+def signal_handler(stop_event):
+    if stop_event:
+        stop_event.set()
     QTimer.singleShot(50, QApplication.quit)
 
 
-def capture_process(shm_name, shape, dtype, itemsize, stop_event):
-    signal.signal(signal.SIGTERM, lambda s, f: signal_handler(s, f, stop_event))
-    signal.signal(signal.SIGINT, lambda s, f: signal_handler(s, f, stop_event))
+def capture_process(shm_name, shape, dtype, stop_event):
+    signal.signal(signal.SIGTERM, lambda s, f: signal_handler(stop_event))
+    signal.signal(signal.SIGINT, lambda s, f: signal_handler(stop_event))
 
     shm = mp.shared_memory.SharedMemory(name=shm_name)
     frame_buffer = np.ndarray(shape, dtype=dtype, buffer=shm.buf)
@@ -308,7 +314,7 @@ def capture_process(shm_name, shape, dtype, itemsize, stop_event):
     if not cap.isOpened():
         stop_event.set()
         shm.close()
-        return # Exit if camera failed
+        return
 
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, shape[1])
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, shape[0])
@@ -320,7 +326,7 @@ def capture_process(shm_name, shape, dtype, itemsize, stop_event):
     while not stop_event.is_set():
         ret, current_frame = cap.read()
         if not ret:
-            time.sleep(0.01)
+            time.sleep(0.005)
             continue
 
         fps_counter.count_frame()
@@ -329,17 +335,15 @@ def capture_process(shm_name, shape, dtype, itemsize, stop_event):
 
         if needs_resize:
             current_frame = cv2.resize(current_frame, (shape[1], shape[0]), interpolation=cv2.INTER_LINEAR)
-
-        rgb_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGR2RGB)
-        np.copyto(frame_buffer, rgb_frame)
+        np.copyto(frame_buffer, current_frame)
 
     cap.release()
     shm.close()
 
 
 def display_process(shm_name, shape, dtype, stop_event):
-    signal.signal(signal.SIGTERM, lambda s, f: signal_handler(s, f, stop_event))
-    signal.signal(signal.SIGINT, lambda s, f: signal_handler(s, f, stop_event))
+    signal.signal(signal.SIGTERM, lambda s, f: signal_handler(stop_event))
+    signal.signal(signal.SIGINT, lambda s, f: signal_handler(stop_event))
 
     app = QApplication.instance() or QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(True)
@@ -347,7 +351,7 @@ def display_process(shm_name, shape, dtype, stop_event):
     win = MainWindow(shm_name, shape, dtype, stop_event)
     win.show()
     exit_code = app.exec()
-    stop_event.set() # Ensure capture process stops if window closed
+    stop_event.set()
     sys.exit(exit_code)
 
 if __name__ == "__main__":
@@ -355,32 +359,31 @@ if __name__ == "__main__":
 
     shape, dtype, size, itemsize = get_frame_props(CAMERA_INDEX)
     stop_event = mp.Event()
-    shm_data_name = f"{SHM_PREFIX}_data_{uuid.uuid4()}"
+    shm_name = f"{SHM_PREFIX}{os.getpid()}"
     shm = None
 
     try:
-        shm = SharedMemory(name=shm_data_name, create=True, size=int(size))
+        shm = SharedMemory(name=shm_name, create=True, size=int(size))
     except Exception as e:
+        print(f"Couldn't create shared memory segment with name={shm_name}")
         sys.exit(1)
 
-    capture_args = (shm_data_name, shape, dtype, itemsize, stop_event)
-    display_args = (shm_data_name, shape, dtype, stop_event)
+    capture_args = (shm_name, shape, dtype, stop_event)
+    display_args = (shm_name, shape, dtype, stop_event)
 
     capture_proc = mp.Process(target=capture_process, args=capture_args, name="CaptureProcess")
     display_proc = mp.Process(target=display_process, args=display_args, name="DisplayProcess")
 
-    signal.signal(signal.SIGTERM, lambda s, f: signal_handler(s, f, stop_event))
-    signal.signal(signal.SIGINT, lambda s, f: signal_handler(s, f, stop_event))
+    signal.signal(signal.SIGTERM, lambda s, f: signal_handler(stop_event))
+    signal.signal(signal.SIGINT, lambda s, f: signal_handler(stop_event))
 
     try:
         capture_proc.start()
         display_proc.start()
-        display_proc.join() # Wait for UI process to finish
-
-    except KeyboardInterrupt:
-        stop_event.set()
+        display_proc.join()
+    except Exception as e: print(f"Unhandled expection: {traceback.format_exc()}")
     finally:
-        if not stop_event.is_set(): stop_event.set()
+        stop_event.set()
         capture_proc.join(timeout=2)
         if display_proc.is_alive(): display_proc.join(timeout=1) # Should be joined already
 
@@ -390,8 +393,7 @@ if __name__ == "__main__":
         if shm is not None:
             try:
                 shm.unlink()
-            except FileNotFoundError:
-                pass # Already unlinked or never created properly
+            except: ...
             finally:
                  shm.close()
 
