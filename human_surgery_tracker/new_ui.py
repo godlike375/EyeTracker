@@ -179,25 +179,24 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
         next_pbo = self.pbos[(self.pbo_index + 1) % 2]
 
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, current_pbo)
-        ptr = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, self.frame_nbytes, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT)
+        glBufferData(GL_PIXEL_UNPACK_BUFFER, self.frame_nbytes, None, GL_STREAM_DRAW)
+
+        ptr = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, self.frame_nbytes, GL_MAP_WRITE_BIT)
         if ptr is not None:
-            ctypes.memmove(ptr, self.frame.ctypes.data, self.frame.nbytes)
+            ctypes.memmove(ptr, self.frame.ctypes.data, self.frame_nbytes)
             glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER)
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0)
 
-
         glBindTexture(GL_TEXTURE_2D, self.tex)
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, next_pbo)
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, self.frame_width, self.frame_height, GL_BGR, GL_UNSIGNED_BYTE, ctypes.c_void_p(0))
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, self.frame_width, self.frame_height, GL_BGR, GL_UNSIGNED_BYTE, None)
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0)
 
-
+        # Отрисовка
         glClear(GL_COLOR_BUFFER_BIT)
         glUseProgram(self.shader)
-        glActiveTexture(GL_TEXTURE0)
-        glBindTexture(GL_TEXTURE_2D, self.tex)
         glUniform1i(self.texture_loc, 0)
-
         glBindVertexArray(self.vao)
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, None)
 
