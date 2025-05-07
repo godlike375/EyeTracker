@@ -9,11 +9,10 @@ from multiprocessing.shared_memory import SharedMemory
 
 import numpy as np
 import cv2
-from PySide6.QtWidgets import (QApplication, QMainWindow, QStackedWidget, QLabel,
-                               QVBoxLayout, QInputDialog, QWidget)
+from PySide6.QtWidgets import (QApplication, QMainWindow, QInputDialog)
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtCore import QTimer, Qt
-from PySide6.QtGui import QImage, QPixmap, QAction, QSurfaceFormat, QActionGroup
+from PySide6.QtGui import QSurfaceFormat, QAction
 from OpenGL.GL import *
 from OpenGL.GL import shaders
 from tracker.utils.fps import FPSCounter
@@ -44,6 +43,7 @@ void main() {
 }
 """
 
+
 def get_frame_props(cam_idx):
     cap = cv2.VideoCapture(cam_idx)
     if not cap.isOpened(): cap = cv2.VideoCapture(cam_idx + cv2.CAP_MSMF)
@@ -62,6 +62,7 @@ def get_frame_props(cam_idx):
     size = h * w * 3 * itemsize
     return (h, w, 3), dtype, size, itemsize
 
+
 class BaseVideoWidget:
     def __init__(self, shm_name_data, frame_shape, frame_dtype, stop_event):
         self.shm_name = shm_name_data
@@ -70,7 +71,8 @@ class BaseVideoWidget:
         self.frame_dtype = frame_dtype
         self.stop_event = stop_event
         self.fps = FPSCounter()
-        self.frame_nbytes = self.frame_height * self.frame_width * self.frame_channels * np.dtype(self.frame_dtype).itemsize
+        self.frame_nbytes = self.frame_height * self.frame_width * self.frame_channels * np.dtype(
+            self.frame_dtype).itemsize
 
         self.shm = mp.shared_memory.SharedMemory(name=self.shm_name)
         self.frame = np.ndarray(self.frame_shape, dtype=self.frame_dtype, buffer=self.shm.buf)
@@ -133,11 +135,11 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
         self.texture_loc = glGetUniformLocation(self.shader, "ourTexture")
         glDisable(GL_DEPTH_TEST)
 
-        vertices = np.array([ 1.0,  1.0, 0.0,  1.0, 0.0,
-                              1.0, -1.0, 0.0,  1.0, 1.0,
-                             -1.0, -1.0, 0.0,  0.0, 1.0,
-                             -1.0,  1.0, 0.0,  0.0, 0.0 ], dtype=np.float32)
-        indices = np.array([ 0, 1, 3, 1, 2, 3 ], dtype=np.uint32)
+        vertices = np.array([1.0, 1.0, 0.0, 1.0, 0.0,
+                             1.0, -1.0, 0.0, 1.0, 1.0,
+                             -1.0, -1.0, 0.0, 0.0, 1.0,
+                             -1.0, 1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+        indices = np.array([0, 1, 3, 1, 2, 3], dtype=np.uint32)
 
         self.vao = glGenVertexArrays(1)
         self.vbo = glGenBuffers(1)
@@ -155,7 +157,6 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
         glBindVertexArray(0)
         glBindBuffer(GL_ARRAY_BUFFER, 0)
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0)
-
 
         self.tex = glGenTextures(1)
         glBindTexture(GL_TEXTURE_2D, self.tex)
@@ -208,22 +209,6 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
         self.update()
 
 
-class QLabelVideoWidget(BaseVideoWidget, QWidget):
-    def __init__(self, shm_name, shape, dtype, stop_event, parent=None):
-        QWidget.__init__(self, parent)
-        BaseVideoWidget.__init__(self, shm_name, shape, dtype, stop_event)
-        self.label = QLabel(self)
-        self.label.setScaledContents(True)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.label)
-
-    def render(self):
-        h, w, _ = self.frame.shape
-        img = QImage(self.frame.data, w, h, w * 3, QImage.Format.Format_BGR888)
-        self.label.setPixmap(QPixmap.fromImage(img))
-
-
 class MainWindow(QMainWindow):
     def __init__(self, shm_name, shape, dtype, stop_event):
         super().__init__()
@@ -232,17 +217,12 @@ class MainWindow(QMainWindow):
         self.resize(shape[1], shape[0])
         self.setMinimumSize(320, 240)
 
-        self.stack = QStackedWidget(self)
         self.opengl = OpenGLVideoWidget(shm_name, shape, dtype, stop_event, self)
-        self.label = QLabelVideoWidget(shm_name, shape, dtype, stop_event, self)
-        self.stack.addWidget(self.opengl)
-        self.stack.addWidget(self.label)
-        self.setCentralWidget(self.stack)
+        self.setCentralWidget(self.opengl)
 
         self.current_fps = int(TARGET_FPS)
         self._update_widget_fps(self.current_fps)
         self._create_menu()
-        self.stack.setCurrentIndex(0)
 
     def _create_menu(self):
         menu = self.menuBar()
@@ -251,15 +231,6 @@ class MainWindow(QMainWindow):
         file_menu.addAction(exit_action)
 
         view_menu = menu.addMenu("&View")
-        render_group = QActionGroup(self)
-        render_group.setExclusive(True)
-        self.opengl_act = QAction("OpenGL", self, checkable=True, checked=True, triggered=lambda: self.stack.setCurrentIndex(0))
-        self.label_act = QAction("QLabel", self, checkable=True, triggered=lambda: self.stack.setCurrentIndex(1))
-        render_group.addAction(self.opengl_act)
-        render_group.addAction(self.label_act)
-        view_menu.addAction(self.opengl_act)
-        view_menu.addAction(self.label_act)
-
         set_fps_action = QAction("Set Render FPS", self, triggered=self.show_set_fps_dialog)
         view_menu.addAction(set_fps_action)
 
@@ -271,7 +242,6 @@ class MainWindow(QMainWindow):
 
     def _update_widget_fps(self, fps):
         self.opengl.set_fps(fps)
-        self.label.set_fps(fps)
 
     def closeEvent(self, e):
         self.stop_event.set()
@@ -315,7 +285,7 @@ def capture_process(shm_name, shape, dtype, stop_event):
 
         fps_counter.count_frame()
         if fps_counter.able_to_calculate():
-             print(f"Capture FPS: {fps_counter.calculate():.2f}")
+            print(f"Capture FPS: {fps_counter.calculate():.2f}")
 
         if needs_resize:
             current_frame = cv2.resize(current_frame, (shape[1], shape[0]), interpolation=cv2.INTER_LINEAR)
@@ -337,6 +307,7 @@ def display_process(shm_name, shape, dtype, stop_event):
     exit_code = app.exec()
     stop_event.set()
     sys.exit(exit_code)
+
 
 if __name__ == "__main__":
     mp.freeze_support()
@@ -367,6 +338,7 @@ if __name__ == "__main__":
 
     try:
         capture_proc.start()
+
         display_proc.start()
         display_proc.join()
     except Exception as e: print(f"Unhandled expection: {traceback.format_exc()}")
@@ -381,7 +353,8 @@ if __name__ == "__main__":
         if shm is not None:
             try:
                 shm.unlink()
-            except: pass
+            except:
+                pass
             finally:
                 shm.close()
 
