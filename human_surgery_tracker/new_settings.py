@@ -3,7 +3,6 @@ import json
 from typing import Any, Callable, Type, List, Dict, Generic, TypeVar, Tuple, Optional
 from PyQt6.QtWidgets import QLineEdit, QWidget, QDialog, QFormLayout, QLabel, QApplication, QVBoxLayout, QPushButton, QDialogButtonBox, QCheckBox
 from PyQt6.QtCore import Qt, QLocale
-from PyQt6.QtGui import QPalette
 
 T = TypeVar('T')
 

@@ -5,7 +5,9 @@ import sys
 import multiprocessing as mp
 import time
 import traceback
+from dataclasses import dataclass
 from multiprocessing.shared_memory import SharedMemory
+from threading import Thread
 
 import numpy as np
 import cv2
@@ -15,7 +17,8 @@ from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QSurfaceFormat, QAction
 from OpenGL.GL import *
 from OpenGL.GL import shaders
-from tracker.utils.fps import FPSCounter
+
+from eye_tracker.common.native_rpc import RPCObjectServer
 
 TARGET_RESOLUTION = (640, 480)
 TARGET_FPS = 45
@@ -43,7 +46,6 @@ void main() {
 }
 """
 
-
 def get_frame_props(cam_idx):
     cap = cv2.VideoCapture(cam_idx)
     if not cap.isOpened(): cap = cv2.VideoCapture(cam_idx + cv2.CAP_MSMF)
@@ -62,6 +64,42 @@ def get_frame_props(cam_idx):
     size = h * w * 3 * itemsize
     return (h, w, 3), dtype, size, itemsize
 
+@dataclass
+class ShareableEvent:
+    _is_set: bool
+
+    def is_set(self):
+        return self._is_set
+
+    def set(self):
+        self._is_set = True
+
+    def wait(self):
+        while not self.is_set:
+            time.sleep(0.05)
+
+class Model:
+    def __init__(self, shm_name, shape, dtype, stop_event):
+        self.shm = SharedMemory(name=shm_name)
+        self.frame = np.ndarray(shape, dtype=dtype, buffer=self.shm.buf)
+        self.points = []
+        self.stop_event = stop_event
+        self.run_thread = Thread(target=self.run)
+
+    def process_frame(self, frame):
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        corners = cv2.goodFeaturesToTrack(gray, maxCorners=100, qualityLevel=0.01, minDistance=10)
+        if corners is not None:
+            self.points = [(int(c[0][0]), int(c[0][1])) for c in corners]
+        else:
+            self.points = []
+
+    def run(self):
+        while not self.stop_event.is_set():
+            frame_copy = self.frame.copy()
+            self.process_frame(frame_copy)
+            time.sleep(0.01)
+
 
 class BaseVideoWidget:
     def __init__(self, shm_name_data, frame_shape, frame_dtype, stop_event):
@@ -70,9 +108,7 @@ class BaseVideoWidget:
         self.frame_height, self.frame_width, self.frame_channels = frame_shape
         self.frame_dtype = frame_dtype
         self.stop_event = stop_event
-        self.fps = FPSCounter()
-        self.frame_nbytes = self.frame_height * self.frame_width * self.frame_channels * np.dtype(
-            self.frame_dtype).itemsize
+        self.frame_nbytes = self.frame_height * self.frame_width * self.frame_channels * np.dtype(self.frame_dtype).itemsize
 
         self.shm = mp.shared_memory.SharedMemory(name=self.shm_name)
         self.frame = np.ndarray(self.frame_shape, dtype=self.frame_dtype, buffer=self.shm.buf)
@@ -87,13 +123,7 @@ class BaseVideoWidget:
         self.timer.setInterval(interval)
 
     def _update(self):
-        self.fps.count_frame()
-        if self.fps.able_to_calculate():
-            print(f"{self.__class__.__name__} Render FPS: {self.fps.calculate():.2f}")
-        self.render()
-
-    def render(self):
-        raise NotImplementedError
+        self.update()
 
     def showEvent(self, e):
         super().showEvent(e)
@@ -103,18 +133,11 @@ class BaseVideoWidget:
         super().hideEvent(e)
         self.timer.stop()
 
-
 class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
-    def __init__(self, shm_name, shape, dtype, stop_event, parent=None):
+    def __init__(self, shm_name, shape, dtype, stop_event, model, parent=None):
         QOpenGLWidget.__init__(self, parent)
         BaseVideoWidget.__init__(self, shm_name, shape, dtype, stop_event)
-
-        fmt = QSurfaceFormat()
-        fmt.setVersion(3, 3)
-        fmt.setProfile(QSurfaceFormat.OpenGLContextProfile.CoreProfile)
-        fmt.setSwapBehavior(QSurfaceFormat.SwapBehavior.DoubleBuffer)
-        fmt.setSwapInterval(0)
-        self.setFormat(fmt)
+        self.model = model
 
         self.tex = None
         self.shader = None
@@ -125,6 +148,12 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
         self.pbo_index = 0
 
     def initializeGL(self):
+        fmt = QSurfaceFormat()
+        fmt.setVersion(3, 3)
+        fmt.setProfile(QSurfaceFormat.OpenGLContextProfile.CoreProfile)
+        fmt.setSwapBehavior(QSurfaceFormat.SwapBehavior.DoubleBuffer)
+        fmt.setSwapInterval(0)
+        self.setFormat(fmt)
         glClearColor(0.0, 0.0, 0.0, 1.0)
         self.shader = shaders.compileProgram(
             shaders.compileShader(VERTEX_SHADER_SOURCE, GL_VERTEX_SHADER),
@@ -155,8 +184,6 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * vertices.itemsize, ctypes.c_void_p(3 * vertices.itemsize))
         glEnableVertexAttribArray(1)
         glBindVertexArray(0)
-        glBindBuffer(GL_ARRAY_BUFFER, 0)
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0)
 
         self.tex = glGenTextures(1)
         glBindTexture(GL_TEXTURE_2D, self.tex)
@@ -165,7 +192,6 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, self.frame_width, self.frame_height, 0, GL_BGR, GL_UNSIGNED_BYTE, None)
-        glBindTexture(GL_TEXTURE_2D, 0)
 
         self.pbos = glGenBuffers(2)
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, self.pbos[0])
@@ -174,16 +200,24 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
         glBufferData(GL_PIXEL_UNPACK_BUFFER, self.frame_nbytes, None, GL_STREAM_DRAW)
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0)
 
+    def paint_objects(self):
+        local_frame = self.frame.copy()
+        points = self.model.points
+        for point in points:
+            cv2.circle(local_frame, point, 5, (0, 0, 255), -1)
+        return local_frame
+
     def paintGL(self):
+        local_frame = self.paint_objects()
+
         current_pbo = self.pbos[self.pbo_index]
         next_pbo = self.pbos[(self.pbo_index + 1) % 2]
 
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, current_pbo)
         glBufferData(GL_PIXEL_UNPACK_BUFFER, self.frame_nbytes, None, GL_STREAM_DRAW)
-
         ptr = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, self.frame_nbytes, GL_MAP_WRITE_BIT)
         if ptr is not None:
-            ctypes.memmove(ptr, self.frame.ctypes.data, self.frame_nbytes)
+            ctypes.memmove(ptr, local_frame.ctypes.data, self.frame_nbytes)
             glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER)
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0)
 
@@ -193,7 +227,6 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, self.frame_width, self.frame_height, GL_BGR, GL_UNSIGNED_BYTE, None)
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0)
 
-        # Отрисовка
         glClear(GL_COLOR_BUFFER_BIT)
         glUseProgram(self.shader)
         glUniform1i(self.texture_loc, 0)
@@ -205,19 +238,16 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
     def resizeGL(self, w, h):
         glViewport(0, 0, w, h)
 
-    def render(self):
-        self.update()
-
-
 class MainWindow(QMainWindow):
-    def __init__(self, shm_name, shape, dtype, stop_event):
+    def __init__(self, shm_name, shape, dtype, stop_event, model):
         super().__init__()
         self.stop_event = stop_event
+        self.model = model
         self.setWindowTitle("Webcam Viewer")
         self.resize(shape[1], shape[0])
         self.setMinimumSize(320, 240)
 
-        self.opengl = OpenGLVideoWidget(shm_name, shape, dtype, stop_event, self)
+        self.opengl = OpenGLVideoWidget(shm_name, shape, dtype, stop_event, self.model, self)
         self.setCentralWidget(self.opengl)
 
         self.current_fps = int(TARGET_FPS)
@@ -247,12 +277,10 @@ class MainWindow(QMainWindow):
         self.stop_event.set()
         super().closeEvent(e)
 
-
 def signal_handler(stop_event):
     if stop_event:
         stop_event.set()
     QTimer.singleShot(50, QApplication.quit)
-
 
 def capture_process(shm_name, shape, dtype, stop_event):
     signal.signal(signal.SIGTERM, lambda s, f: signal_handler(stop_event))
@@ -260,7 +288,6 @@ def capture_process(shm_name, shape, dtype, stop_event):
 
     shm = mp.shared_memory.SharedMemory(name=shm_name)
     frame_buffer = np.ndarray(shape, dtype=dtype, buffer=shm.buf)
-    fps_counter = FPSCounter()
 
     cap = cv2.VideoCapture(CAMERA_INDEX, cv2.CAP_ANY)
     if not cap.isOpened(): cap = cv2.VideoCapture(CAMERA_INDEX + cv2.CAP_MSMF)
@@ -283,10 +310,6 @@ def capture_process(shm_name, shape, dtype, stop_event):
             time.sleep(0.005)
             continue
 
-        fps_counter.count_frame()
-        if fps_counter.able_to_calculate():
-            print(f"Capture FPS: {fps_counter.calculate():.2f}")
-
         if needs_resize:
             current_frame = cv2.resize(current_frame, (shape[1], shape[0]), interpolation=cv2.INTER_LINEAR)
         np.copyto(frame_buffer, current_frame)
@@ -294,20 +317,25 @@ def capture_process(shm_name, shape, dtype, stop_event):
     cap.release()
     shm.close()
 
+def run_model(shm_name, shape, dtype):
+    server = RPCObjectServer(('localhost', 18812))
+    server.stopped = ShareableEvent(False)
+    server.instantiate_object_from_class('model', Model, shm_name, shape, dtype, server.stopped)
+    return server, server.model, server.stopped
 
-def display_process(shm_name, shape, dtype, stop_event):
+
+def display_process(shm_name, shape, dtype, model, stop_event):
     signal.signal(signal.SIGTERM, lambda s, f: signal_handler(stop_event))
     signal.signal(signal.SIGINT, lambda s, f: signal_handler(stop_event))
 
     app = QApplication.instance() or QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(True)
 
-    win = MainWindow(shm_name, shape, dtype, stop_event)
+    win = MainWindow(shm_name, shape, dtype, stop_event, model)
     win.show()
     exit_code = app.exec()
     stop_event.set()
     sys.exit(exit_code)
-
 
 if __name__ == "__main__":
     mp.freeze_support()
@@ -317,18 +345,13 @@ if __name__ == "__main__":
         print(f"Failed to get frame properties from camera index {CAMERA_INDEX}")
         sys.exit(1)
 
-    stop_event = mp.Event()
     shm_name = f"{SHM_PREFIX}{os.getpid()}"
-    shm = None
+    shm = SharedMemory(name=shm_name, create=True, size=int(size))
 
-    try:
-        shm = SharedMemory(name=shm_name, create=True, size=int(size))
-    except Exception as e:
-        print(f"Couldn't create shared memory segment with name={shm_name}")
-        sys.exit(1)
-
+    model_args = (shm_name, shape, dtype)
+    server, model, stop_event = run_model(*model_args)
     capture_args = (shm_name, shape, dtype, stop_event)
-    display_args = (shm_name, shape, dtype, stop_event)
+    display_args = (shm_name, shape, dtype, model, stop_event)
 
     capture_proc = mp.Process(target=capture_process, args=capture_args, name="CaptureProcess")
     display_proc = mp.Process(target=display_process, args=display_args, name="DisplayProcess")
@@ -338,10 +361,10 @@ if __name__ == "__main__":
 
     try:
         capture_proc.start()
-
         display_proc.start()
         display_proc.join()
-    except Exception as e: print(f"Unhandled expection: {traceback.format_exc()}")
+    except Exception as e:
+        print(f"Unhandled exception: {traceback.format_exc()}")
     finally:
         stop_event.set()
         capture_proc.join(timeout=2)
@@ -350,12 +373,6 @@ if __name__ == "__main__":
         if capture_proc.is_alive(): capture_proc.terminate()
         if display_proc.is_alive(): display_proc.terminate()
 
-        if shm is not None:
-            try:
-                shm.unlink()
-            except:
-                pass
-            finally:
-                shm.close()
-
+        shm.unlink()
+        shm.close()
         sys.exit(0)

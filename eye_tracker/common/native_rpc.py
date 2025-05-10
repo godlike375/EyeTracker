@@ -84,7 +84,7 @@ class RPCObjectServer:
         self._executor = None
         if use_thread:
             self._parallel = Thread(target=self.serve, args=(self._address,), daemon=True)
-            self._executor = ThreadPoolExecutor(max_workers=100)
+            self._executor = ThreadPoolExecutor()
         else:
             self._parallel = Process(target=self.serve, args=(self._address,))
         if start:
@@ -160,7 +160,7 @@ class RPCObjectServer:
             conn.close()
 
         if not self._use_thread:
-            self._executor = ThreadPoolExecutor(max_workers=100)
+            self._executor = ThreadPoolExecutor()
         with self._executor as executor:
             while True:
                 conn = listener.accept()
