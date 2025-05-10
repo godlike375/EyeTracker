@@ -367,11 +367,10 @@ if __name__ == "__main__":
         print(f"Unhandled exception: {traceback.format_exc()}")
     finally:
         stop_event.set()
-        capture_proc.join(timeout=2)
-        if display_proc.is_alive(): display_proc.join(timeout=1)
-
-        if capture_proc.is_alive(): capture_proc.terminate()
         if display_proc.is_alive(): display_proc.terminate()
+
+        if capture_proc.is_alive(): capture_proc.join(timeout=1), capture_proc.terminate()
+        server.terminate_and_join()
 
         shm.unlink()
         shm.close()

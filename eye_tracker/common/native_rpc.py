@@ -1,4 +1,5 @@
 import traceback
+from functools import lru_cache
 from multiprocessing import Process
 from multiprocessing.connection import Listener, Client, Connection
 from threading import Thread
@@ -132,6 +133,7 @@ class RPCObjectServer:
     def get_proxy(self, name: str) -> RPCObjectProxy:
         return RPCObjectProxy(self._address, name)
 
+    @lru_cache(maxsize=None)
     def __getattr__(self, name):
         if name.startswith('_'):
             return super().__getattribute__(name)
