@@ -7,14 +7,20 @@ import time
 import traceback
 from dataclasses import dataclass
 from multiprocessing.shared_memory import SharedMemory
+from multiprocessing import Value
 from threading import Thread
+from datetime import datetime
+from pathlib import Path
+import copy
+import ctypes
+from typing import Any
 
 import numpy as np
 import cv2
 from PySide6.QtWidgets import (QApplication, QMainWindow, QInputDialog)
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtCore import QTimer, Qt
-from PySide6.QtGui import QSurfaceFormat, QAction
+from PySide6.QtGui import QAction, QSurfaceFormat
 from OpenGL.GL import *
 from OpenGL.GL import shaders
 
@@ -22,8 +28,15 @@ from eye_tracker.common.native_rpc import RPCObjectServer
 
 TARGET_RESOLUTION = (640, 480)
 TARGET_FPS = 45
-CAMERA_INDEX = 0
+CAMERA_INDEX = 1
 SHM_PREFIX = f"tracker_webcam_shm_"
+
+DEGREE_TO_CV2_MAP = {
+    90: cv2.ROTATE_90_CLOCKWISE,
+    180: cv2.ROTATE_180,
+    270: cv2.ROTATE_90_COUNTERCLOCKWISE,
+    0: None
+}
 
 VERTEX_SHADER_SOURCE = """
 #version 330 core
@@ -46,23 +59,75 @@ void main() {
 }
 """
 
+def rotate_frame(frame: np.ndarray, degree: int):
+    if degree and degree in DEGREE_TO_CV2_MAP:
+        return cv2.rotate(frame, DEGREE_TO_CV2_MAP[degree])
+    return frame
+
+class VideoAdapter:
+    def __init__(self, frame: np.ndarray, rotate_degree: Value, shm_name: str=None):
+        self.height = frame.shape[0]
+        self.width = frame.shape[1]
+        self.shm_name = shm_name or f"{SHM_PREFIX}{os.getpid()}_{id(self)}"
+        self.shared_memory = SharedMemory(name=self.shm_name, create=shm_name is None, size=frame.size * frame.itemsize)
+        self.rotate_degree = rotate_degree
+        self.video_frame = None
+
+    def setup_video_frame(self):
+        self.video_frame = np.ndarray((self.height, self.width, 3), dtype=np.uint8, buffer=self.shared_memory.buf)
+
+    def get_ref_video_frame(self):
+        if self.video_frame is None:
+            raise RuntimeError("Video frame not initialized. Call setup_video_frame first.")
+        return rotate_frame(self.video_frame, self.rotate_degree.value)
+
+    def get_copy_video_frame(self):
+        return np.copy(self.get_ref_video_frame())
+
+    def get_transfer_data(self):
+        return {
+            'shm_name': self.shm_name,
+            'height': self.height,
+            'width': self.width,
+            'rotate_degree': self.rotate_degree
+        }
+
+    @classmethod
+    def from_transfer_data(cls, transfer_data):
+        adapter = cls.__new__(cls)
+        adapter.height = transfer_data['height']
+        adapter.width = transfer_data['width']
+        adapter.shm_name = transfer_data['shm_name']
+        adapter.shared_memory = SharedMemory(name=adapter.shm_name)
+        adapter.rotate_degree = transfer_data['rotate_degree']
+        adapter.video_frame = None
+        return adapter
+
+    def close(self):
+        if hasattr(self, 'shared_memory') and self.shared_memory:
+            self.shared_memory.close()
+
+def start_video_recording(filename, codec, fps, frame_size):
+    fourcc = cv2.VideoWriter_fourcc(*codec)
+    return cv2.VideoWriter(filename, fourcc, fps, frame_size)
+
 def get_frame_props(cam_idx):
     cap = cv2.VideoCapture(cam_idx)
     if not cap.isOpened(): cap = cv2.VideoCapture(cam_idx + cv2.CAP_MSMF)
     if not cap.isOpened(): cap = cv2.VideoCapture(cam_idx + cv2.CAP_DSHOW)
     if not cap.isOpened():
-        return None, None, None, None
+        return None, None, None, None, None
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, TARGET_RESOLUTION[0])
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, TARGET_RESOLUTION[1])
     ret, frame = cap.read()
     cap.release()
     if not ret:
-        return None, None, None, None
+        return None, None, None, None, None
     h, w, _ = frame.shape
     dtype = np.uint8
     itemsize = np.dtype(dtype).itemsize
     size = h * w * 3 * itemsize
-    return (h, w, 3), dtype, size, itemsize
+    return (h, w, 3), dtype, size, itemsize, frame
 
 @dataclass
 class ShareableEvent:
@@ -75,16 +140,21 @@ class ShareableEvent:
         self._is_set = True
 
     def wait(self):
-        while not self.is_set:
+        while not self.is_set():
             time.sleep(0.05)
 
+@dataclass
+class ShareableValue:
+    value: Any
+
+
 class Model:
-    def __init__(self, shm_name, shape, dtype, stop_event):
-        self.shm = SharedMemory(name=shm_name)
-        self.frame = np.ndarray(shape, dtype=dtype, buffer=self.shm.buf)
+    def __init__(self, video_adapter_args, stop_event):
+        self.video_adapter = VideoAdapter.from_transfer_data(video_adapter_args)
         self.points = []
         self.stop_event = stop_event
-        self.run_thread = Thread(target=self.run)
+        self.run_thread = Thread(target=self.run, daemon=True)
+        self.run_thread.start()
 
     def process_frame(self, frame):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -95,23 +165,20 @@ class Model:
             self.points = []
 
     def run(self):
+        self.video_adapter.setup_video_frame()
         while not self.stop_event.is_set():
-            frame_copy = self.frame.copy()
+            frame_copy = self.video_adapter.get_copy_video_frame()
             self.process_frame(frame_copy)
             time.sleep(0.01)
 
-
 class BaseVideoWidget:
-    def __init__(self, shm_name_data, frame_shape, frame_dtype, stop_event):
-        self.shm_name = shm_name_data
-        self.frame_shape = frame_shape
-        self.frame_height, self.frame_width, self.frame_channels = frame_shape
-        self.frame_dtype = frame_dtype
+    def __init__(self, video_adapter, stop_event):
+        self.video_adapter = video_adapter
+        self.frame_shape = (video_adapter.height, video_adapter.width, 3)
+        self.frame_height, self.frame_width, self.frame_channels = self.frame_shape
+        self.frame_dtype = np.uint8
         self.stop_event = stop_event
         self.frame_nbytes = self.frame_height * self.frame_width * self.frame_channels * np.dtype(self.frame_dtype).itemsize
-
-        self.shm = mp.shared_memory.SharedMemory(name=self.shm_name)
-        self.frame = np.ndarray(self.frame_shape, dtype=self.frame_dtype, buffer=self.shm.buf)
 
         self.timer = QTimer(self)
         self.timer.setTimerType(Qt.TimerType.PreciseTimer)
@@ -134,11 +201,10 @@ class BaseVideoWidget:
         self.timer.stop()
 
 class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
-    def __init__(self, shm_name, shape, dtype, stop_event, model, parent=None):
+    def __init__(self, video_adapter, stop_event, model, parent=None):
         QOpenGLWidget.__init__(self, parent)
-        BaseVideoWidget.__init__(self, shm_name, shape, dtype, stop_event)
+        BaseVideoWidget.__init__(self, video_adapter, stop_event)
         self.model = model
-
         self.tex = None
         self.shader = None
         self.vao = None
@@ -201,7 +267,7 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0)
 
     def paint_objects(self):
-        local_frame = self.frame.copy()
+        local_frame = self.video_adapter.get_copy_video_frame()
         points = self.model.points
         for point in points:
             cv2.circle(local_frame, point, 5, (0, 0, 255), -1)
@@ -239,15 +305,17 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
         glViewport(0, 0, w, h)
 
 class MainWindow(QMainWindow):
-    def __init__(self, shm_name, shape, dtype, stop_event, model):
+    def __init__(self, video_adapter: VideoAdapter, stop_event, model):
         super().__init__()
         self.stop_event = stop_event
         self.model = model
+        self.video_adapter = video_adapter
+        self.video_adapter.setup_video_frame()
         self.setWindowTitle("Webcam Viewer")
-        self.resize(shape[1], shape[0])
+        self.resize(video_adapter.width, video_adapter.height)
         self.setMinimumSize(320, 240)
 
-        self.opengl = OpenGLVideoWidget(shm_name, shape, dtype, stop_event, self.model, self)
+        self.opengl = OpenGLVideoWidget(video_adapter, stop_event, self.model, self)
         self.setCentralWidget(self.opengl)
 
         self.current_fps = int(TARGET_FPS)
@@ -262,13 +330,21 @@ class MainWindow(QMainWindow):
 
         view_menu = menu.addMenu("&View")
         set_fps_action = QAction("Set Render FPS", self, triggered=self.show_set_fps_dialog)
+        rotate_action = QAction("Rotate Video", self, triggered=self.show_rotate_dialog)
         view_menu.addAction(set_fps_action)
+        view_menu.addAction(rotate_action)
 
     def show_set_fps_dialog(self):
         fps, ok = QInputDialog.getInt(self, "Set Render FPS", "Enter target render FPS:", self.current_fps, 1, 10000, 1)
         if ok:
             self.current_fps = fps
             self._update_widget_fps(self.current_fps)
+
+    def show_rotate_dialog(self):
+        degrees = [0, 90, 180, 270]
+        degree, ok = QInputDialog.getInt(self, "Rotate Video", "Enter rotation degree (0, 90, 180, 270):", self.video_adapter.rotate_degree.value, 0, 270, 90)
+        if ok and degree in degrees:
+            self.video_adapter.rotate_degree.value = degree
 
     def _update_widget_fps(self, fps):
         self.opengl.set_fps(fps)
@@ -282,27 +358,26 @@ def signal_handler(stop_event):
         stop_event.set()
     QTimer.singleShot(50, QApplication.quit)
 
-def capture_process(shm_name, shape, dtype, stop_event):
+def capture_process(video_adapter_data, stop_event):
     signal.signal(signal.SIGTERM, lambda s, f: signal_handler(stop_event))
     signal.signal(signal.SIGINT, lambda s, f: signal_handler(stop_event))
 
-    shm = mp.shared_memory.SharedMemory(name=shm_name)
-    frame_buffer = np.ndarray(shape, dtype=dtype, buffer=shm.buf)
-
+    video_adapter = VideoAdapter.from_transfer_data(video_adapter_data)
+    video_adapter.setup_video_frame()
     cap = cv2.VideoCapture(CAMERA_INDEX, cv2.CAP_ANY)
     if not cap.isOpened(): cap = cv2.VideoCapture(CAMERA_INDEX + cv2.CAP_MSMF)
     if not cap.isOpened(): cap = cv2.VideoCapture(CAMERA_INDEX + cv2.CAP_DSHOW)
     if not cap.isOpened():
         stop_event.set()
-        shm.close()
+        video_adapter.close()
         return
 
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, shape[1])
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, shape[0])
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, video_adapter.width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, video_adapter.height)
     cap.set(cv2.CAP_PROP_FPS, TARGET_FPS)
     actual_w = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
     actual_h = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-    needs_resize = not (int(actual_w) == shape[1] and int(actual_h) == shape[0])
+    needs_resize = not (int(actual_w) == video_adapter.width and int(actual_h) == video_adapter.height)
 
     while not stop_event.is_set():
         ret, current_frame = cap.read()
@@ -311,47 +386,48 @@ def capture_process(shm_name, shape, dtype, stop_event):
             continue
 
         if needs_resize:
-            current_frame = cv2.resize(current_frame, (shape[1], shape[0]), interpolation=cv2.INTER_LINEAR)
-        np.copyto(frame_buffer, current_frame)
+            current_frame = cv2.resize(current_frame, (video_adapter.width, video_adapter.height), interpolation=cv2.INTER_LINEAR)
+        np.copyto(video_adapter.video_frame, current_frame)
 
     cap.release()
-    shm.close()
+    video_adapter.close()
 
-def run_model(shm_name, shape, dtype):
+def run_model(video_adapter_data):
     server = RPCObjectServer(('localhost', 18812))
     server.stopped = ShareableEvent(False)
-    server.instantiate_object_from_class('model', Model, shm_name, shape, dtype, server.stopped)
+    server.instantiate_object_from_class('model', Model, video_adapter_data, server.stopped)
     return server, server.model, server.stopped
 
-
-def display_process(shm_name, shape, dtype, model, stop_event):
+def display_process(video_adapter_data, model, stop_event):
     signal.signal(signal.SIGTERM, lambda s, f: signal_handler(stop_event))
     signal.signal(signal.SIGINT, lambda s, f: signal_handler(stop_event))
 
+    video_adapter = VideoAdapter.from_transfer_data(video_adapter_data)
     app = QApplication.instance() or QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(True)
 
-    win = MainWindow(shm_name, shape, dtype, stop_event, model)
+    win = MainWindow(video_adapter, stop_event, model)
     win.show()
     exit_code = app.exec()
     stop_event.set()
+    video_adapter.close()
     sys.exit(exit_code)
 
 if __name__ == "__main__":
     mp.freeze_support()
 
-    shape, dtype, size, itemsize = get_frame_props(CAMERA_INDEX)
+    shape, dtype, size, itemsize, initial_frame = get_frame_props(CAMERA_INDEX)
     if shape is None:
         print(f"Failed to get frame properties from camera index {CAMERA_INDEX}")
         sys.exit(1)
 
-    shm_name = f"{SHM_PREFIX}{os.getpid()}"
-    shm = SharedMemory(name=shm_name, create=True, size=int(size))
-
-    model_args = (shm_name, shape, dtype)
-    server, model, stop_event = run_model(*model_args)
-    capture_args = (shm_name, shape, dtype, stop_event)
-    display_args = (shm_name, shape, dtype, model, stop_event)
+    video_server = RPCObjectServer(('localhost', 18813), use_thread=True)
+    video_server.rotate_degree = ShareableValue(0)
+    video_adapter = VideoAdapter(initial_frame, video_server.rotate_degree)
+    video_adapter_data = video_adapter.get_transfer_data()
+    server, model, stop_event = run_model(video_adapter_data)
+    capture_args = (video_adapter_data, stop_event)
+    display_args = (video_adapter_data, model, stop_event)
 
     capture_proc = mp.Process(target=capture_process, args=capture_args, name="CaptureProcess")
     display_proc = mp.Process(target=display_process, args=display_args, name="DisplayProcess")
@@ -368,10 +444,8 @@ if __name__ == "__main__":
     finally:
         stop_event.set()
         if display_proc.is_alive(): display_proc.terminate()
-
         if capture_proc.is_alive(): capture_proc.join(timeout=1), capture_proc.terminate()
         server.terminate_and_join()
-
-        shm.unlink()
-        shm.close()
+        video_adapter.shared_memory.unlink()
+        video_adapter.close()
         sys.exit(0)

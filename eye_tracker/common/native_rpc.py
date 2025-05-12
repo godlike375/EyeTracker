@@ -10,6 +10,7 @@ class RPCObjectProxy:
         object.__setattr__(self, '_address', address)
         object.__setattr__(self, '_object_name', object_name)
         object.__setattr__(self, '_conn', None)
+        object.__setattr__(self, '_callable_cache', {})
 
     def _get_conn(self):
         if object.__getattribute__(self, '_conn') is None:
@@ -20,12 +21,18 @@ class RPCObjectProxy:
     def __getattr__(self, name):
         conn = self._get_conn()
         obj_name = object.__getattribute__(self, '_object_name')
+        cache = object.__getattribute__(self, '_callable_cache')
 
-        conn.send({'action': 'is_callable', 'obj_name': obj_name, 'attr': name})
-        response = conn.recv()
-        if 'error' in response:
-            raise AttributeError(response['error'])
-        is_callable = response['result']
+        if not name in cache:
+            conn.send({'action': 'is_callable', 'obj_name': obj_name, 'attr': name})
+            response = conn.recv()
+            if 'error' in response:
+                raise AttributeError(response['error'])
+            is_callable = response['result']
+
+            cache[name] = is_callable
+        else:
+            is_callable = cache[name]
 
         if is_callable:
             def method(*args, **kwargs):
