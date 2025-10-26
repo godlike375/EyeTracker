@@ -75,13 +75,15 @@ class RPCObjectProxy:
     def __getstate__(self):
         return {
             'address': object.__getattribute__(self, '_address'),
-            'obj_name': object.__getattribute__(self, '_object_name')
+            'obj_name': object.__getattribute__(self, '_object_name'),
+            'callable_cache': object.__getattribute__(self, '_callable_cache')
         }
 
     def __setstate__(self, state):
         object.__setattr__(self, '_address', state['address'])
         object.__setattr__(self, '_object_name', state['obj_name'])
         object.__setattr__(self, '_conn', None)
+        object.__setattr__(self, '_callable_cache', state['callable_cache'])
 
 
 class RPCObjectServer:
