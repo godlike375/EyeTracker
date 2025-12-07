@@ -2,8 +2,9 @@ from multiprocessing import Array, Process
 
 import cv2
 import numpy
-from PyQt6.QtCore import QObject, QTimerEvent, pyqtSlot
-from PyQt6.QtWidgets import QMessageBox, QApplication
+from PySide6.QtCore import QObject, QTimerEvent, Slot
+
+from PySide6.QtWidgets import QMessageBox, QApplication
 
 from tracker.abstractions import ID, DrawnObject
 from tracker.camera import VideoAdapter
@@ -92,14 +93,14 @@ class MainController(QObject):
         label = self.window.video_label
         label.on_mouse_click = label.on_mouse_move = label.on_mouse_release = label.on_enter_press = None
 
-    @pyqtSlot()
+    @Slot()
     def on_eye_select_requested(self):
         selector = EyeSelector('eye_selector', self.unbind_selector_from_events, self.on_selection_finished)
         self.bind_selector_to_events(selector)
         selector.start()
         self.drawable_objects[selector.name] = selector
 
-    @pyqtSlot(int)
+    @Slot(int)
     def on_rotate(self, degree: int):
         self.video_adapter.rotate_degree.value = degree
 
@@ -128,13 +129,13 @@ class MainController(QObject):
         self.processes.append(self.detector_manager.start_process())
 
 
-    @pyqtSlot(BoundingBox)
+    @Slot(BoundingBox)
     def on_new_tracker_requested(self, coords: BoundingBox):
         self.free_tracker_id += 1
         tracker = TrackerWrapper(self.free_tracker_id, coords, self.video_adapter)
         self.trackers[self.free_tracker_id] = tracker
 
-    @pyqtSlot()
+    @Slot()
     def on_calibration_started(self):
         if len(QApplication.screens()) < 1:
             QMessageBox.warning(None, 'Ошибка', 'Необходимо подключить второй экран')
@@ -144,7 +145,7 @@ class MainController(QObject):
             return
         self.gaze_predictor = GazePredictor(self.target_sight_accepted, self.on_screen_gaze_point, self.detector_manager)
 
-    @pyqtSlot()
+    @Slot()
     def on_calibration_stopped(self):
         if self.gaze_predictor:
             try:
@@ -164,10 +165,10 @@ class MainController(QObject):
                 ...
 
 
-    @pyqtSlot()
+    @Slot()
     def on_recording_started(self):
         self.recording.flag.value = True
 
-    @pyqtSlot()
+    @Slot()
     def on_recording_stopped(self):
         self.recording.flag.value = False

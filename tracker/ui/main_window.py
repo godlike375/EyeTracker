@@ -1,22 +1,21 @@
 from functools import partial
 
 import numpy
-from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtGui import QAction
-from PyQt6.QtWidgets import QMainWindow, QVBoxLayout, QWidget
-from PyQt6.uic.properties import QtGui
+from PySide6.QtCore import Signal
+from PySide6.QtGui import QAction
+from PySide6.QtWidgets import QMainWindow, QVBoxLayout, QWidget
 
 from tracker.utils.coordinates import BoundingBox
 from tracker.ui.video_label import CallbacksVideoLabel
 
 
 class MainWindow(QMainWindow):
-    new_tracker = pyqtSignal(BoundingBox)
-    rotate = pyqtSignal(int)
-    start_calibration = pyqtSignal()
-    stop_calibration = pyqtSignal()
-    start_recording = pyqtSignal()
-    stop_recording = pyqtSignal()
+    new_tracker = Signal(BoundingBox)
+    rotate = Signal(int)
+    start_calibration = Signal()
+    stop_calibration = Signal()
+    start_recording = Signal()
+    stop_recording = Signal()
 
 
     def __init__(self):

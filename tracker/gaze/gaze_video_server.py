@@ -5,7 +5,7 @@ from asyncio import Future
 
 import websockets
 
-from websockets import WebSocketServerProtocol
+from websockets.legacy.server import WebSocketServerProtocol
 
 sys.path.append('../..')
 

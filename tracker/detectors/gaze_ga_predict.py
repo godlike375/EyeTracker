@@ -1,4 +1,3 @@
-from operator import rshift
 import cv2 as cv
 import numpy as np
 import mediapipe as mp
@@ -6,11 +5,11 @@ import sys
 
 from pygad import pygad
 
+
+sys.path.append('.')
 from tracker.utils.coordinates import Point
 from tracker.utils.image_processing import draw_text
-from tracker.utils.shared_objects import SharedVector
 
-sys.path.append('..')
 from tracker.utils.fps import FPSLimiter
 mp_face_mesh = mp.solutions.face_mesh
 
@@ -20,8 +19,8 @@ TOTAL_MESH_POINTS = 478
 RIGHT_PUPIL = 473
 LEFT_PUPIL = 468
 
-#cap = cv.VideoCapture(r"C:\Users\godlike\Desktop\макаки2\video_2024-06-25_18-03-25.mp4")
-cap = cv.VideoCapture(1)
+cap = cv.VideoCapture(r"C:\Users\Admin\Downloads\Telegram Desktop\D0000026V00002.AVI")
+#cap = cv.VideoCapture(1)
 fps = FPSLimiter(30)
 reset_timer = FPSLimiter(15)
 
@@ -212,7 +211,7 @@ with mp_face_mesh.FaceMesh(
                 cy = int(cords[1])
                 cx = int(cords[0])
                 depth_color = 255 - int((cords[2] - min_depth) * step)
-                cv.circle(frame, (cx, cy), 1, (depth_color // 2, depth_color // 3, depth_color), 1, cv.LINE_AA)
+                cv.circle(frame, (cx, cy), 1, (depth_color // 2, depth_color // 3, depth_color), 2, cv.LINE_AA)
 
                 #draw_text(frame, str(i), Point(cx, cy), 0.26)
 
@@ -229,6 +228,9 @@ with mp_face_mesh.FaceMesh(
         if key ==ord('s'):
             if not started:
                 started = True
+
+        if key ==ord('e'):
+            break
 
 
 cap.release()

@@ -87,6 +87,33 @@ class Processor:
         return numpy.array_equal(one, another)
 
     @classmethod
+    def draw_test_pattern(cls, frame):
+        """
+        Draw a simple test pattern on the frame for testing purposes.
+        This includes a grid, some text, and colored shapes.
+        """
+        if frame is None:
+            return frame
+
+        # Draw a grid
+        height, width = frame.shape[:2]
+        cell_size = 50
+        for x in range(0, width, cell_size):
+            cv2.line(frame, (x, 0), (x, height), (100, 100, 100), 1)
+        for y in range(0, height, cell_size):
+            cv2.line(frame, (0, y), (width, y), (100, 100, 100), 1)
+
+        # Draw some colored shapes
+        cv2.circle(frame, (100, 100), 10, (255, 0, 0), -1)  # Red circle
+        cv2.rectangle(frame, (150, 80), (200, 120), (0, 255, 0), -1)  # Green rectangle
+
+        # Draw test text
+        cls.draw_text(frame, "TEST PATTERN", Point(20, 30))
+        cls.draw_text(frame, f"Resolution: {width}x{height}", Point(20, 60))
+
+        return frame
+
+    @classmethod
     def load_color(cls):
         # TODO: возможно еще добавить выбор цвета предупреждения
         ps = private_settings

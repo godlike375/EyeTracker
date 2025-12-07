@@ -9,10 +9,6 @@ from dataclasses import dataclass
 from multiprocessing.shared_memory import SharedMemory
 from multiprocessing import Value
 from threading import Thread
-from datetime import datetime
-from pathlib import Path
-import copy
-import ctypes
 from typing import Any
 
 import numpy as np
@@ -28,7 +24,7 @@ from eye_tracker.common.native_rpc import RPCObjectServer
 
 TARGET_RESOLUTION = (640, 480)
 TARGET_FPS = 45
-CAMERA_INDEX = 1
+CAMERA_INDEX = 0
 SHM_PREFIX = f"tracker_webcam_shm_"
 
 DEGREE_TO_CV2_MAP = {
@@ -212,6 +208,7 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
         self.ebo = None
         self.pbos = [None, None]
         self.pbo_index = 0
+        self.current_rotation = 0
 
     def initializeGL(self):
         fmt = QSurfaceFormat()
@@ -230,26 +227,8 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
         self.texture_loc = glGetUniformLocation(self.shader, "ourTexture")
         glDisable(GL_DEPTH_TEST)
 
-        vertices = np.array([1.0, 1.0, 0.0, 1.0, 0.0,
-                             1.0, -1.0, 0.0, 1.0, 1.0,
-                             -1.0, -1.0, 0.0, 0.0, 1.0,
-                             -1.0, 1.0, 0.0, 0.0, 0.0], dtype=np.float32)
-        indices = np.array([0, 1, 3, 1, 2, 3], dtype=np.uint32)
-
-        self.vao = glGenVertexArrays(1)
-        self.vbo = glGenBuffers(1)
-        self.ebo = glGenBuffers(1)
-
-        glBindVertexArray(self.vao)
-        glBindBuffer(GL_ARRAY_BUFFER, self.vbo)
-        glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices, GL_STATIC_DRAW)
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self.ebo)
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.nbytes, indices, GL_STATIC_DRAW)
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * vertices.itemsize, ctypes.c_void_p(0))
-        glEnableVertexAttribArray(0)
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * vertices.itemsize, ctypes.c_void_p(3 * vertices.itemsize))
-        glEnableVertexAttribArray(1)
-        glBindVertexArray(0)
+        # Initial vertices setup
+        self.update_vertices()
 
         self.tex = glGenTextures(1)
         glBindTexture(GL_TEXTURE_2D, self.tex)
@@ -257,6 +236,7 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+        # Allocate texture memory for the raw frame size (unrotated)
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, self.frame_width, self.frame_height, 0, GL_BGR, GL_UNSIGNED_BYTE, None)
 
         self.pbos = glGenBuffers(2)
@@ -266,8 +246,55 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
         glBufferData(GL_PIXEL_UNPACK_BUFFER, self.frame_nbytes, None, GL_STREAM_DRAW)
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0)
 
+    def update_vertices(self):
+        """Updates VBO based on current rotation to handle aspect ratio correctly in OpenGL"""
+        # Standard quad
+        # x, y, z, u, v
+
+        # When we rotate the image using OpenCV (in paint_objects), the image dimensions change.
+        # However, here we are uploading the RAW frame (unrotated) to the GPU and letting
+        # the texture coordinates or the window shape handle the display.
+
+        # Actually, the previous logic was rotating in CPU (cv2) then uploading.
+        # If we rotate in CPU, the texture size changes.
+        # Let's stick to the CPU rotation logic as implemented in paint_objects/VideoAdapter
+        # but we need to re-allocate texture if dimensions change.
+
+        vertices = np.array([
+            1.0,  1.0, 0.0, 1.0, 0.0, # Top Right
+            1.0, -1.0, 0.0, 1.0, 1.0, # Bottom Right
+            -1.0, -1.0, 0.0, 0.0, 1.0, # Bottom Left
+            -1.0,  1.0, 0.0, 0.0, 0.0  # Top Left
+        ], dtype=np.float32)
+
+        indices = np.array([0, 1, 3, 1, 2, 3], dtype=np.uint32)
+
+        if self.vao is None:
+            self.vao = glGenVertexArrays(1)
+            self.vbo = glGenBuffers(1)
+            self.ebo = glGenBuffers(1)
+
+        glBindVertexArray(self.vao)
+        glBindBuffer(GL_ARRAY_BUFFER, self.vbo)
+        glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices, GL_STATIC_DRAW)
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self.ebo)
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.nbytes, indices, GL_STATIC_DRAW)
+
+        # Position attribute
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * vertices.itemsize, ctypes.c_void_p(0))
+        glEnableVertexAttribArray(0)
+        # Texture coord attribute
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * vertices.itemsize, ctypes.c_void_p(3 * vertices.itemsize))
+        glEnableVertexAttribArray(1)
+        glBindVertexArray(0)
+
     def paint_objects(self):
+        # This gets the frame ALREADY rotated by VideoAdapter.get_ref_video_frame logic
+        # if we used get_ref_video_frame. But here we use get_copy_video_frame.
+        # VideoAdapter.get_copy_video_frame calls get_ref_video_frame which calls rotate_frame.
         local_frame = self.video_adapter.get_copy_video_frame()
+
+        # Points are calculated on the rotated frame in Model, so they match
         points = self.model.points
         for point in points:
             cv2.circle(local_frame, point, 5, (0, 0, 255), -1)
@@ -276,21 +303,49 @@ class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
     def paintGL(self):
         local_frame = self.paint_objects()
 
+        h, w, c = local_frame.shape
+
+        # If dimensions changed (rotation happened), re-allocate texture
+        # Note: This is a bit expensive to check every frame, but robust for runtime rotation changes
+        glBindTexture(GL_TEXTURE_2D, self.tex)
+
+        # Check if we need to resize texture storage
+        # We can query current texture width/height or just track it
+        # For simplicity, let's just use glTexImage2D if size changed, else glTexSubImage2D
+        # But since we use PBOs, the PBO size must also match.
+
+        # Current PBO size is self.frame_nbytes (original size).
+        # If rotated 90/270, w and h swap, but total bytes (w*h*c) remains the same.
+        # So PBO size is fine. Texture dimensions need update.
+
+        # However, glTexSubImage2D requires the texture to be allocated with correct w,h.
+        # If rotation changed, we might need to call glTexImage2D again.
+
+        # Let's check against stored dimensions
+        if not hasattr(self, 'last_tex_w') or self.last_tex_w != w or self.last_tex_h != h:
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, w, h, 0, GL_BGR, GL_UNSIGNED_BYTE, None)
+            self.last_tex_w = w
+            self.last_tex_h = h
+
         current_pbo = self.pbos[self.pbo_index]
         next_pbo = self.pbos[(self.pbo_index + 1) % 2]
 
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, current_pbo)
-        glBufferData(GL_PIXEL_UNPACK_BUFFER, self.frame_nbytes, None, GL_STREAM_DRAW)
-        ptr = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, self.frame_nbytes, GL_MAP_WRITE_BIT)
+        # Ensure PBO is big enough (it should be constant size for rotation, but good practice)
+        # glBufferData(GL_PIXEL_UNPACK_BUFFER, local_frame.nbytes, None, GL_STREAM_DRAW)
+
+        ptr = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, local_frame.nbytes, GL_MAP_WRITE_BIT)
         if ptr is not None:
-            ctypes.memmove(ptr, local_frame.ctypes.data, self.frame_nbytes)
+            ctypes.memmove(ptr, local_frame.ctypes.data, local_frame.nbytes)
             glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER)
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0)
 
         glBindTexture(GL_TEXTURE_2D, self.tex)
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, next_pbo)
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, self.frame_width, self.frame_height, GL_BGR, GL_UNSIGNED_BYTE, None)
+
+        # Update texture with new data
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_BGR, GL_UNSIGNED_BYTE, None)
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0)
 
         glClear(GL_COLOR_BUFFER_BIT)
@@ -312,8 +367,12 @@ class MainWindow(QMainWindow):
         self.video_adapter = video_adapter
         self.video_adapter.setup_video_frame()
         self.setWindowTitle("Webcam Viewer")
-        self.resize(video_adapter.width, video_adapter.height)
-        self.setMinimumSize(320, 240)
+
+        # Initial size setup
+        self.base_width = video_adapter.width
+        self.base_height = video_adapter.height
+        self.resize(self.base_width, self.base_height)
+        self.setMinimumSize(240, 240) # Allow smaller resize
 
         self.opengl = OpenGLVideoWidget(video_adapter, stop_event, self.model, self)
         self.setCentralWidget(self.opengl)
@@ -342,9 +401,26 @@ class MainWindow(QMainWindow):
 
     def show_rotate_dialog(self):
         degrees = [0, 90, 180, 270]
-        degree, ok = QInputDialog.getInt(self, "Rotate Video", "Enter rotation degree (0, 90, 180, 270):", self.video_adapter.rotate_degree.value, 0, 270, 90)
+        current_deg = self.video_adapter.rotate_degree.value
+        degree, ok = QInputDialog.getInt(self, "Rotate Video", "Enter rotation degree (0, 90, 180, 270):", current_deg, 0, 270, 90)
         if ok and degree in degrees:
             self.video_adapter.rotate_degree.value = degree
+            self.adjust_window_size(degree)
+
+    def adjust_window_size(self, degree):
+        """Resizes the window based on rotation to maintain aspect ratio."""
+        if degree in [90, 270]:
+            # Vertical orientation
+            new_w, new_h = self.base_height, self.base_width
+        else:
+            # Horizontal orientation (0, 180)
+            new_w, new_h = self.base_width, self.base_height
+
+        # Resize the main window
+        self.resize(new_w, new_h)
+
+        # Force OpenGL widget to update immediately to prevent visual glitches
+        self.opengl.update()
 
     def _update_widget_fps(self, fps):
         self.opengl.set_fps(fps)

@@ -235,11 +235,13 @@ if __name__ == '__main__':
 
     server = RPCObjectServer(('localhost', 6000), use_thread=True)
     server.a = A(B())
+    server.b = server.a.b
 
-    server2 = RPCObjectServer(('localhost', 6001), use_thread=True)
+    server2 = RPCObjectServer(('localhost', 6001), use_thread=False)
     server2.b = server.a.b
     server2.b.text = 'modified'
-    print(server.a.b.text)
+    print(server .b.text)
+    print(server2.b.text)
 
     server.terminate_and_join()
     server2.terminate_and_join()

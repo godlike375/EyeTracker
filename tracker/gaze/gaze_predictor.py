@@ -3,7 +3,7 @@ import time
 from multiprocessing import Process
 
 import numpy as np
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication
 
 from tracker.detectors.detectors import MESH_FACE_POINTS_COUNT
 from tracker.detectors.manager import DetectorsManager

@@ -30,10 +30,11 @@ class Detector(ProcessBased):
             self.mainloop()
 
     def start_process(self):
-        self.process = Process(target=self.in_process_init, daemon=True)
-        self.process.start()
+        # TODO: refactor saving and stoping processes
+        process = Process(target=self.in_process_init, daemon=True)
+        process.start()
         self.start()
-        return self.process
+        return process
 
     def stop_process(self):
         if self.process is not None:

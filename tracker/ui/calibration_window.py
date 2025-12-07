@@ -1,10 +1,7 @@
-import typing
-from PyQt6.QtCore import Qt, QPoint, pyqtSlot
-from PyQt6.QtCore import QTimerEvent
-from PyQt6.QtWidgets import QMainWindow, QApplication, QPushButton, QWidget, QVBoxLayout, QLabel
-from PyQt6.uic.properties import QtGui
+from PySide6.QtCore import Qt
+from PySide6.QtCore import QTimerEvent
+from PySide6.QtWidgets import QMainWindow, QApplication, QWidget, QVBoxLayout, QLabel
 
-from tracker.utils.fps import FPS_120, MSEC_IN_SEC
 from tracker.utils.shared_objects import SharedFlag, SharedPoint
 
 

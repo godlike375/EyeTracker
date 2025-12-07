@@ -4,9 +4,9 @@ import sys
 from multiprocessing import Process
 
 import cv2
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication
 
-sys.path.append('..')
+sys.path.append('.')
 
 from tracker.camera import VideoAdapter, stream_video
 from tracker.ui.main_controller import MainController

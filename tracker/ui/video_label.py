@@ -2,9 +2,9 @@ from typing import Callable, Optional
 
 import cv2
 import numpy
-from PyQt6.QtCore import Qt, QSize, pyqtSlot
-from PyQt6.QtGui import QMouseEvent, QKeyEvent, QImage, QPixmap
-from PyQt6.QtWidgets import QLabel, QApplication
+from PySide6.QtCore import Qt, QSize, Slot
+from PySide6.QtGui import QMouseEvent, QKeyEvent, QImage, QPixmap
+from PySide6.QtWidgets import QLabel, QApplication
 
 from tracker.utils.coordinates import Point, get_translation_maxtix_between_resolutions, translate_coordinates
 from tracker.utils.image_processing import resize_frame_relative
@@ -89,7 +89,7 @@ class CallbacksVideoLabel(QLabel):
         pixmap = QPixmap.fromImage(image)
         self.setPixmap(pixmap)
 
-    @pyqtSlot(int)
+    @Slot(int)
     def on_rotate(self, degree: int):
         self.resized_to_original = None
 

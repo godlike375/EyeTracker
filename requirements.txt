@@ -6,3 +6,4 @@ pyserial
 PySide6
 scipy
 fastdtw
+PyOpenGL
