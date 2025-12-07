@@ -10,6 +10,12 @@ from multiprocessing.shared_memory import SharedMemory
 from multiprocessing import Value
 from threading import Thread
 from typing import Any
+from pathlib import Path
+
+# Add project root to Python path for imports
+_project_root = Path(__file__).parent.parent.absolute()
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
 
 import numpy as np
 import cv2
@@ -21,6 +27,8 @@ from OpenGL.GL import *
 from OpenGL.GL import shaders
 
 from eye_tracker.common.native_rpc import RPCObjectServer
+from new_settings import AppSettings, SettingsWindow
+
 
 TARGET_RESOLUTION = (640, 480)
 TARGET_FPS = 45
@@ -379,7 +387,21 @@ class MainWindow(QMainWindow):
 
         self.current_fps = int(TARGET_FPS)
         self._update_widget_fps(self.current_fps)
+        
+        # Initialize settings
+        self._init_settings()
         self._create_menu()
+
+    def _init_settings(self):
+        """Initialize application settings"""
+        self.settings = AppSettings({
+            "render_fps": {"value": int(TARGET_FPS), "min": 1, "max": 10000},
+            "rotate_degree": {"value": 0, "min": 0, "max": 270},
+        })
+        
+        # Sync initial values
+        self.settings.render_fps = self.current_fps
+        self.settings.rotate_degree = self.video_adapter.rotate_degree.value
 
     def _create_menu(self):
         menu = self.menuBar()
@@ -392,11 +414,16 @@ class MainWindow(QMainWindow):
         rotate_action = QAction("Rotate Video", self, triggered=self.show_rotate_dialog)
         view_menu.addAction(set_fps_action)
         view_menu.addAction(rotate_action)
+        
+        settings_menu = menu.addMenu("&Settings")
+        settings_action = QAction("&Настройки...", self, triggered=self.show_settings_dialog)
+        settings_menu.addAction(settings_action)
 
     def show_set_fps_dialog(self):
         fps, ok = QInputDialog.getInt(self, "Set Render FPS", "Enter target render FPS:", self.current_fps, 1, 10000, 1)
         if ok:
             self.current_fps = fps
+            self.settings.render_fps = fps
             self._update_widget_fps(self.current_fps)
 
     def show_rotate_dialog(self):
@@ -405,7 +432,30 @@ class MainWindow(QMainWindow):
         degree, ok = QInputDialog.getInt(self, "Rotate Video", "Enter rotation degree (0, 90, 180, 270):", current_deg, 0, 270, 90)
         if ok and degree in degrees:
             self.video_adapter.rotate_degree.value = degree
+            self.settings.rotate_degree = degree
             self.adjust_window_size(degree)
+
+    def show_settings_dialog(self):
+        """Show settings window"""
+        settings_fields = [
+            ("render_fps", "Render FPS:"),
+            ("rotate_degree", "Rotate Degree:"),
+        ]
+        settings_window = SettingsWindow(self.settings, settings_fields, self)
+        if settings_window.exec():
+            fps_value = self.settings.render_fps
+            if fps_value is not None:
+                self.current_fps = int(fps_value)
+                self._update_widget_fps(self.current_fps)
+            
+            rotate_value = self.settings.rotate_degree
+            if rotate_value is not None:
+                # Round to nearest valid degree (0, 90, 180, 270)
+                valid_degrees = [0, 90, 180, 270]
+                rounded_degree = min(valid_degrees, key=lambda x: abs(x - int(rotate_value)))
+                if rounded_degree != self.video_adapter.rotate_degree.value:
+                    self.video_adapter.rotate_degree.value = rounded_degree
+                    self.adjust_window_size(rounded_degree)
 
     def adjust_window_size(self, degree):
         """Resizes the window based on rotation to maintain aspect ratio."""
