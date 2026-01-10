@@ -1,46 +1,44 @@
 # -*- coding: utf-8 -*-
-import os
-import signal
+import argparse
 import sys
 import multiprocessing as mp
 import time
-import traceback
-from dataclasses import dataclass
-from multiprocessing.shared_memory import SharedMemory
-from multiprocessing import Value
-from threading import Thread
-from typing import Any
-from pathlib import Path
-
-# Add project root to Python path for imports
-_project_root = Path(__file__).parent.parent.absolute()
-if str(_project_root) not in sys.path:
-    sys.path.insert(0, str(_project_root))
-
 import numpy as np
 import cv2
-from PySide6.QtWidgets import (QApplication, QMainWindow, QInputDialog)
-from PySide6.QtOpenGLWidgets import QOpenGLWidget
-from PySide6.QtCore import QTimer, Qt
-from PySide6.QtGui import QAction, QSurfaceFormat
+
+from PyQt6.QtWidgets import QApplication, QMainWindow, QFileDialog
+from PyQt6.QtOpenGLWidgets import QOpenGLWidget
+from PyQt6.QtCore import QTimer, Qt, QPoint
 from OpenGL.GL import *
 from OpenGL.GL import shaders
 
-from eye_tracker.common.native_rpc import RPCObjectServer
+# Импорты проекта
 from new_settings import AppSettings, SettingsWindow
+sys.path.insert(0, '.')
+from tracker.camera import VideoAdapter
+from tracker.detectors.eye_pupil_detector import EyePupilDetector
+from tracker.utils.shared_objects import SharedBox, INITIAL_VALUE
 
+# --- Парсинг аргументов командной строки ---
+parser = argparse.ArgumentParser()
+parser.add_argument('-i', '--id_camera',
+                    type=str, default='0')
+parser.add_argument('-f', '--fps',
+                    type=int, default=15)
+parser.add_argument('-r', '--resolution',
+                    type=int, default=1280)
+args = parser.parse_args(sys.argv[1:])
 
-TARGET_RESOLUTION = (640, 480)
-TARGET_FPS = 45
-CAMERA_INDEX = 0
-SHM_PREFIX = f"tracker_webcam_shm_"
+# Преобразование id_camera в int, если возможно
+try:
+    CAMERA_INDEX = int(args.id_camera)
+except:
+    CAMERA_INDEX = args.id_camera
 
-DEGREE_TO_CV2_MAP = {
-    90: cv2.ROTATE_90_CLOCKWISE,
-    180: cv2.ROTATE_180,
-    270: cv2.ROTATE_90_COUNTERCLOCKWISE,
-    0: None
-}
+# --- Константы ---
+# Вычисляем высоту на основе ширины, сохраняя соотношение сторон 16:9 (1280x720)
+TARGET_RESOLUTION = (args.resolution, int(args.resolution * 720 / 1280))
+TARGET_FPS = args.fps
 
 VERTEX_SHADER_SOURCE = """
 #version 330 core
@@ -63,515 +61,265 @@ void main() {
 }
 """
 
-def rotate_frame(frame: np.ndarray, degree: int):
-    if degree and degree in DEGREE_TO_CV2_MAP:
-        return cv2.rotate(frame, DEGREE_TO_CV2_MAP[degree])
-    return frame
+def get_initial_frame_props(video_source=None):
+    if video_source is None or isinstance(video_source, int):
+        idx = video_source if isinstance(video_source, int) else CAMERA_INDEX
+        cap = cv2.VideoCapture(idx)
+    else:
+        cap = cv2.VideoCapture(str(video_source))
 
-class VideoAdapter:
-    def __init__(self, frame: np.ndarray, rotate_degree: Value, shm_name: str=None):
-        self.height = frame.shape[0]
-        self.width = frame.shape[1]
-        self.shm_name = shm_name or f"{SHM_PREFIX}{os.getpid()}_{id(self)}"
-        self.shared_memory = SharedMemory(name=self.shm_name, create=shm_name is None, size=frame.size * frame.itemsize)
-        self.rotate_degree = rotate_degree
-        self.video_frame = None
+    if not cap or not cap.isOpened():
+        return (TARGET_RESOLUTION[1], TARGET_RESOLUTION[0], 3), np.uint8, np.zeros((TARGET_RESOLUTION[1], TARGET_RESOLUTION[0], 3), dtype=np.uint8)
 
-    def setup_video_frame(self):
-        self.video_frame = np.ndarray((self.height, self.width, 3), dtype=np.uint8, buffer=self.shared_memory.buf)
-
-    def get_ref_video_frame(self):
-        if self.video_frame is None:
-            raise RuntimeError("Video frame not initialized. Call setup_video_frame first.")
-        return rotate_frame(self.video_frame, self.rotate_degree.value)
-
-    def get_copy_video_frame(self):
-        return np.copy(self.get_ref_video_frame())
-
-    def get_transfer_data(self):
-        return {
-            'shm_name': self.shm_name,
-            'height': self.height,
-            'width': self.width,
-            'rotate_degree': self.rotate_degree
-        }
-
-    @classmethod
-    def from_transfer_data(cls, transfer_data):
-        adapter = cls.__new__(cls)
-        adapter.height = transfer_data['height']
-        adapter.width = transfer_data['width']
-        adapter.shm_name = transfer_data['shm_name']
-        adapter.shared_memory = SharedMemory(name=adapter.shm_name)
-        adapter.rotate_degree = transfer_data['rotate_degree']
-        adapter.video_frame = None
-        return adapter
-
-    def close(self):
-        if hasattr(self, 'shared_memory') and self.shared_memory:
-            self.shared_memory.close()
-
-def start_video_recording(filename, codec, fps, frame_size):
-    fourcc = cv2.VideoWriter_fourcc(*codec)
-    return cv2.VideoWriter(filename, fourcc, fps, frame_size)
-
-def get_frame_props(cam_idx):
-    cap = cv2.VideoCapture(cam_idx)
-    if not cap.isOpened(): cap = cv2.VideoCapture(cam_idx + cv2.CAP_MSMF)
-    if not cap.isOpened(): cap = cv2.VideoCapture(cam_idx + cv2.CAP_DSHOW)
-    if not cap.isOpened():
-        return None, None, None, None, None
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, TARGET_RESOLUTION[0])
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, TARGET_RESOLUTION[1])
     ret, frame = cap.read()
     cap.release()
     if not ret:
-        return None, None, None, None, None
-    h, w, _ = frame.shape
-    dtype = np.uint8
-    itemsize = np.dtype(dtype).itemsize
-    size = h * w * 3 * itemsize
-    return (h, w, 3), dtype, size, itemsize, frame
+        frame = np.zeros((TARGET_RESOLUTION[1], TARGET_RESOLUTION[0], 3), dtype=np.uint8)
 
-@dataclass
-class ShareableEvent:
-    _is_set: bool
-
-    def is_set(self):
-        return self._is_set
-
-    def set(self):
-        self._is_set = True
-
-    def wait(self):
-        while not self.is_set():
-            time.sleep(0.05)
-
-@dataclass
-class ShareableValue:
-    value: Any
+    frame = cv2.resize(frame, TARGET_RESOLUTION)
+    return frame.shape, frame.dtype, frame
 
 
-class Model:
-    def __init__(self, video_adapter_args, stop_event):
-        self.video_adapter = VideoAdapter.from_transfer_data(video_adapter_args)
-        self.points = []
-        self.stop_event = stop_event
-        self.run_thread = Thread(target=self.run, daemon=True)
-        self.run_thread.start()
+def capture_worker(adapter: VideoAdapter, stop_event, source_queue, initial_source):
+    adapter.setup_video_frame()
+    current_source = initial_source
+    cap = None
 
-    def process_frame(self, frame):
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        corners = cv2.goodFeaturesToTrack(gray, maxCorners=100, qualityLevel=0.01, minDistance=10)
-        if corners is not None:
-            self.points = [(int(c[0][0]), int(c[0][1])) for c in corners]
-        else:
-            self.points = []
+    def open_cap(src):
+        nonlocal cap
+        if cap: cap.release()
+        return cv2.VideoCapture(CAMERA_INDEX if src is None else str(src))
 
-    def run(self):
-        self.video_adapter.setup_video_frame()
-        while not self.stop_event.is_set():
-            frame_copy = self.video_adapter.get_copy_video_frame()
-            self.process_frame(frame_copy)
-            time.sleep(0.01)
+    cap = open_cap(current_source)
 
-class BaseVideoWidget:
-    def __init__(self, video_adapter, stop_event):
-        self.video_adapter = video_adapter
-        self.frame_shape = (video_adapter.height, video_adapter.width, 3)
-        self.frame_height, self.frame_width, self.frame_channels = self.frame_shape
-        self.frame_dtype = np.uint8
-        self.stop_event = stop_event
-        self.frame_nbytes = self.frame_height * self.frame_width * self.frame_channels * np.dtype(self.frame_dtype).itemsize
+    while not stop_event.is_set():
+        if not source_queue.empty():
+            current_source = source_queue.get()
+            cap = open_cap(current_source)
 
+        ret, frame = cap.read()
+        if not ret:
+            if current_source is not None: cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            continue
+
+        if (frame.shape[1], frame.shape[0]) != TARGET_RESOLUTION:
+            frame = cv2.resize(frame, TARGET_RESOLUTION)
+
+        np.copyto(adapter.video_frame, frame)
+        time.sleep(1/TARGET_FPS)
+
+    if cap: cap.release()
+    adapter.close()
+
+# --- ИЗМЕНЕННЫЙ КЛАСС ВИДЖЕТА ---
+
+class OpenGLVideoWidget(QOpenGLWidget):
+    def __init__(self, adapter, main_window: 'MainWindow', roi_array, parent=None):
+        super().__init__(parent)
+        self.adapter = adapter
+        self.main_window = main_window
+        self.roi_array = roi_array
         self.timer = QTimer(self)
-        self.timer.setTimerType(Qt.TimerType.PreciseTimer)
-        self.timer.timeout.connect(self._update)
-        self.set_fps(int(TARGET_FPS))
-
-    def set_fps(self, fps):
-        interval = max(1, int(1000 / fps)) if fps > 0 else 1000
-        self.timer.setInterval(interval)
-
-    def _update(self):
-        self.update()
-
-    def showEvent(self, e):
-        super().showEvent(e)
-        self.timer.start()
-
-    def hideEvent(self, e):
-        super().hideEvent(e)
-        self.timer.stop()
-
-class OpenGLVideoWidget(BaseVideoWidget, QOpenGLWidget):
-    def __init__(self, video_adapter, stop_event, model, parent=None):
-        QOpenGLWidget.__init__(self, parent)
-        BaseVideoWidget.__init__(self, video_adapter, stop_event)
-        self.model = model
+        self.timer.timeout.connect(self.update)
+        self.selection_start = None
+        self.selection_end = None
+        self.is_selecting = False
         self.tex = None
         self.shader = None
         self.vao = None
-        self.vbo = None
-        self.ebo = None
         self.pbos = [None, None]
-        self.pbo_index = 0
-        self.current_rotation = 0
+        self.pbo_idx = 0
 
     def initializeGL(self):
-        fmt = QSurfaceFormat()
-        fmt.setVersion(3, 3)
-        fmt.setProfile(QSurfaceFormat.OpenGLContextProfile.CoreProfile)
-        fmt.setSwapBehavior(QSurfaceFormat.SwapBehavior.DoubleBuffer)
-        fmt.setSwapInterval(0)
-        self.setFormat(fmt)
-        glClearColor(0.0, 0.0, 0.0, 1.0)
         self.shader = shaders.compileProgram(
             shaders.compileShader(VERTEX_SHADER_SOURCE, GL_VERTEX_SHADER),
             shaders.compileShader(FRAGMENT_SHADER_SOURCE, GL_FRAGMENT_SHADER)
         )
-
-        glUseProgram(self.shader)
-        self.texture_loc = glGetUniformLocation(self.shader, "ourTexture")
-        glDisable(GL_DEPTH_TEST)
-
-        # Initial vertices setup
-        self.update_vertices()
-
+        vertices = np.array([
+            1.0,  1.0, 0.0, 1.0, 0.0,
+            1.0, -1.0, 0.0, 1.0, 1.0,
+            -1.0, -1.0, 0.0, 0.0, 1.0,
+            -1.0,  1.0, 0.0, 0.0, 0.0
+        ], dtype=np.float32)
+        indices = np.array([0, 1, 3, 1, 2, 3], dtype=np.uint32)
+        self.vao = glGenVertexArrays(1)
+        vbo, ebo = glGenBuffers(2)
+        glBindVertexArray(self.vao)
+        glBindBuffer(GL_ARRAY_BUFFER, vbo)
+        glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices, GL_STATIC_DRAW)
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo)
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.nbytes, indices, GL_STATIC_DRAW)
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 20, ctypes.c_void_p(0))
+        glEnableVertexAttribArray(0)
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 20, ctypes.c_void_p(12))
+        glEnableVertexAttribArray(1)
         self.tex = glGenTextures(1)
         glBindTexture(GL_TEXTURE_2D, self.tex)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-        # Allocate texture memory for the raw frame size (unrotated)
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, self.frame_width, self.frame_height, 0, GL_BGR, GL_UNSIGNED_BYTE, None)
-
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, TARGET_RESOLUTION[0], TARGET_RESOLUTION[1], 0, GL_BGR, GL_UNSIGNED_BYTE, None)
         self.pbos = glGenBuffers(2)
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, self.pbos[0])
-        glBufferData(GL_PIXEL_UNPACK_BUFFER, self.frame_nbytes, None, GL_STREAM_DRAW)
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, self.pbos[1])
-        glBufferData(GL_PIXEL_UNPACK_BUFFER, self.frame_nbytes, None, GL_STREAM_DRAW)
+        for pbo in self.pbos:
+            glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo)
+            glBufferData(GL_PIXEL_UNPACK_BUFFER, TARGET_RESOLUTION[0]*TARGET_RESOLUTION[1]*3, None, GL_STREAM_DRAW)
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0)
-
-    def update_vertices(self):
-        """Updates VBO based on current rotation to handle aspect ratio correctly in OpenGL"""
-        # Standard quad
-        # x, y, z, u, v
-
-        # When we rotate the image using OpenCV (in paint_objects), the image dimensions change.
-        # However, here we are uploading the RAW frame (unrotated) to the GPU and letting
-        # the texture coordinates or the window shape handle the display.
-
-        # Actually, the previous logic was rotating in CPU (cv2) then uploading.
-        # If we rotate in CPU, the texture size changes.
-        # Let's stick to the CPU rotation logic as implemented in paint_objects/VideoAdapter
-        # but we need to re-allocate texture if dimensions change.
-
-        vertices = np.array([
-            1.0,  1.0, 0.0, 1.0, 0.0, # Top Right
-            1.0, -1.0, 0.0, 1.0, 1.0, # Bottom Right
-            -1.0, -1.0, 0.0, 0.0, 1.0, # Bottom Left
-            -1.0,  1.0, 0.0, 0.0, 0.0  # Top Left
-        ], dtype=np.float32)
-
-        indices = np.array([0, 1, 3, 1, 2, 3], dtype=np.uint32)
-
-        if self.vao is None:
-            self.vao = glGenVertexArrays(1)
-            self.vbo = glGenBuffers(1)
-            self.ebo = glGenBuffers(1)
-
-        glBindVertexArray(self.vao)
-        glBindBuffer(GL_ARRAY_BUFFER, self.vbo)
-        glBufferData(GL_ARRAY_BUFFER, vertices.nbytes, vertices, GL_STATIC_DRAW)
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self.ebo)
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.nbytes, indices, GL_STATIC_DRAW)
-
-        # Position attribute
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * vertices.itemsize, ctypes.c_void_p(0))
-        glEnableVertexAttribArray(0)
-        # Texture coord attribute
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * vertices.itemsize, ctypes.c_void_p(3 * vertices.itemsize))
-        glEnableVertexAttribArray(1)
-        glBindVertexArray(0)
-
-    def paint_objects(self):
-        # This gets the frame ALREADY rotated by VideoAdapter.get_ref_video_frame logic
-        # if we used get_ref_video_frame. But here we use get_copy_video_frame.
-        # VideoAdapter.get_copy_video_frame calls get_ref_video_frame which calls rotate_frame.
-        local_frame = self.video_adapter.get_copy_video_frame()
-
-        # Points are calculated on the rotated frame in Model, so they match
-        points = self.model.points
-        for point in points:
-            cv2.circle(local_frame, point, 5, (0, 0, 255), -1)
-        return local_frame
 
     def paintGL(self):
-        local_frame = self.paint_objects()
+        frame = self.adapter.get_copy_video_frame()
 
-        h, w, c = local_frame.shape
+        if self.main_window.detector and self.main_window.detector.pupil_detector.pupil:
+            pupil = self.main_window.detector.pupil_detector.pupil
+            if pupil.x != -1:
+                px, py = int(pupil.x), int(pupil.y)
+                cv2.circle(frame, (px, py), 6, (0, 255, 0), -1)
+                cv2.circle(frame, (px, py), 7, (255, 255, 255), 1)
 
-        # If dimensions changed (rotation happened), re-allocate texture
-        # Note: This is a bit expensive to check every frame, but robust for runtime rotation changes
-        glBindTexture(GL_TEXTURE_2D, self.tex)
+        if self.is_selecting and self.selection_start and self.selection_end:
+            cv2.rectangle(frame, self._to_frame_coords(self.selection_start),
+                          self._to_frame_coords(self.selection_end), (255, 0, 255), 2)
 
-        # Check if we need to resize texture storage
-        # We can query current texture width/height or just track it
-        # For simplicity, let's just use glTexImage2D if size changed, else glTexSubImage2D
-        # But since we use PBOs, the PBO size must also match.
-
-        # Current PBO size is self.frame_nbytes (original size).
-        # If rotated 90/270, w and h swap, but total bytes (w*h*c) remains the same.
-        # So PBO size is fine. Texture dimensions need update.
-
-        # However, glTexSubImage2D requires the texture to be allocated with correct w,h.
-        # If rotation changed, we might need to call glTexImage2D again.
-
-        # Let's check against stored dimensions
-        if not hasattr(self, 'last_tex_w') or self.last_tex_w != w or self.last_tex_h != h:
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, w, h, 0, GL_BGR, GL_UNSIGNED_BYTE, None)
-            self.last_tex_w = w
-            self.last_tex_h = h
-
-        current_pbo = self.pbos[self.pbo_index]
-        next_pbo = self.pbos[(self.pbo_index + 1) % 2]
-
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, current_pbo)
-        # Ensure PBO is big enough (it should be constant size for rotation, but good practice)
-        # glBufferData(GL_PIXEL_UNPACK_BUFFER, local_frame.nbytes, None, GL_STREAM_DRAW)
-
-        ptr = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, local_frame.nbytes, GL_MAP_WRITE_BIT)
-        if ptr is not None:
-            ctypes.memmove(ptr, local_frame.ctypes.data, local_frame.nbytes)
+        h, w = frame.shape[:2]
+        self.pbo_idx = (self.pbo_idx + 1) % 2
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, self.pbos[self.pbo_idx])
+        ptr = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, frame.nbytes, GL_MAP_WRITE_BIT)
+        if ptr:
+            ctypes.memmove(ptr, frame.ctypes.data, frame.nbytes)
             glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER)
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0)
 
         glBindTexture(GL_TEXTURE_2D, self.tex)
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, next_pbo)
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
-
-        # Update texture with new data
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_BGR, GL_UNSIGNED_BYTE, None)
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0)
 
         glClear(GL_COLOR_BUFFER_BIT)
         glUseProgram(self.shader)
-        glUniform1i(self.texture_loc, 0)
         glBindVertexArray(self.vao)
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, None)
 
-        self.pbo_index = (self.pbo_index + 1) % 2
+    def _to_frame_coords(self, pt: QPoint):
+        scale_x = TARGET_RESOLUTION[0] / self.width()
+        scale_y = TARGET_RESOLUTION[1] / self.height()
+        return (int(pt.x() * scale_x), int(pt.y() * scale_y))
 
-    def resizeGL(self, w, h):
-        glViewport(0, 0, w, h)
+    def mousePressEvent(self, e):
+        if e.button() == Qt.MouseButton.LeftButton:
+            self.selection_start = e.position().toPoint()
+            self.selection_end = e.position().toPoint()
+            self.is_selecting = True
+
+    def mouseMoveEvent(self, e):
+        if self.is_selecting:
+            self.selection_end = e.position().toPoint()
+
+    def mouseReleaseEvent(self, e):
+        if e.button() == Qt.MouseButton.LeftButton:
+            self.is_selecting = False
+            p1 = self._to_frame_coords(self.selection_start)
+            p2 = self._to_frame_coords(self.selection_end)
+            self.roi_array[:] = [min(p1[0], p2[0]), min(p1[1], p2[1]), max(p1[0], p2[0]), max(p1[1], p2[1])]
 
 class MainWindow(QMainWindow):
-    def __init__(self, video_adapter: VideoAdapter, stop_event, model):
+    def __init__(self, adapter, stop_event, source_queue, roi_array):
         super().__init__()
+        self.adapter = adapter
         self.stop_event = stop_event
-        self.model = model
-        self.video_adapter = video_adapter
-        self.video_adapter.setup_video_frame()
-        self.setWindowTitle("Webcam Viewer")
+        self.source_queue = source_queue
+        self.roi_array = roi_array
+        self.detector = None
+        self.last_roi = None
 
-        # Initial size setup
-        self.base_width = video_adapter.width
-        self.base_height = video_adapter.height
-        self.resize(self.base_width, self.base_height)
-        self.setMinimumSize(240, 240) # Allow smaller resize
+        self.setWindowTitle("Multi-Process Eye Tracker")
+        self.gl_widget = OpenGLVideoWidget(adapter, self, roi_array, self)
+        self.setCentralWidget(self.gl_widget)
+        self.resize(1280, 720)
 
-        self.opengl = OpenGLVideoWidget(video_adapter, stop_event, self.model, self)
-        self.setCentralWidget(self.opengl)
-
-        self.current_fps = int(TARGET_FPS)
-        self._update_widget_fps(self.current_fps)
-        
-        # Initialize settings
-        self._init_settings()
-        self._create_menu()
-
-    def _init_settings(self):
-        """Initialize application settings"""
         self.settings = AppSettings({
-            "render_fps": {"value": int(TARGET_FPS), "min": 1, "max": 10000},
+            "render_fps": {"value": TARGET_FPS, "min": 1, "max": 144},
             "rotate_degree": {"value": 0, "min": 0, "max": 270},
         })
-        
-        # Sync initial values
-        self.settings.render_fps = self.current_fps
-        self.settings.rotate_degree = self.video_adapter.rotate_degree.value
+
+        self.update_timer = QTimer(self)
+        self.update_timer.timeout.connect(self._update_detector)
+        self.update_timer.start(16)
+
+        self._create_menu()
+        self.gl_widget.timer.start(1000 // TARGET_FPS)
+
+    def _update_detector(self):
+        current_roi = list(self.roi_array)
+        if current_roi != self.last_roi and current_roi[2] > 0:
+            if self.detector:
+                self.detector.stop_process()
+            eye_area = SharedBox('i', INITIAL_VALUE)
+            eye_area.left_top.x, eye_area.left_top.y = current_roi[0], current_roi[1]
+            eye_area.right_bottom.x, eye_area.right_bottom.y = current_roi[2], current_roi[3]
+            self.detector = EyePupilDetector(
+                eyes_count=1,
+                averaging_frames_count=2,
+                eye_detect_area=eye_area,
+                video_adapter=self.adapter,
+                target_fps=60
+            )
+            self.detector.start_process()
+            self.last_roi = current_roi
 
     def _create_menu(self):
-        menu = self.menuBar()
-        file_menu = menu.addMenu("&File")
-        exit_action = QAction("&Exit", self, triggered=self.close)
-        file_menu.addAction(exit_action)
+        bar = self.menuBar()
+        file_menu = bar.addMenu("File")
 
-        view_menu = menu.addMenu("&View")
-        set_fps_action = QAction("Set Render FPS", self, triggered=self.show_set_fps_dialog)
-        rotate_action = QAction("Rotate Video", self, triggered=self.show_rotate_dialog)
-        view_menu.addAction(set_fps_action)
-        view_menu.addAction(rotate_action)
-        
-        settings_menu = menu.addMenu("&Settings")
-        settings_action = QAction("&Настройки...", self, triggered=self.show_settings_dialog)
-        settings_menu.addAction(settings_action)
+        file_menu.addAction("Open Video", self._open_file)
+        file_menu.addAction("Use Camera", self._open_camera)
+        file_menu.addSeparator()
+        file_menu.addAction("Settings", self._show_settings)
+        file_menu.addAction("Exit", self.close)
 
-    def show_set_fps_dialog(self):
-        fps, ok = QInputDialog.getInt(self, "Set Render FPS", "Enter target render FPS:", self.current_fps, 1, 10000, 1)
-        if ok:
-            self.current_fps = fps
-            self.settings.render_fps = fps
-            self._update_widget_fps(self.current_fps)
+    def _open_file(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Select Video")
+        if path: self.source_queue.put(path)
 
-    def show_rotate_dialog(self):
-        degrees = [0, 90, 180, 270]
-        current_deg = self.video_adapter.rotate_degree.value
-        degree, ok = QInputDialog.getInt(self, "Rotate Video", "Enter rotation degree (0, 90, 180, 270):", current_deg, 0, 270, 90)
-        if ok and degree in degrees:
-            self.video_adapter.rotate_degree.value = degree
-            self.settings.rotate_degree = degree
-            self.adjust_window_size(degree)
+    def _open_camera(self):
+        self.source_queue.put(None)
 
-    def show_settings_dialog(self):
-        """Show settings window"""
-        settings_fields = [
-            ("render_fps", "Render FPS:"),
-            ("rotate_degree", "Rotate Degree:"),
-        ]
-        settings_window = SettingsWindow(self.settings, settings_fields, self)
-        if settings_window.exec():
-            fps_value = self.settings.render_fps
-            if fps_value is not None:
-                self.current_fps = int(fps_value)
-                self._update_widget_fps(self.current_fps)
-            
-            rotate_value = self.settings.rotate_degree
-            if rotate_value is not None:
-                # Round to nearest valid degree (0, 90, 180, 270)
-                valid_degrees = [0, 90, 180, 270]
-                rounded_degree = min(valid_degrees, key=lambda x: abs(x - int(rotate_value)))
-                if rounded_degree != self.video_adapter.rotate_degree.value:
-                    self.video_adapter.rotate_degree.value = rounded_degree
-                    self.adjust_window_size(rounded_degree)
-
-    def adjust_window_size(self, degree):
-        """Resizes the window based on rotation to maintain aspect ratio."""
-        if degree in [90, 270]:
-            # Vertical orientation
-            new_w, new_h = self.base_height, self.base_width
-        else:
-            # Horizontal orientation (0, 180)
-            new_w, new_h = self.base_width, self.base_height
-
-        # Resize the main window
-        self.resize(new_w, new_h)
-
-        # Force OpenGL widget to update immediately to prevent visual glitches
-        self.opengl.update()
-
-    def _update_widget_fps(self, fps):
-        self.opengl.set_fps(fps)
+    def _show_settings(self):
+        fields = [("render_fps", "FPS:"), ("rotate_degree", "Rotation:")]
+        if SettingsWindow(self.settings, fields, self).exec():
+            self.gl_widget.timer.setInterval(1000 // self.settings.render_fps)
+            self.adapter.rotate_degree.value = self.settings.rotate_degree
 
     def closeEvent(self, e):
+        if self.detector:
+            self.detector.stop_process()
         self.stop_event.set()
         super().closeEvent(e)
 
-def signal_handler(stop_event):
-    if stop_event:
-        stop_event.set()
-    QTimer.singleShot(50, QApplication.quit)
-
-def capture_process(video_adapter_data, stop_event):
-    signal.signal(signal.SIGTERM, lambda s, f: signal_handler(stop_event))
-    signal.signal(signal.SIGINT, lambda s, f: signal_handler(stop_event))
-
-    video_adapter = VideoAdapter.from_transfer_data(video_adapter_data)
-    video_adapter.setup_video_frame()
-    cap = cv2.VideoCapture(CAMERA_INDEX, cv2.CAP_ANY)
-    if not cap.isOpened(): cap = cv2.VideoCapture(CAMERA_INDEX + cv2.CAP_MSMF)
-    if not cap.isOpened(): cap = cv2.VideoCapture(CAMERA_INDEX + cv2.CAP_DSHOW)
-    if not cap.isOpened():
-        stop_event.set()
-        video_adapter.close()
-        return
-
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, video_adapter.width)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, video_adapter.height)
-    cap.set(cv2.CAP_PROP_FPS, TARGET_FPS)
-    actual_w = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-    actual_h = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-    needs_resize = not (int(actual_w) == video_adapter.width and int(actual_h) == video_adapter.height)
-
-    while not stop_event.is_set():
-        ret, current_frame = cap.read()
-        if not ret:
-            time.sleep(0.005)
-            continue
-
-        if needs_resize:
-            current_frame = cv2.resize(current_frame, (video_adapter.width, video_adapter.height), interpolation=cv2.INTER_LINEAR)
-        np.copyto(video_adapter.video_frame, current_frame)
-
-    cap.release()
-    video_adapter.close()
-
-def run_model(video_adapter_data):
-    server = RPCObjectServer(('localhost', 18812))
-    server.stopped = ShareableEvent(False)
-    server.instantiate_object_from_class('model', Model, video_adapter_data, server.stopped)
-    return server, server.model, server.stopped
-
-def display_process(video_adapter_data, model, stop_event):
-    signal.signal(signal.SIGTERM, lambda s, f: signal_handler(stop_event))
-    signal.signal(signal.SIGINT, lambda s, f: signal_handler(stop_event))
-
-    video_adapter = VideoAdapter.from_transfer_data(video_adapter_data)
-    app = QApplication.instance() or QApplication(sys.argv)
-    app.setQuitOnLastWindowClosed(True)
-
-    win = MainWindow(video_adapter, stop_event, model)
-    win.show()
-    exit_code = app.exec()
-    stop_event.set()
-    video_adapter.close()
-    sys.exit(exit_code)
+# --- Main ---
 
 if __name__ == "__main__":
     mp.freeze_support()
 
-    shape, dtype, size, itemsize, initial_frame = get_frame_props(CAMERA_INDEX)
-    if shape is None:
-        print(f"Failed to get frame properties from camera index {CAMERA_INDEX}")
-        sys.exit(1)
+    # 1. Инициализация общих данных
+    _, _, init_frame = get_initial_frame_props()
+    rotate_val = mp.Value('i', 0)
+    adapter = VideoAdapter(init_frame, rotate_val)
+    adapter_data = adapter.get_transfer_data()
 
-    video_server = RPCObjectServer(('localhost', 18813), use_thread=True)
-    video_server.rotate_degree = ShareableValue(0)
-    video_adapter = VideoAdapter(initial_frame, video_server.rotate_degree)
-    video_adapter_data = video_adapter.get_transfer_data()
-    server, model, stop_event = run_model(video_adapter_data)
-    capture_args = (video_adapter_data, stop_event)
-    display_args = (video_adapter_data, model, stop_event)
+    stop_event = mp.Event()
+    source_queue = mp.Queue()
+    roi_array = mp.Array('i', [0, 0, 0, 0])
 
-    capture_proc = mp.Process(target=capture_process, args=capture_args, name="CaptureProcess")
-    display_proc = mp.Process(target=display_process, args=display_args, name="DisplayProcess")
+    capture_proc = mp.Process(target=capture_worker, args=(adapter.send_to_process(), stop_event, source_queue, None), name="Capture")
+    capture_proc.start()
 
-    signal.signal(signal.SIGTERM, lambda s, f: signal_handler(stop_event))
-    signal.signal(signal.SIGINT, lambda s, f: signal_handler(stop_event))
+    app = QApplication(sys.argv)
+    adapter.setup_video_frame()
 
-    try:
-        capture_proc.start()
-        display_proc.start()
-        display_proc.join()
-    except Exception as e:
-        print(f"Unhandled exception: {traceback.format_exc()}")
-    finally:
-        stop_event.set()
-        if display_proc.is_alive(): display_proc.terminate()
-        if capture_proc.is_alive(): capture_proc.join(timeout=1), capture_proc.terminate()
-        server.terminate_and_join()
-        video_adapter.shared_memory.unlink()
-        video_adapter.close()
-        sys.exit(0)
+    win = MainWindow(adapter, stop_event, source_queue, roi_array)
+    win.show()
+
+    app.exec()
+
+    stop_event.set()
+    capture_proc.join(timeout=2)
+    if capture_proc.is_alive():
+        capture_proc.terminate()
+
+    adapter.shared_memory.unlink()
+    adapter.close()
