@@ -82,7 +82,7 @@ class SharedVector:
 class SharedBox:
     def __init__(self, type: str = 'i', initial_value = INITIAL_VALUE):
         self.left_top = SharedPoint(type, initial_value)
-        self.right_bottom = SharedPoint(type, initial_value)
+        self.right_bottom = SharedPoint(type, initial_value + 1)
 
     @property
     def center(self):

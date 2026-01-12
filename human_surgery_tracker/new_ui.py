@@ -13,8 +13,8 @@ from OpenGL.GL import *
 from OpenGL.GL import shaders
 
 # Импорты проекта
-from new_settings import AppSettings, SettingsWindow
 sys.path.insert(0, '.')
+from new_settings import AppSettings, SettingsWindow
 from tracker.camera import VideoAdapter
 from tracker.detectors.eye_pupil_detector import EyePupilDetector
 from tracker.utils.shared_objects import SharedBox, INITIAL_VALUE
@@ -229,7 +229,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Multi-Process Eye Tracker")
         self.gl_widget = OpenGLVideoWidget(adapter, self, roi_array, self)
         self.setCentralWidget(self.gl_widget)
-        self.resize(1280, 720)
+        self.resize(TARGET_RESOLUTION[0], TARGET_RESOLUTION[1])
 
         self.settings = AppSettings({
             "render_fps": {"value": TARGET_FPS, "min": 1, "max": 144},
