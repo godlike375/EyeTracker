@@ -12,7 +12,7 @@ from tracker.utils.shared_objects import SharedBox, INITIAL_VALUE
 class EyePupilDetector:
     def __init__(self, eyes_count: int, averaging_frames_count: int, eye_detect_area: SharedBox, video_adapter: VideoAdapter,
                                                         target_fps: int):
-        self.video_adapter = video_adapter
+        self.video_adapter = video_adapter.send_to_process()
         self.fps = FPSLimiter(target_fps)
         self.eye_detector = HaarCorrelationEyeValidator(eyes_count, averaging_frames_count, detect_area=eye_detect_area,
                                                         video_adapter=video_adapter, target_fps=target_fps, new_process=False)
@@ -47,7 +47,7 @@ class EyePupilDetector:
                 self.fps.throttle()
             self.fps_cnt.count_frame()
             if self.fps_cnt.able_to_calculate():
-                print(self.fps_cnt.calculate())
+                print(f'fps {self.fps_cnt.calculate()}')
             self.detect(self.video_adapter.get_copy_video_frame())
 
     def detect(self, raw: numpy.ndarray):

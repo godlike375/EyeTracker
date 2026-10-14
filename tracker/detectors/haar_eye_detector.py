@@ -133,7 +133,7 @@ class HaarCorrelationEyeValidator(EyeDetector):
             if not self.current_frame_count:
                 x1, y1 = self.left_box.left_top
                 x2, y2 = self.left_box.right_bottom
-                self.tracker.start_track(raw, dlib.rectangle(int(x1.get()), int(y1.get()),
+                self.tracker.start_track(gray, dlib.rectangle(int(x1.get()), int(y1.get()),
                                                              int(x1.get())+int(x2.get()), int(y1.get())+int(y2.get())))
             frame_eyes, frame_eye_levels = self.tracker_detect(gray)
         else:

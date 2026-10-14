@@ -88,9 +88,10 @@ class Detector(ProcessBased):
             return cv2.cvtColor(eye_frame, cv2.COLOR_BGR2GRAY)
         except cv2.error:
             print(f'Некорректная область: {self.detect_area.left_top.array[:]},'
-                  f' {self.detect_area.right_bottom.array[:]}')
-            #sleep(FPS_120)
+                 f' {self.detect_area.right_bottom.array[:]}')
+            sleep(FPS_120)
             #continue
+            ...
         raise Exception('wrong detection area')
 
     def blur_image(self, gray: numpy.ndarray, blur=0, dilate=0, erode=0):

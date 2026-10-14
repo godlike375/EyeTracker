@@ -3,6 +3,7 @@ from datetime import datetime
 from multiprocessing import Value
 from multiprocessing.shared_memory import SharedMemory
 from copy import copy
+import os
 
 import cv2
 import numpy
@@ -11,23 +12,65 @@ from tracker.utils.fps import FPSCounter, FPSLimiter
 from tracker.utils.image_processing import rotate_frame
 from tracker.utils.shared_objects import SharedFlag
 
+SHM_PREFIX = f"tracker_webcam_shm_"
+
 
 class VideoAdapter:
-    def __init__(self, frame: numpy.ndarray):
-        # TODO: получает кадр и сам создает внутреннее представление данных по нему (shared memory и настройки кадра)
-        self.shared_memory = SharedMemory(size=frame.size*frame.itemsize, create=True)
+    def __init__(self, frame: numpy.ndarray, rotate_degree: Value = None, shm_name: str = None):
+        """
+        VideoAdapter для работы с shared memory между процессами.
+        
+        Args:
+            frame: Исходный кадр для определения размеров
+            rotate_degree: Value для хранения угла поворота (создается автоматически если None)
+            shm_name: Имя shared memory (создается автоматически если None)
+        """
         self.height = frame.shape[0]
         self.width = frame.shape[1]
-        self.rotate_degree = Value('i', 0)
+        
+        if rotate_degree is None:
+            rotate_degree = Value('i', 0)
+        self.rotate_degree = rotate_degree
+        
+        self.shm_name = shm_name or f"{SHM_PREFIX}{os.getpid()}_{id(self)}"
+        self.shared_memory = SharedMemory(name=self.shm_name, create=shm_name is None, size=frame.size * frame.itemsize)
+        self.video_frame = None
 
     def setup_video_frame(self):
-        self.video_frame = numpy.ndarray((self.height, self.width, 3), dtype=numpy.uint8, buffer=self.shared_memory.buf)
+        if self.video_frame is None:
+            self.video_frame = numpy.ndarray((self.height, self.width, 3), dtype=numpy.uint8, buffer=self.shared_memory.buf)
 
     def get_ref_video_frame(self):
+        if self.video_frame is None:
+            raise RuntimeError("Video frame not initialized. Call setup_video_frame first.")
         return rotate_frame(self.video_frame, self.rotate_degree.value)
 
     def get_copy_video_frame(self):
         return numpy.copy(self.get_ref_video_frame())
+
+    def get_transfer_data(self):
+        return {
+            'shm_name': self.shm_name,
+            'height': self.height,
+            'width': self.width,
+            'rotate_degree': self.rotate_degree
+        }
+
+    @classmethod
+    def build_from_transfer_data(cls, transfer_data):
+        adapter = cls.__new__(cls)
+        adapter.height = transfer_data['height']
+        adapter.width = transfer_data['width']
+        adapter.shm_name = transfer_data['shm_name']
+        adapter.shared_memory = SharedMemory(name=adapter.shm_name)
+        adapter.rotate_degree = transfer_data['rotate_degree']
+        adapter.video_frame = None
+        adapter.setup_video_frame()
+        return adapter
+
+    def close(self):
+        if hasattr(self, 'shared_memory') and self.shared_memory:
+            self.shared_memory.close()
 
     def send_to_process(self):
         cp = copy(self)
