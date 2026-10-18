@@ -9,7 +9,7 @@ import cv2
 import numpy
 
 from tracker.utils.fps import FPSCounter, FPSLimiter
-from tracker.utils.image_processing import rotate_frame
+from tracker.utils.image_processing import rotate_frame, flip_frame
 from tracker.utils.shared_objects import SharedFlag
 
 SHM_PREFIX = f"tracker_webcam_shm_"
@@ -31,6 +31,8 @@ class VideoAdapter:
         if rotate_degree is None:
             rotate_degree = Value('i', 0)
         self.rotate_degree = rotate_degree
+        self.flip_horizontal = False
+        self.flip_vertical = False
         
         self.shm_name = shm_name or f"{SHM_PREFIX}{os.getpid()}_{id(self)}"
         self.shared_memory = SharedMemory(name=self.shm_name, create=shm_name is None, size=frame.size * frame.itemsize)
@@ -43,7 +45,8 @@ class VideoAdapter:
     def get_ref_video_frame(self):
         if self.video_frame is None:
             raise RuntimeError("Video frame not initialized. Call setup_video_frame first.")
-        return rotate_frame(self.video_frame, self.rotate_degree.value)
+        frame = rotate_frame(self.video_frame, self.rotate_degree.value)
+        return flip_frame(frame, self.flip_horizontal, self.flip_vertical)
 
     def get_copy_video_frame(self):
         return numpy.copy(self.get_ref_video_frame())
@@ -64,6 +67,8 @@ class VideoAdapter:
         adapter.shm_name = transfer_data['shm_name']
         adapter.shared_memory = SharedMemory(name=adapter.shm_name)
         adapter.rotate_degree = transfer_data['rotate_degree']
+        adapter.flip_horizontal = False
+        adapter.flip_vertical = False
         adapter.video_frame = None
         adapter.setup_video_frame()
         return adapter

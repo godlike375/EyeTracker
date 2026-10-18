@@ -1,9 +1,9 @@
-dlib
+dlib-bin
 numpy
 opencv-python
 Pillow
 pyserial
-PySide6
+PyQt6
 scipy
 fastdtw
 PyOpenGL

@@ -2,6 +2,7 @@ import sys
 import cv2
 import numpy as np
 import time
+import math
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout,
@@ -29,6 +30,61 @@ class VideoThread(QThread):
         self.fps_limit = fps_limit
         self.running = True
 
+        # Генерация геометрии головы один раз при инициализации
+        self.head_points, self.eyes_data = self.generate_head_model()
+
+    def generate_head_model(self):
+        """
+        Генерирует облако точек головы и детальные координаты глаз.
+        Масштаб увеличен в 3 раза.
+        """
+        points = []
+        # Параметры головы (эллипсоид)
+        head_center = np.array([0.0, 0.18, 0.24])
+        radii = np.array([0.225, 0.33, 0.27])
+
+        num_theta, num_phi = 40, 30
+        for i in range(num_theta):
+            theta = 2 * math.pi * i / num_theta
+            for j in range(num_phi):
+                phi = math.pi * j / num_phi
+                x = head_center[0] + radii[0] * math.sin(phi) * math.cos(theta)
+                y = head_center[1] + radii[1] * math.cos(phi)
+                z = head_center[2] + radii[2] * math.sin(phi) * math.sin(theta)
+                points.append([x, y, z])
+
+        # Параметры глаз (в 3х масштабе)
+        eye_x = 0.105  # Смещение глаз от центра вправо/влево
+        eye_y = 0.18   # Смещение вниз от доски
+        eye_z = 0.08   # Глубина центра глазного яблока внутри головы
+
+        # Расстояние от центра яблока до зрачка (радиус глаза ~2.5-3 см * 3)
+        eye_radius = 0.07
+
+        eyes_data = {}
+        for side in ['left', 'right']:
+            sign = -1 if side == 'left' else 1
+
+            # 1. Центр глазного яблока (глубокая точка)
+            center = np.array([sign * eye_x, eye_y, eye_z])
+
+            # 2. Центр зрачка (на поверхности, ближе к камере, т.е. меньше Z)
+            # Зрачок находится на той же линии X и Y, но выдвинут вперед по Z
+            pupil = np.array([sign * eye_x, eye_y, eye_z - eye_radius])
+
+            # 3. Вектор взгляда (от центра через зрачок)
+            gaze_dir = pupil - center
+            # Удлиняем луч для визуализации (на 1.2 метра)
+            gaze_end = center + (gaze_dir / np.linalg.norm(gaze_dir)) * 0.2
+
+            eyes_data[side] = {
+                'center': center,
+                'pupil': pupil,
+                'gaze_end': gaze_end
+            }
+
+        return np.array(points, dtype=np.float32), eyes_data
+
     def stop(self):
         self.running = False
         self.wait()
@@ -54,18 +110,23 @@ class VideoThread(QThread):
             corners, ids, rejected = self.detector.detectMarkers(frame)
 
             if ids is not None and len(ids) > 0:
-                cv2.aruco.drawDetectedMarkers(frame, corners, ids)
+                # Отрисовка маркеров (опционально, можно убрать для чистоты)
+                # cv2.aruco.drawDetectedMarkers(frame, corners, ids)
 
-                ret, rvec, tvec = cv2.aruco.estimatePoseBoard(
+                ret_pose, rvec, tvec = cv2.aruco.estimatePoseBoard(
                     corners, ids, self.board, self.camera_matrix, self.dist_coeffs,
                     None, None, False
                 )
 
-                if ret > 0:
+                if ret_pose > 0:
+                    # Отрисовка осей доски
                     cv2.drawFrameAxes(
                         frame, self.camera_matrix, self.dist_coeffs,
                         rvec, tvec, self.axis_length
                     )
+
+                    # Отрисовка 3D головы и лучей
+                    self.draw_face_and_gaze(frame, rvec, tvec)
 
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             self.frame_signal.emit(rgb_frame)
@@ -74,6 +135,66 @@ class VideoThread(QThread):
                 time.sleep(delay)
 
         cap.release()
+
+    def draw_face_and_gaze(self, img, rvec, tvec):
+        # --- 1. Подготовка слоев для прозрачности ---
+        # Создаем черную маску того же размера, что и кадр
+        mask = np.zeros_like(img, dtype=np.uint8)
+
+        R, _ = cv2.Rodrigues(rvec)
+        points_cam = np.dot(R, self.head_points.T) + tvec
+        z_values = points_cam[2, :]
+
+        img_points, _ = cv2.projectPoints(self.head_points, rvec, tvec, self.camera_matrix, self.dist_coeffs)
+        img_points = img_points.reshape(-1, 2).astype(int)
+
+        if len(z_values) > 0:
+            min_z, max_z = np.min(z_values), np.max(z_values)
+            range_z = max_z - min_z if max_z != min_z else 1.0
+
+            # Сортируем: сначала рисуем дальние, потом ближние (чтобы ближние перекрывали дальние на маске)
+            sorted_indices = np.argsort(z_values)[::-1]
+
+            for i in sorted_indices:
+                px, py = img_points[i]
+                if 0 <= px < img.shape[1] and 0 <= py < img.shape[0]:
+                    # Вычисляем "альфу" (яркость на маске):
+                    # Ближе к камере (min_z) -> 255 (непрозрачный)
+                    # Дальше от камеры (max_z) -> 0 (полностью прозрачный)
+                    alpha_val = int(255 * (1.0 - (z_values[i] - min_z) / range_z))
+                    alpha_val = max(0, min(255, alpha_val))
+
+                    # Рисуем точку на маске белым цветом с интенсивностью alpha_val
+                    # Цвет (alpha_val, alpha_val, alpha_val)
+                    cv2.circle(mask, (px, py), 2, (alpha_val, alpha_val, alpha_val), -1)
+
+            # --- 2. Смешивание маски с основным изображением ---
+            # Превращаем маску в массив от 0.0 до 1.0
+            alpha_map = mask.astype(float) / 255.0
+
+            # Цвет точек головы (пусть будут чисто белыми)
+            head_color = np.array([255, 255, 255], dtype=float)
+
+            # Формула смешивания: Итог = (1 - Альфа) * Фон + Альфа * Цвет_Точки
+            # Это делается быстро через NumPy для всего кадра сразу
+            img[:] = ((1.0 - alpha_map) * img + alpha_map * head_color).astype(np.uint8)
+
+        # --- 3. Отрисовка глаз и лучей (поверх прозрачной головы, непрозрачно) ---
+        for side in ['left', 'right']:
+            eye = self.eyes_data[side]
+            pts_3d = np.array([eye['center'], eye['pupil'], eye['gaze_end']], dtype=np.float32)
+            pts_2d, _ = cv2.projectPoints(pts_3d, rvec, tvec, self.camera_matrix, self.dist_coeffs)
+            pts_2d = pts_2d.reshape(-1, 2).astype(int)
+
+            p_center, p_pupil, p_gaze = tuple(pts_2d[0]), tuple(pts_2d[1]), tuple(pts_2d[2])
+
+            # Луч и стрелка
+            cv2.line(img, p_center, p_gaze, (0, 165, 255), 2, cv2.LINE_AA)
+            cv2.arrowedLine(img, p_pupil, p_gaze, (0, 255, 255), 2, cv2.LINE_AA, tipLength=0.2)
+
+            # Точки (жирные и непрозрачные)
+            cv2.circle(img, p_center, 6, (0, 0, 255), -1) # Центр яблока - Красный
+            cv2.circle(img, p_pupil, 6, (0, 255, 0), -1)  # Зрачок - Зеленый
 
 
 class MainWindow(QMainWindow):
@@ -308,6 +429,26 @@ class MainWindow(QMainWindow):
         )
         if path:
             self.video_path.setText(path)
+
+            # Считываем параметры видео для установки дефолтной калибровки
+            cap = cv2.VideoCapture(path)
+            if cap.isOpened():
+                w = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+                h = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+                cap.release()
+
+                if w > 0 and h > 0:
+                    # Устанавливаем центр изображения
+                    self.cx.setValue(w / 2)
+                    self.cy.setValue(h / 2)
+                    # Устанавливаем фокусное расстояние (аппроксимация: fx = fy = width)
+                    self.fx.setValue(w)
+                    self.fy.setValue(w)
+
+                    # Сбрасываем ресайз в 0 (оригинал), чтобы параметры калибровки
+                    # соответствовали размеру кадра при обработке
+                    self.resize_w.setValue(0)
+                    self.resize_h.setValue(0)
 
     def start_tracking(self):
         video_file = self.video_path.text()

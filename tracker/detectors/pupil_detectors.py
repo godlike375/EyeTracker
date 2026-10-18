@@ -10,6 +10,7 @@ from scipy.ndimage import gaussian_filter1d
 from tracker.detectors.detectors import Detector, PupilDetector
 from tracker.detectors.jonnedtc import IsophoteCurvature
 from tracker.utils.denoise import MovingAverageDenoiser
+from tracker.utils.image_processing import blur_image, contrast_image
 from tracker.utils.coordinates import Point
 
 
@@ -81,16 +82,13 @@ class DarkAreaPupilDetector(PupilDetector):
         except:
             self.pupil.invalidate()
             return
-        blurred = self.blur_image(gray, blur=25)
-        blurred = self.blur_image(blurred, erode=8)
+        blurred = blur_image(gray, blur=25)
+        blurred = blur_image(blurred, erode=8)
 
-        blurred = self.contrast_image(blurred, contrast=0.7, brightness=18)
+        blurred = contrast_image(blurred, contrast=0.7, brightness=18)
         dark_threshold = self.find_optimal_threshold(blurred)
         dark_thresholded = cv2.threshold(blurred, dark_threshold, 255, cv2.THRESH_BINARY_INV)[1]
         pupil_by_contours, px, py, pw, ph, area = self.detect_contours(dark_thresholded, blurred)
-        #cv2.imshow('dark threshold', dark_thresholded)
-        #cv2.imshow('blur', blurred)
-        #cv2.waitKey(1)
 
         if pupil_by_contours is not None:
             self.x.add_if_diff_from_avg(pupil_by_contours[0], diff_by=0.5)
@@ -107,7 +105,7 @@ class HoughCirclesPupilDetector(PupilDetector):
     def detect(self, raw):
         gray = self.get_eye_frame(raw)
         ex, ey = self.detect_area[0], self.detect_area[1]
-        center = self.detect_circles(self.blur_image(gray, blur=7, dilate=5))
+        center = self.detect_circles(blur_image(gray, blur=7, dilate=5))
         self.pupil.array[:] = center.x + ex, center.y + ey
 
     def detect_circles(self, eye_frame: numpy.ndarray) -> Point:

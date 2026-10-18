@@ -47,20 +47,7 @@ def find_optimal_threshold(blurred, base_factor=None):
     return try_threshold
 
 
-def blur_image(gray: numpy.ndarray, blur=0, dilate=0, erode=0):
-    blurred = gray
-    if blur:
-        blurred = cv2.medianBlur(blurred, blur)
-    if dilate:
-        kernel = np.ones((dilate, dilate), np.uint8)
-        blurred = cv2.dilate(blurred, kernel, iterations=1)
-    if erode:
-        kernel = np.ones((erode, erode), np.uint8)
-        blurred = cv2.erode(blurred, kernel, iterations=1)
-    return blurred
-
-def contrast_image(frame: numpy.ndarray, contrast=1.3, brightness = 0):
-    return cv2.addWeighted(frame, contrast, numpy.zeros(frame.shape, frame.dtype), 0, brightness)
+from tracker.utils.image_processing import blur_image, contrast_image
 
 
 while True:

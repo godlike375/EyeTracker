@@ -72,3 +72,28 @@ def rotate_frame(frame: np.ndarray, degree: int):
         return cv2.rotate(frame, DEGREE_TO_CV2_MAP[degree])
     else:
         return frame
+
+
+def flip_frame(frame: np.ndarray, horizontal: bool = False, vertical: bool = False):
+    if horizontal:
+        frame = cv2.flip(frame, 1)
+    if vertical:
+        frame = cv2.flip(frame, 0)
+    return frame
+
+
+def blur_image(gray: np.ndarray, blur=0, dilate=0, erode=0):
+    blurred = gray
+    if blur:
+        blurred = cv2.medianBlur(blurred, blur)
+    if dilate:
+        kernel = np.ones((dilate, dilate), np.uint8)
+        blurred = cv2.dilate(blurred, kernel, iterations=1)
+    if erode:
+        kernel = np.ones((erode, erode), np.uint8)
+        blurred = cv2.erode(blurred, kernel, iterations=1)
+    return blurred
+
+
+def contrast_image(frame: np.ndarray, contrast=1, brightness=0):
+    return cv2.addWeighted(frame, contrast, np.zeros(frame.shape, frame.dtype), 0, brightness)
