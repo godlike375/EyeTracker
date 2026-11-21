@@ -1,6 +1,7 @@
 from multiprocessing import Process
 
 import numpy
+import cv2
 
 from tracker.camera import VideoAdapter
 from tracker.detectors.haar_eye_detector import HaarCorrelationEyeValidator
@@ -51,6 +52,8 @@ class EyePupilDetector:
             self.detect(self.video_adapter.get_copy_video_frame())
 
     def detect(self, raw: numpy.ndarray):
+        # cv2.imshow('eye_detector', raw)
+        # cv2.waitKey(1)
         self.eye_detector.detect(raw)
         self.pupil_detect_area.left_top.array[:] = self.eye_detector.left_eye.left_top.array[:]
         self.pupil_detect_area.right_bottom.array[:] = self.eye_detector.left_eye.right_bottom.array[:]

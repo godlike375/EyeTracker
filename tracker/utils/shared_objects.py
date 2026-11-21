@@ -79,6 +79,11 @@ class SharedVector:
         return Point(self.x, self.y)
 
 
+class _BoolCallable(int):
+    def __call__(self):
+        return bool(self)
+
+
 class SharedBox:
     def __init__(self, type: str = 'i', initial_value = INITIAL_VALUE):
         self.left_top = SharedPoint(type, initial_value)
@@ -127,8 +132,10 @@ class SharedBox:
     def y2(self, value):
         self.right_bottom.y = value
 
+    @property
     def is_valid(self):
-        return self.left_top.is_valid and self.right_bottom.is_valid
+        val = 1 if (self.left_top.is_valid and self.right_bottom.is_valid and self.x1 != INVALID_VALUE and self.y1 != INVALID_VALUE) else 0
+        return _BoolCallable(val)
 
     def __add__(self, other: Point):
         return BoundingBox(*(self.left_top+other), *(self.right_bottom+other))

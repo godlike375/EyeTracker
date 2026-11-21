@@ -8,6 +8,7 @@ import numpy
 from tracker.detectors.detectors import EyeDetector
 from tracker.utils.coordinates import Point, int_avg, avg_closer_to_min, n_largest_indices
 from tracker.utils.denoise import MovingAverageDenoiser
+from tracker.utils.image_processing import blur_image
 
 
 @dataclass
@@ -121,7 +122,7 @@ class HaarCorrelationEyeValidator(EyeDetector):
 
     def detect(self, raw: numpy.ndarray):
         gray = self.get_eye_frame(raw)
-        gray = self.blur_image(gray, blur=9)
+        gray = blur_image(gray, blur=9)
         # cv2.imshow('haar_input', gray)
         # cv2.waitKey(1)
         self.current_frame_count += 1
@@ -204,9 +205,9 @@ class HaarCorrelationEyeValidator(EyeDetector):
                 left_eye = final_boxes[0] if final_boxes[0][0] < final_boxes[1][0] else final_boxes[1]
                 right_eye = final_boxes[0] if final_boxes[0][0] > final_boxes[1][0] else final_boxes[1]
 
-                if left_eye[4] < 3900:
+                if left_eye[4] < 1:
                     self.left_eye.invalidate()
-                if right_eye[4] < 3900:
+                if right_eye[4] < 1:
                     self.right_eye.invalidate()
 
                 self.left_box.add_if_diff_from_avg(*left_eye[:-1])

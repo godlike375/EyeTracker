@@ -9,6 +9,7 @@ import numpy as np
 from tracker.abstractions import ProcessBased
 from tracker.camera import VideoAdapter
 from tracker.utils.fps import FPSLimiter, FPS_120
+from tracker.utils.image_processing import blur_image, contrast_image
 from tracker.utils.shared_objects import SharedBox, SharedPoint, SharedVector, INITIAL_VALUE
 
 
@@ -93,21 +94,6 @@ class Detector(ProcessBased):
             #continue
             ...
         raise Exception('wrong detection area')
-
-    def blur_image(self, gray: numpy.ndarray, blur=0, dilate=0, erode=0):
-        blurred = gray
-        if blur:
-            blurred = cv2.medianBlur(blurred, blur)
-        if dilate:
-            kernel = np.ones((dilate, dilate), np.uint8)
-            blurred = cv2.dilate(blurred, kernel, iterations=1)
-        if erode:
-            kernel = np.ones((erode, erode), np.uint8)
-            blurred = cv2.erode(blurred, kernel, iterations=1)
-        return blurred
-
-    def contrast_image(self, frame: numpy.ndarray, contrast=1, brightness = 0):
-        return cv2.addWeighted(frame, contrast, numpy.zeros(frame.shape, frame.dtype), 0, brightness)
 
 
 class EyeDetector(Detector):
